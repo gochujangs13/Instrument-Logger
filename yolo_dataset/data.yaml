@@ -1,0 +1,4 @@
+train: C:\Users\Oven 3\.gemini\antigravity\scratch\3M Instrument Logger\yolo_dataset\images\train
+val: C:\Users\Oven 3\.gemini\antigravity\scratch\3M Instrument Logger\yolo_dataset\images\train
+nc: 1
+names: ['Board A']

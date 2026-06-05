@@ -1,0 +1,31 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# PyInstaller / Build outputs
+build/
+dist/
+*.spec
+
+# Environments (Virtual environments)
+.venv/
+venv/
+env/
+
+# Logs and system temporary files
+*.log
+crash_log.txt
+keithley_diag_log.txt
+keithley_final_report.txt
+sp2100_diag_result_*.txt
+.DS_Store
+
+# Local test data and backups
+DAQ_Data.csv
+Backups/
+
+# User-specific config files (COM 포트 등 로컬 설정 저장용)
+config.json
+ai_photo_editor_settings.json
+yolo_projects.json
