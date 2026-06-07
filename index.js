@@ -3,11 +3,13 @@ import Keithley2700 from './instruments/keithley_2700.js';
 import MitutoyoVL50 from './instruments/mitutoyo_vl50.js';
 import Agilent4339B from './instruments/agilent_4339b.js';
 import DAQ6510      from './instruments/daq_6510.js';
+import SP2100       from './instruments/sp2100_logger.js';
+import PT2000       from './instruments/pt2000_probe_tack.js';
 
 // ── Instrument registry ───────────────────────────────────────────────────────
 // To add a new instrument: create instruments/your_device.js and import it here.
 const INSTRUMENTS = {};
-[Hioki3540, Keithley2700, MitutoyoVL50, Agilent4339B, DAQ6510].forEach(m => {
+[Hioki3540, Keithley2700, MitutoyoVL50, Agilent4339B, DAQ6510, SP2100, PT2000].forEach(m => {
   INSTRUMENTS[m.name] = m;
 });
 
@@ -146,6 +148,102 @@ const T = {
     daq_select_all: '전체 선택',
     daq_no_chart: '측정 데이터가 없습니다',
     daq_connect_first: '먼저 계측기를 연결하세요.',
+
+    // SP-2100 / TL-2200
+    sp_model_label: '장비 모델',
+    sp_comm_label: '통신 설정',
+    sp_comm_auto: '(자동)',
+    sp_test_section: '테스트 조건 설정',
+    sp_speed_label: 'Test Speed',
+    sp_delay_label: 'Initial Delay',
+    sp_avg_label: 'Averaging Time',
+    sp_test_hint: '테스트 조건은 CSV/복사 내보내기 상단에 메모로 함께 기록됩니다.',
+    sp_group_label: '그룹당 개수',
+    sp_group_hint: '체크한 행이 없으면 이 개수 단위로 그룹을 나눠 분포 차트를 그립니다.',
+    sp_table_title: '📋 측정 기록',
+    sp_del_checked: '체크 삭제',
+    sp_dist_title: '📊 AVG 분포',
+    sp_dist_hint: '체크한 행(또는 그룹별)의 AVG 값 분포를 박스-수염 차트로 표시합니다.',
+    sp_selected: '선택',
+    sp_overwrite_log: '[덮어쓰기]',
+    sp_conn_log: '모델 선택됨',
+    sp_model_changed: '모델 변경됨',
+    sp_del_none: '체크된 행이 없습니다.',
+    sp_del_done: '체크된 행을 삭제했습니다.',
+    sp_no_data_log: '측정 데이터가 없습니다.',
+    sp_csv_ok: 'CSV 내보내기 완료.',
+    sp_cleared: '측정 기록을 초기화했습니다.',
+    sp_clear_confirm: '모든 측정 기록을 지우겠습니까?',
+    sp_copy_empty: '복사할 측정 기록이 없습니다.',
+    sp_copy_ok: '측정 기록을 클립보드에 복사했습니다.',
+    sp_copy_fail: '복사 실패 — 표를 직접 선택해 복사해주세요.',
+
+    // PT-2000 Probe Tack
+    pt_conn_label: '장비 연결 (WebHID)',
+    pt_dev_connected: '장비 연결됨',
+    pt_dev_disconnected: '연결 해제됨',
+    pt_conn_failed: '연결 실패',
+    pt_webhid_unsupported: '이 브라우저는 WebHID를 지원하지 않습니다. 데스크톱 Chrome/Edge를 사용하세요.',
+    pt_test_settings: '시험 설정',
+    pt_notice: '⚠ 아래 값은 <b>장비를 제어하지 않습니다.</b> 변위·Work 계산용 참고값이므로, 반드시 장비(Change Test Parameters)에 설정된 값과 <b>동일하게</b> 입력하세요.',
+    pt_sample_name: '샘플명',
+    pt_sample: '샘플',
+    pt_speed_label: '속도 (mm/s)',
+    pt_dwell_label: 'Dwell (s)',
+    pt_loadcell_label: 'Load Cell',
+    pt_tol_label: '이상치 허용 편차 (중앙값 대비 %)',
+    pt_tol_hint: '같은 샘플명 그룹에 4개 이상 측정 시, 그룹 중앙값(Peak)에서 이 비율을 넘게 벗어난 행을 빨갛게 표시합니다.',
+    pt_repeat_label: '개수',
+    pt_repeat_hint: '같은 샘플명을 N개씩 묶어 자동으로 번호를 매깁니다 (예: 3이면 A-1-1, A-1-2, A-1-3, A-2-1 ...)',
+    pt_del_sel: 'DELETE SEL',
+    pt_failure_mode: '파괴모드',
+    pt_mode_interface: '계면 파괴',
+    pt_mode_cohesive: '응집 파괴',
+    pt_mode_transfer: '전이 파괴',
+    pt_graph_title: '📈 측정 그래프',
+    pt_graph_hint: '표에서 항목을 체크하면 여러 곡선을 겹쳐 비교할 수 있습니다. (체크 없으면 최근 측정 표시)',
+    pt_graph_empty: '측정 데이터를 가져오면 곡선이 표시됩니다',
+    pt_q_detected: 'Q 신호 감지 (시험 데이터 준비됨)',
+    pt_download_log: '다운로드',
+    pt_chunks: '청크',
+    pt_points: '포인트',
+    pt_early_stop: '조기종료',
+    pt_save_done: '데이터 저장 완료 — 장비 그래프 완료 후 [다음 시험 진행]을 누르세요',
+    pt_proceed_sent: '다음 시험 진행 신호(b) 전송 — Clean Probe 시작',
+    pt_collecting: '데이터 수집 중...',
+    pt_swap_hint: '이제 다음 샘플로 교체하세요~',
+    pt_meas_done: '측정 완료 · 데이터 저장됨',
+    pt_auto_close_hint: '20초 후 팝업창이 자동으로 닫힙니다. 잠시만 기다리세요.',
+    pt_proceed_btn: '다음 시험 진행',
+    pt_sec_auto: '초 후 자동 진행',
+    pt_proceed_warn: '⚠ 아래 버튼을 누르면 장비가 <b>Clean Probe</b> 동작을 시작합니다.<br>로드셀이 상단 리밋 스위치에서 <b>정상적으로 멈추는지</b> 확인하세요.<br><b>장비 화면에서 직접 닫기를 누르지 말고, 이 버튼으로 진행하세요.</b>',
+    pt_aborted: '시험 중단됨 · 기록 안 함',
+    pt_status: '상태',
+    pt_aborted_status: '중단 / 샘플 미접촉',
+    pt_abort_guide: '시험이 정상적으로 완료되지 않았습니다.<br>장비 화면의 안내에 따라 진행하세요:<br>① "test was aborted" → <b>OK</b><br>② "return to HOME position" → <b>HOME</b>',
+    pt_confirm: '확인',
+    pt_connect_first: '먼저 장비를 연결해 주세요.',
+    pt_remeasure_one: '재측정은 항목 1개만 선택해 주세요.',
+    pt_test_done_detected: '시험 완료 감지 → 자동 다운로드 시작',
+    pt_download_err: '다운로드 오류',
+    pt_no_curve: '시험 곡선을 받지 못했습니다.\n장비에서 시험을 먼저 완료했는지 확인해 주세요.',
+    pt_no_data: '수신 데이터 없음/부족',
+    pt_abort_detected: '시험 중단(abort) 감지 — 진행 신호를 보내지 않으며 기록하지 않습니다.',
+    pt_remeasured: '재측정',
+    pt_remeasure_done: '재측정 완료',
+    pt_meas_added: '측정 추가',
+    pt_label_changed: '라벨 변경',
+    pt_select_to_delete: '삭제할 항목을 선택해 주세요.',
+    pt_confirm_delete_n: '선택한',
+    pt_items: '개 항목을 삭제하시겠습니까',
+    pt_items_deleted: '개 항목 삭제',
+    pt_clear_confirm: '모든 측정 데이터를 삭제하시겠습니까?',
+    pt_cleared: '전체 데이터 초기화',
+    pt_no_export_data: '내보낼 데이터가 없습니다.',
+    pt_csv_ok: 'CSV 내보내기 완료',
+    pt_no_copy_data: '복사할 데이터가 없습니다.',
+    pt_copy_ok: '표 데이터를 클립보드에 복사했습니다.',
+    pt_copy_fail: '복사 실패 — 표를 직접 선택해 복사해주세요.',
   },
   en: {
     // topbar / launcher
@@ -280,6 +378,103 @@ const T = {
     daq_select_all: 'Select All',
     daq_no_chart: 'No measurement data',
     daq_connect_first: 'Please connect the instrument first.',
+
+    // SP-2100 / TL-2200
+    sp_model_label: 'Instrument Model',
+    sp_comm_label: 'Comm. Settings',
+    sp_comm_auto: '(auto)',
+    sp_test_section: 'Test Conditions',
+    sp_speed_label: 'Test Speed',
+    sp_delay_label: 'Initial Delay',
+    sp_avg_label: 'Averaging Time',
+    sp_test_hint: 'Test conditions are written as a header comment in CSV / clipboard exports.',
+    sp_group_label: 'Items per group',
+    sp_group_hint: 'When no rows are checked, the distribution chart groups data by this count.',
+    sp_table_title: '📋 Measurement Log',
+    sp_del_checked: 'Delete checked',
+    sp_dist_title: '📊 AVG Distribution',
+    sp_dist_hint: 'Shows a box-and-whisker chart of AVG values for checked rows (or by group).',
+    sp_selected: 'Selected',
+    sp_overwrite_log: '[Overwrite]',
+    sp_conn_log: 'Model selected',
+    sp_model_changed: 'Model changed',
+    sp_del_none: 'No rows are checked.',
+    sp_del_done: 'Deleted the checked rows.',
+    sp_no_data_log: 'No measurement data.',
+    sp_csv_ok: 'CSV export complete.',
+    sp_cleared: 'Cleared the measurement log.',
+    sp_clear_confirm: 'Clear all measurement records?',
+    sp_copy_empty: 'No measurement records to copy.',
+    sp_copy_ok: 'Copied measurement records to clipboard.',
+    sp_copy_fail: 'Copy failed — please select the table manually.',
+
+    // PT-2000 Probe Tack
+    pt_conn_label: 'Device Connection (WebHID)',
+    pt_dev_connected: 'Device connected',
+    pt_dev_disconnected: 'Disconnected',
+    pt_conn_failed: 'Connection failed',
+    pt_webhid_unsupported: 'This browser does not support WebHID. Please use desktop Chrome/Edge.',
+    pt_test_settings: 'Test Settings',
+    pt_notice: '⚠ The values below <b>do not control the device.</b> They are reference values for displacement/Work calculation only — make sure they <b>match</b> the values set on the device (Change Test Parameters).',
+    pt_sample_name: 'Sample Name',
+    pt_sample: 'Sample',
+    pt_speed_label: 'Speed (mm/s)',
+    pt_dwell_label: 'Dwell (s)',
+    pt_loadcell_label: 'Load Cell',
+    pt_tol_label: 'Outlier tolerance (% vs median)',
+    pt_tol_hint: 'When 4+ measurements share a sample-name group, rows whose Peak deviates from the group median by more than this percentage are highlighted in red.',
+    pt_repeat_label: 'Count',
+    pt_repeat_hint: 'Groups measurements with the same sample name into sets of N and numbers them automatically (e.g. 3 → A-1-1, A-1-2, A-1-3, A-2-1 ...)',
+    pt_del_sel: 'DELETE SEL',
+    pt_failure_mode: 'Failure Mode',
+    pt_mode_interface: 'Interfacial failure',
+    pt_mode_cohesive: 'Cohesive failure',
+    pt_mode_transfer: 'Transfer failure',
+    pt_graph_title: '📈 Measurement Graph',
+    pt_graph_hint: 'Check rows in the table to overlay multiple curves for comparison. (Shows the latest measurement if none are checked)',
+    pt_graph_empty: 'Curves will appear here once measurements are imported',
+    pt_q_detected: 'Q signal detected (test data ready)',
+    pt_download_log: 'Download',
+    pt_chunks: 'chunks',
+    pt_points: 'points',
+    pt_early_stop: 'early stop',
+    pt_save_done: 'Data saved — press [Proceed to Next Test] once the device graph finishes',
+    pt_proceed_sent: 'Proceed signal (b) sent — Clean Probe starting',
+    pt_collecting: 'Collecting data...',
+    pt_swap_hint: 'You can swap in the next sample now~',
+    pt_meas_done: 'Measurement complete · data saved',
+    pt_auto_close_hint: 'This popup will close automatically in 20 seconds. Please wait.',
+    pt_proceed_btn: 'Proceed to next test',
+    pt_sec_auto: 's auto-proceed',
+    pt_proceed_warn: '⚠ Pressing the button below will start the device\'s <b>Clean Probe</b> action.<br>Verify that the load cell <b>stops correctly</b> at the upper limit switch.<br><b>Do not close it from the device screen — proceed using this button instead.</b>',
+    pt_aborted: 'Test aborted · not recorded',
+    pt_status: 'Status',
+    pt_aborted_status: 'Aborted / sample not contacted',
+    pt_aborted_status_short: 'Aborted',
+    pt_abort_guide: 'The test did not complete normally.<br>Follow the guidance on the device screen:<br>① "test was aborted" → <b>OK</b><br>② "return to HOME position" → <b>HOME</b>',
+    pt_confirm: 'OK',
+    pt_connect_first: 'Please connect the device first.',
+    pt_remeasure_one: 'Please select only one item to re-measure.',
+    pt_test_done_detected: 'Test completion detected → starting auto download',
+    pt_download_err: 'Download error',
+    pt_no_curve: 'Failed to receive the test curve.\nPlease check that the test has finished on the device.',
+    pt_no_data: 'No / insufficient data received',
+    pt_abort_detected: 'Test abort detected — proceed signal will not be sent and this will not be recorded.',
+    pt_remeasured: 're-measured',
+    pt_remeasure_done: 'Re-measurement complete',
+    pt_meas_added: 'Measurement added',
+    pt_label_changed: 'Label changed',
+    pt_select_to_delete: 'Please select items to delete.',
+    pt_confirm_delete_n: 'Delete the selected',
+    pt_items: 'item(s)?',
+    pt_items_deleted: 'item(s) deleted',
+    pt_clear_confirm: 'Delete all measurement data?',
+    pt_cleared: 'All data cleared',
+    pt_no_export_data: 'No data to export.',
+    pt_csv_ok: 'CSV export complete',
+    pt_no_copy_data: 'No data to copy.',
+    pt_copy_ok: 'Table data copied to clipboard.',
+    pt_copy_fail: 'Copy failed — please select the table manually.',
   },
 };
 
@@ -677,18 +872,27 @@ class App {
       this._buildLauncher();
     }
     // Re-apply instrument sidebar if loaded
-    if (this.instr?.buildSidebar) {
+    if (this.instr) {
       this._rebuildInstrumentSidebar();
     }
   }
 
   _rebuildInstrumentSidebar() {
-    // Re-render instrument-specific sidebar with new language
-    if (!this.instr) return;
-    const area = document.getElementById('dynamicSettings');
-    if (area && this.instr.buildSidebar) {
-      area.innerHTML = '';
-      this.instr.buildSidebar(area);
+    if (!this.instr || document.getElementById('instrumentView').hidden) return;
+    if (this.instr.viewType === 'custom') {
+      // Custom-view modules (Agilent, DAQ, SP-2100, ...) build their own
+      // sidebar/center/right-panel HTML with translated strings baked in —
+      // simplest correct fix is to rebuild all three on language change.
+      this.instr.buildSidebar(document.getElementById('sidebar'));
+      this.instr.buildCenter(document.getElementById('center'));
+      this.instr.buildRightPanel(document.getElementById('rightpanel'));
+      this._updateCount();
+    } else {
+      const area = document.getElementById('dynamicSettings');
+      if (area && this.instr.buildSettings) {
+        area.innerHTML = '';
+        this.instr.buildSettings(area);
+      }
     }
   }
 
@@ -1333,3 +1537,23 @@ window.app = new App();
 window.addEventListener('resize', () => {
   if (app.instr?.viewType === 'grid') app._redrawChart();
 });
+
+// ── Responsive scale ──────────────────────────────────────────────────────────
+// Keep the whole UI's proportions (layout + text) visually consistent across
+// different monitor resolutions / OS display-scaling settings — bigger screens
+// render everything proportionally larger, smaller screens proportionally
+// smaller, all relative to the reference design width below.
+(function () {
+  const REF_W = 1600;
+  const MIN_Z = 0.6, MAX_Z = 1.6;
+  function apply() {
+    // `window.innerWidth` reports the layout viewport in CSS px and is NOT
+    // affected by `documentElement.style.zoom` in Chromium — so it can be used
+    // directly as the "natural" width with no feedback-loop correction needed.
+    const ratio = window.innerWidth / REF_W;
+    const zoom = Math.max(MIN_Z, Math.min(MAX_Z, ratio));
+    document.documentElement.style.zoom = zoom;
+  }
+  apply();
+  window.addEventListener('resize', apply);
+})();
