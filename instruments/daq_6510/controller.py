@@ -76,7 +76,7 @@ class DAQ6510Controller:
             
             # Set channel delay natively on the instrument if requested
             if ch_delay > 0:
-                daq.write(f'ROUT:SCAN:DELay {ch_delay}, {ch_list_str}')
+                daq.write(f'ROUT:CHAN:DELay {ch_delay}, {ch_list_str}')
             
             start_time = datetime.now()
             
