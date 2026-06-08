@@ -67,6 +67,7 @@ export function syslogPanelHTML() {
 
 export function fmt(v) {
   if (v === undefined || isNaN(v)) return '---';
+  if (!isFinite(v)) return 'OL';   // overflow / open-circuit sentinel (e.g. SCPI ±9.9E+37)
   const a = Math.abs(v);
   if (a === 0) return '0';
   if (a >= 1e6 || a < 1e-3) return v.toExponential(2);

@@ -141,7 +141,9 @@ function drawChart(slotFilter) {
 
     const chIdx = slotChs.map(c => S.channels.indexOf(c));
     const colors = ['#3fb6e8','#2b8fff','#22b06a','#f59e0b','#e8554e','#a78bfa','#fb7185','#34d399','#fbbf24','#60a5fa'];
-    const allVals = rows.flatMap(r => chIdx.map(ci => r.values[ci]).filter(v => !isNaN(v)));
+    // Exclude overflow ("OL", stored as ±Infinity) readings from axis scaling —
+    // otherwise a single OL sample (~1e37) would collapse all real data to a flat line.
+    const allVals = rows.flatMap(r => chIdx.map(ci => r.values[ci]).filter(v => isFinite(v)));
     if (!allVals.length) { if (emptyEl) emptyEl.style.display = ''; return; }
 
     const mn = Math.min(...allVals), mx = Math.max(...allVals), span = mx - mn || 1;
@@ -168,7 +170,7 @@ function drawChart(slotFilter) {
       let started = false;
       rows.forEach((r, ri) => {
         const v = r.values[gi];
-        if (isNaN(v)) { started = false; return; }
+        if (!isFinite(v)) { started = false; return; }   // break line on missing/OL readings
         if (!started) { ctx.moveTo(toX(ri), toY(v)); started = true; }
         else ctx.lineTo(toX(ri), toY(v));
       });
@@ -293,11 +295,18 @@ function stop() {
 }
 
 // ── Line handler ──────────────────────────────────────────────────────────────
+// SCPI/Keithley instruments report overflow (open-circuit / out-of-range) not as
+// a normal reading but as a huge sentinel value (~ ±9.9E+37). Anything past this
+// threshold is treated as "OL" rather than a literal resistance value.
+const OVERFLOW_THRESHOLD = 1e30;
+
 function onLine(line) {
   if (!S?.running) return;
   const parts = line.split(',').map(s => {
     const m = s.match(/([+-]?\d+\.?\d*[Ee][+-]?\d+)/);
-    return m ? parseFloat(m[1]) : NaN;
+    if (!m) return NaN;
+    const v = parseFloat(m[1]);
+    return Math.abs(v) >= OVERFLOW_THRESHOLD ? Infinity : v;   // -> displays as "OL"
   });
   if (!parts.some(v => !isNaN(v))) return;
 
@@ -318,7 +327,9 @@ function onLine(line) {
 function exportCSV() {
   if (!S.rows.length) { app.log(t('daq_no_data_log'), 'warn'); return; }
   const cols = ['Time', ...S.channels.map(c => c.name)];
-  const rows = [cols, ...S.rows.map(r => [r.time, ...r.values.map(v => isNaN(v) ? '' : v.toExponential(4))])];
+  const rows = [cols, ...S.rows.map(r => [r.time, ...r.values.map(v =>
+    isNaN(v) ? '' : !isFinite(v) ? 'OL' : v.toExponential(4)
+  )])];
   const a = Object.assign(document.createElement('a'), {
     href: URL.createObjectURL(new Blob(['﻿' + rows.map(r => r.join(',')).join('\n')], { type: 'text/csv;charset=utf-8' })),
     download: `DAQ6510_${dateStr()}.csv`,
