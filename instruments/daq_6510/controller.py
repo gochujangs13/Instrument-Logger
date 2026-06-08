@@ -60,6 +60,7 @@ class DAQ6510Controller:
             
             daq.write('*RST')
             time.sleep(0.5)
+            daq.write('ROUT:TERM REAR')  # Route DMM measurements to the rear slot/multiplexer card
             
             func = "FRES" if mode == '4-Wire' else "RES"
             daq.write(f'SENS:FUNC "{func}", (@{",".join(selected_channels)})')
@@ -103,8 +104,9 @@ class DAQ6510Controller:
         finally:
             if daq:
                 try: 
-                    daq.write(':SYST:LOC') # 로컬 모드로 복구
-                    daq.write('ROUT:OPEN:ALL')
+                    daq.write('SYST:LOC') # 로컬 모드로 복구
+                    if selected_channels:
+                        daq.write(f'ROUT:OPEN (@{",".join(selected_channels)})')
                     daq.close()
                 except: pass
             self.is_running = False
