@@ -8,7 +8,6 @@ import customtkinter as ctk
 from tkinter import filedialog, messagebox
 from tkinterdnd2 import DND_FILES
 from PIL import Image, ImageTk, ImageOps
-from .ui_yolo_train import YoloTrainDialog
 
 class Step1Frame(ctk.CTkFrame):
     def __init__(self, parent, app):
@@ -121,13 +120,7 @@ class Step1Frame(ctk.CTkFrame):
         self.out_h_var.trace_add("write", lambda *_: self._save_config())
         self.out_w_var.trace_add("write", lambda *_: self._save_config())
 
-        # Header right - Training Button
-        self.train_btn = ctk.CTkButton(
-            hdr, text=self.app.app.t("ai_step1_crop_learn", "🧠 크롭 영역 학습"), width=160, height=36,
-            fg_color=("#6d28d9", "#7c3aed"), hover_color=("#5b21b6", "#6d28d9"),
-            font=ctk.CTkFont(size=13, weight="bold"),
-            command=self._open_training_dialog)
-        self.train_btn.pack(side="right", padx=(5, 20), pady=10)
+        pass
 
         # Canvas
         canvas_frame = ctk.CTkFrame(workspace, fg_color="#000000", corner_radius=12)
@@ -187,11 +180,7 @@ class Step1Frame(ctk.CTkFrame):
         self.ai_btn.pack(side="left", padx=5)
 
 
-        # 학습 상태 표시 라벨
-        self.train_status_lbl = ctk.CTkLabel(
-            left_btns, text="", text_color="#10b981",
-            font=ctk.CTkFont(size=11, weight="bold"))
-        self.train_status_lbl.pack(side="left", padx=5)
+        pass
 
         self.next_btn = ctk.CTkButton(footer, text=self.app.app.t("ai_step1_next", "다음 단계로 ▶"), width=160,
                                       fg_color="#4f46e5", hover_color="#6366f1",
@@ -219,51 +208,13 @@ class Step1Frame(ctk.CTkFrame):
                     cfg = json.load(f)
                     if "out_w" in cfg: self.out_w_var.set(str(cfg["out_w"]))
                     if "out_h" in cfg: self.out_h_var.set(str(cfg["out_h"]))
-
-                    # Load multiple saved models
-                    for entry in cfg.get("model_paths", []):
-                        p, n = entry.get("path", ""), entry.get("name", "")
-                        if p and os.path.exists(p):
-                            self.after(500, lambda p=p, n=n: self._load_model_silent(p, n))
-
-                    # Backward compat: single last_model key
-                    if not cfg.get("model_paths") and "last_model" in cfg:
-                        p = cfg["last_model"]
-                        if os.path.exists(p):
-                            self.after(500, lambda p=p: self._load_model_silent(p))
         except Exception: pass
-
-    def _load_model_silent(self, path, name=None):
-        try:
-            from ultralytics import YOLO
-            model = YOLO(path)
-            classes = list(model.names.values()) if hasattr(model, "names") else ["Unknown"]
-            board_name = name or os.path.splitext(os.path.basename(path))[0].replace("yolo_model_", "")
-            # Remove existing entry with same path if present
-            self._trained_models = [m for m in self._trained_models if m.get("path") != path]
-            self._trained_models.append({"yolo": model, "classes": classes, "name": board_name, "path": path})
-            self.train_btn.configure(fg_color="#10b981", hover_color="#059669",
-                                     text=self.app.app.t("ai_step1_yolo_active", "🧠 YOLO 모델 활성"))
-            self._update_train_status_lbl()
-        except: pass
-
-    def _update_train_status_lbl(self):
-        if not self._trained_models:
-            self.train_status_lbl.configure(text="")
-            return
-        names = ", ".join(m["name"] for m in self._trained_models)
-        self.train_status_lbl.configure(
-            text=f"✅ 활성 모델: {names} ({len(self._trained_models)}개)")
 
     def _save_config(self):
         try:
             cfg = {
                 "out_w": self.out_w_var.get(),
-                "out_h": self.out_h_var.get(),
-                "model_paths": [
-                    {"path": m["path"], "name": m["name"]}
-                    for m in self._trained_models if os.path.exists(m.get("path", ""))
-                ]
+                "out_h": self.out_h_var.get()
             }
             with open("ai_photo_editor_settings.json", "w", encoding="utf-8") as f:
                 json.dump(cfg, f, ensure_ascii=False, indent=2)
@@ -480,80 +431,29 @@ class Step1Frame(ctk.CTkFrame):
             self._ref_template = np.array(img.crop((x, y, x+w, y+h)).convert("L"))
         except Exception: pass
 
-    def _open_training_dialog(self):
-        """YOLO 딥러닝 학습 다이얼로그를 열어 커스텀 데이터셋을 구축/학습한다."""
-        def on_complete(data):
-            try:
-                from ultralytics import YOLO
-                board_name = data.get("name", os.path.splitext(os.path.basename(data["model_path"]))[0].replace("yolo_model_", ""))
-                # Remove old entry for same board if re-trained
-                self._trained_models = [m for m in self._trained_models if m.get("path") != data["model_path"]]
-                self._trained_models.append({
-                    "yolo": YOLO(data["model_path"]),
-                    "classes": data["classes"],
-                    "name": board_name,
-                    "path": data["model_path"],
-                    "avg_bbox": data.get("avg_bbox")  # fallback crop coordinates
-                })
-                self._save_config()
-                self.train_btn.configure(fg_color="#10b981", hover_color="#059669",
-                                         text="🧠 YOLO 모델 활성")
-                self._update_train_status_lbl()
-            except Exception as e:
-                print(f"[ERROR] Failed to load trained model: {e}")
-                messagebox.showerror("오류", f"학습된 모델을 로드하는 중 오류가 발생했습니다: {e}")
-
-        YoloTrainDialog(self, self.app, on_complete)
-
-    def _export_model(self):
-        messagebox.showinfo("안내", "AI 엔진 교체로 인해 모델 내보내기 기능은 '학습 창' 내부의 [작업 내역 저장] 버튼을 이용해주세요.")
-
-    def _import_model(self):
-        path = filedialog.askopenfilename(title="YOLO 모델 선택 (.pt)", filetypes=[("YOLO Model", "*.pt")])
-        if not path: return
-        try:
-            from ultralytics import YOLO
-            model = YOLO(path)
-            classes = list(model.names.values()) if hasattr(model, "names") else ["Unknown"]
-            board_name = os.path.splitext(os.path.basename(path))[0].replace("yolo_model_", "")
-            self._trained_models = [m for m in self._trained_models if m.get("path") != path]
-            self._trained_models.append({"yolo": model, "classes": classes, "name": board_name, "path": path})
-            self._save_config()
-            self.train_btn.configure(fg_color="#10b981", hover_color="#059669",
-                                     text="🧠 YOLO 모델 활성")
-            self._update_train_status_lbl()
-            messagebox.showinfo("성공", f"'{board_name}' 모델을 추가로 불러왔습니다.\n총 {len(self._trained_models)}개 모델 활성")
-        except Exception as e:
-            messagebox.showerror("오류", f"모델을 불러오는 중 오류가 발생했습니다: {e}")
-
     def _auto_align_all(self):
-        """학습된 모델이 있으면 딥러닝 앙상블 매칭, 없으면 단일 템플릿 매칭을 사용한다."""
+        """템플릿 매칭을 사용하여 크롭 영역을 자동으로 지정합니다."""
         if self._selected_idx < 0: return
 
-        has_model = bool(self._trained_models)
-
-        # 학습 모델이 없을 때 현재 선택 이미지의 크롭을 단일 참조로 사용
-        if not has_model:
-            try:
-                f0 = self.app.files[self._selected_idx]
-                img = f0["image"]
-                if f0.get("angle", 0) != 0:
-                    img = img.rotate(f0["angle"], resample=Image.BICUBIC, expand=True)
-                x, y, w, h = self.app.crop_rect
-                self._ref_template = np.array(img.crop((x, y, x+w, y+h)).convert("L"))
-            except Exception:
-                messagebox.showwarning("알림",
-                    "먼저 기준 사진의 크롭 영역을 지정하거나 '🧠 크롭 영역 학습'을 먼저 실행하세요.")
-                return
+        # 현재 선택 이미지의 크롭을 단일 참조로 사용
+        try:
+            f0 = self.app.files[self._selected_idx]
+            img = f0["image"]
+            if f0.get("angle", 0) != 0:
+                img = img.rotate(f0["angle"], resample=Image.BICUBIC, expand=True)
+            x, y, w, h = self.app.crop_rect
+            self._ref_template = np.array(img.crop((x, y, x+w, y+h)).convert("L"))
+        except Exception:
+            messagebox.showwarning("알림",
+                "먼저 기준 사진의 크롭 영역을 지정하세요.")
+            return
 
         # Progress popup
         progress = ctk.CTkToplevel(self)
-        mode_text = ("YOLOv8 딥러닝 탐지 적용 중..."
-                     if has_model else "기본 템플릿 매칭 적용 중...")
         progress.title("크롭 자동 지정 중")
         progress.geometry("420x160")
         progress.grab_set()
-        ctk.CTkLabel(progress, text=mode_text,
+        ctk.CTkLabel(progress, text="템플릿 매칭 적용 중...",
                      font=ctk.CTkFont(size=13)).pack(pady=20)
         pbar = ctk.CTkProgressBar(progress, width=340)
         pbar.set(0); pbar.pack(pady=10)
@@ -563,14 +463,11 @@ class Step1Frame(ctk.CTkFrame):
         def run_align():
             total = len(self.app.files)
             for i, f in enumerate(self.app.files):
-                # Template matching mode: skip reference image (already has crop set)
-                if not has_model and i == self._selected_idx:
+                # 기준 이미지는 스킵 (이미 크롭 영역이 수동 설정됨)
+                if i == self._selected_idx:
                     self.after(0, lambda v=(i+1)/total: pbar.set(v))
                     continue
-                if has_model:
-                    new_pos = self._find_subject_deep(i)
-                else:
-                    new_pos = self._find_subject_live(i)
+                new_pos = self._find_subject_live(i)
                 f["crop_rect"] = new_pos if new_pos else self._get_fallback_crop(f)
                 self.after(0, lambda v=(i+1)/total: pbar.set(v))
 
@@ -595,95 +492,32 @@ class Step1Frame(ctk.CTkFrame):
         return (max(0, tx), max(0, ty), int(rw*dw), int(rh*dh))
 
     def _find_subject_live(self, idx):
-        """High-speed AI matching using downscaling."""
+        """다운스케일링을 이용한 고속 템플릿 매칭"""
         try:
             f = self.app.files[idx]
             img_pil = f["image"]
             if f.get("angle", 0) != 0:
                 img_pil = img_pil.rotate(f["angle"], resample=Image.BICUBIC, expand=True)
             
-            # Speed optimization: Downscale for matching
-            # Matching a 1/4 size image is roughly 16x faster
             scale = 0.25
             tw, th = self._ref_template.shape[1], self._ref_template.shape[0]
             
-            # Resize template
             small_temp = cv2.resize(self._ref_template, (0,0), fx=scale, fy=scale)
             
-            # Resize target image (convert to grayscale first)
             gray = np.array(img_pil.convert("L"))
             small_gray = cv2.resize(gray, (0,0), fx=scale, fy=scale)
             
-            # Match template on smaller image
             res = cv2.matchTemplate(small_gray, small_temp, cv2.TM_CCOEFF_NORMED)
             _, max_val, _, max_loc = cv2.minMaxLoc(res)
             
             if max_val > 0.5:
-                # Scale coordinates back to original size
                 orig_x = int(max_loc[0] / scale)
                 orig_y = int(max_loc[1] / scale)
                 return (orig_x, orig_y, tw, th)
         except Exception as e:
-            print(f"AI matching error: {e}")
+            print(f"Template matching error: {e}")
         return None
 
-    def _find_subject_deep(self, idx):
-        """YOLOv8 모델을 사용하여 객체 탐지 및 크롭 영역 자동 지정."""
-        if not self._trained_models:
-            return self._find_subject_live(idx)
-
-        try:
-            f = self.app.files[idx]
-            img_pil = f["image"]
-            if f.get("angle", 0) != 0:
-                img_pil = img_pil.rotate(f["angle"], resample=Image.BICUBIC, expand=True)
-
-            best_result = None
-            best_conf = 0.0
-            best_model_entry = None
-
-            for model_entry in self._trained_models:
-                try:
-                    model = model_entry["yolo"]
-                    board_name = model_entry.get("name", "?")
-                    results = model.predict(img_pil, conf=0.10, verbose=False)
-
-                    if len(results) > 0 and len(results[0].boxes) > 0:
-                        boxes = results[0].boxes
-                        confs = boxes.conf.tolist()
-                        max_conf = max(confs)
-                        best_idx = confs.index(max_conf)
-                        xyxy = boxes.xyxy[best_idx].tolist()
-                        print(f"[YOLO] File {idx} / Model '{board_name}': conf={max_conf:.3f}, box={xyxy}")
-
-                        if max_conf > best_conf:
-                            best_conf = max_conf
-                            x1, y1, x2, y2 = xyxy
-                            best_result = (int(x1), int(y1), int(x2-x1), int(y2-y1))
-                            best_model_entry = model_entry
-                    else:
-                        # Even below conf=0.10, check which model is most confident
-                        results_low = model.predict(img_pil, conf=0.001, verbose=False)
-                        if len(results_low) > 0 and len(results_low[0].boxes) > 0:
-                            max_low = max(results_low[0].boxes.conf.tolist())
-                            print(f"[YOLO] File {idx} / Model '{board_name}': best conf={max_low:.4f} (below threshold)")
-                            if max_low > best_conf:
-                                best_conf = max_low
-                                best_model_entry = model_entry
-                        else:
-                            print(f"[YOLO] File {idx} / Model '{board_name}': No detections at all")
-                except Exception as me:
-                    print(f"[YOLO] Model '{model_entry.get('name')}' error: {me}")
-
-            if best_result:
-                print(f"[YOLO] File {idx}: YOLO detected, conf={best_conf:.3f} → {best_result}")
-                return best_result
-
-            # YOLO failed — use avg_bbox fallback from the most confident model
-            if best_model_entry and best_model_entry.get("avg_bbox"):
-                avg = best_model_entry["avg_bbox"]
-                print(f"[YOLO] File {idx}: YOLO low conf ({best_conf:.4f}), using avg_bbox from '{best_model_entry['name']}': {avg}")
-                return tuple(avg)
 
             print(f"[YOLO] File {idx}: No fallback available")
             return None

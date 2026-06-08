@@ -59,7 +59,6 @@ class DAQ6510Controller:
             daq.timeout = 10000
             
             daq.write('*RST')
-            daq.write(':INIT:CONT OFF')
             time.sleep(0.5)
             
             func = "FRES" if mode == '4-Wire' else "RES"
