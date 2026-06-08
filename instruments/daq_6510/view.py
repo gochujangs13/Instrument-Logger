@@ -459,6 +459,20 @@ class SmartLoggerView(BaseInstrumentView):
         self.canvas1.draw_idle()
         self.canvas2.draw_idle()
 
+    def format_reading(self, v):
+        if v is None:
+            return ""
+        try:
+            val = float(v)
+            import math
+            if math.isnan(val):
+                return ""
+            if not math.isfinite(val) or abs(val) >= 1.0e30:
+                return "OL"
+            return f"{val:.4E}"
+        except:
+            return str(v)
+
     def _on_live_ch_received(self, ch, val):
         self.after(0, lambda: self._update_display_only(ch, val))
 
@@ -472,7 +486,7 @@ class SmartLoggerView(BaseInstrumentView):
         display_name = alias if alias else f"Channel {ch}"
         self.lbl_display_name.configure(text=display_name, font=("Inter", 24, "bold"))
         
-        self.lbl_display_val.configure(text=f"{val:.5f}")
+        self.lbl_display_val.configure(text=self.format_reading(val))
         self.lbl_display_status.configure(text=self.app.t("smart_logger_status_scanning"), text_color=ACCENT_COLOR)
         self.lbl_status_badge.configure(fg_color=ACCENT_COLOR)
 
@@ -502,12 +516,12 @@ class SmartLoggerView(BaseInstrumentView):
         # Update Top Display Bar (Last reading)
         if readings:
             last_val = readings[-1]
-            self.lbl_display_val.configure(text=f"{last_val:.5f}")
+            self.lbl_display_val.configure(text=self.format_reading(last_val))
             self.lbl_display_status.configure(text=self.app.t("smart_logger_status_scanning"), text_color=ACCENT_COLOR)
             self.lbl_status_badge.configure(fg_color=ACCENT_COLOR)
 
         # Table
-        row_vals = [now_str] + [f"{v:.4f}" if v < 1e6 else "O.V.L" for v in readings]
+        row_vals = [now_str] + [self.format_reading(v) for v in readings]
         self.tree.insert("", "end", values=row_vals)
         if len(self.tree.get_children()) > 1000: self.tree.delete(self.tree.get_children()[0])
         self.tree.yview_moveto(1.0)
@@ -534,7 +548,7 @@ class SmartLoggerView(BaseInstrumentView):
         for i, ch in enumerate(active_channels):
             if i >= len(readings): break
             val = readings[i]
-            self.plot_data[ch].append(val if val < 1e6 else (self.plot_data[ch][-1] if self.plot_data[ch] else 0))
+            self.plot_data[ch].append(val if abs(val) < 1.0e30 else (self.plot_data[ch][-1] if self.plot_data[ch] else 0))
             if is_realtime and len(self.plot_data[ch]) > 1000: self.plot_data[ch].pop(0)
             
             line = self.plot_lines.get(ch)
