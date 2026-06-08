@@ -62,13 +62,14 @@ class DAQ6510Controller:
             time.sleep(0.5)
             
             func = "FRES" if mode == '4-Wire' else "RES"
-            daq.write(f'SENS:FUNC "{func}"')
+            ch_list_str = f"(@{','.join(selected_channels)})"
+            daq.write(f'SENS:FUNC "{func}", {ch_list_str}')
             
             if func == "FRES":
-                daq.write('SENS:FRES:OCOM ON')
+                daq.write(f'SENS:FRES:OCOM ON, {ch_list_str}')
             
-            daq.write(f'SENS:{func}:NPLC 1.0')
-            daq.write(f'SENS:{func}:RANG:AUTO ON')
+            daq.write(f'SENS:{func}:NPLC 1.0, {ch_list_str}')
+            daq.write(f'SENS:{func}:RANG:AUTO ON, {ch_list_str}')
             
             start_time = datetime.now()
             
