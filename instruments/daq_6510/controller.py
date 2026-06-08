@@ -71,20 +71,41 @@ class DAQ6510Controller:
             daq.write(f'SENS:{func}:NPLC 1.0, {ch_list_str}')
             daq.write(f'SENS:{func}:RANG:AUTO ON, {ch_list_str}')
             
+            # Configure scan list natively on the instrument
+            daq.write(f'ROUT:SCAN {ch_list_str}')
+            
+            # Set channel delay natively on the instrument if requested
+            if ch_delay > 0:
+                daq.write(f'ROUT:SCAN:DELay {ch_delay}, {ch_list_str}')
+            
             start_time = datetime.now()
+            
+            # Increase PyVISA timeout if scan duration exceeds default timeout
+            total_scan_time = len(selected_channels) * max(0.05, ch_delay)
+            if total_scan_time * 1000 > daq.timeout:
+                daq.timeout = int(total_scan_time * 1000 + 5000)
             
             with open(filename, 'w', newline='', encoding='utf-8-sig') as f:
                 writer = csv.writer(f)
                 writer.writerow(['Time (Hours)'] + [get_ch_name_cb(c) for c in selected_channels])
                 
                 while self.is_running and (datetime.now() - start_time).total_seconds() < target_sec:
+                    # Query all channels in the scan list in a single native sweep
+                    raw_data = daq.query('READ?')
+                    
+                    # Parse comma-separated float readings
                     readings = []
-                    for ch in selected_channels:
-                        if not self.is_running: break
-                        daq.write(f'ROUT:CLOS (@{ch})')
-                        time.sleep(max(0.05, ch_delay))
-                        val = float(daq.query('READ?'))
+                    parts = raw_data.split(',')
+                    for i, p in enumerate(parts):
+                        if i >= len(selected_channels): break
+                        try:
+                            val = float(p.strip())
+                        except:
+                            val = float('nan')
                         readings.append(val)
+                        
+                        # Trigger live channel update
+                        ch = selected_channels[i]
                         if self.on_live_ch:
                             self.on_live_ch(ch, val)
                     
@@ -97,6 +118,9 @@ class DAQ6510Controller:
                     now_str = datetime.now().strftime('%H:%M:%S')
                     if self.on_data:
                         self.on_data(now_str, readings, elapsed_h)
+                    
+                    # Sleep slightly between scan sweeps
+                    time.sleep(1.0)
                     
         except Exception as e:
             logger.error(f"[SmartLogger Error] {e}")
