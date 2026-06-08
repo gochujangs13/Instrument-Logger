@@ -60,7 +60,6 @@ class DAQ6510Controller:
             
             daq.write('*RST')
             time.sleep(0.5)
-            daq.write('ROUT:TERM REAR')  # Route DMM measurements to the rear slot/multiplexer card
             
             func = "FRES" if mode == '4-Wire' else "RES"
             daq.write(f'SENS:FUNC "{func}"')
