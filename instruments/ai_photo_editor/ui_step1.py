@@ -518,16 +518,6 @@ class Step1Frame(ctk.CTkFrame):
             print(f"Template matching error: {e}")
         return None
 
-
-            print(f"[YOLO] File {idx}: No fallback available")
-            return None
-
-        except Exception as e:
-            print(f"[AI YOLO] Error: {e}")
-            import traceback
-            traceback.print_exc()
-            return None
-
     def _on_mouse_wheel(self, event):
         if self._selected_idx < 0: return
         factor = 1.2 if event.delta > 0 else 0.8333
