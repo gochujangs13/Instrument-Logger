@@ -63,13 +63,13 @@ class DAQ6510Controller:
             daq.write('ROUT:TERM REAR')  # Route DMM measurements to the rear slot/multiplexer card
             
             func = "FRES" if mode == '4-Wire' else "RES"
-            daq.write(f'SENS:FUNC "{func}", (@{",".join(selected_channels)})')
+            daq.write(f'SENS:FUNC "{func}"')
             
             if func == "FRES":
-                daq.write(f'SENS:FRES:OCOM ON, (@{",".join(selected_channels)})')
+                daq.write('SENS:FRES:OCOM ON')
             
-            daq.write(f'SENS:{func}:NPLC 1.0, (@{",".join(selected_channels)})')
-            daq.write(f'SENS:{func}:RANG:AUTO ON, (@{",".join(selected_channels)})')
+            daq.write(f'SENS:{func}:NPLC 1.0')
+            daq.write(f'SENS:{func}:RANG:AUTO ON')
             
             start_time = datetime.now()
             
