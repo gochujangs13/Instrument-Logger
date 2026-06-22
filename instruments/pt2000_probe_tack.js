@@ -17,6 +17,19 @@ const VID = 0x04D8, PID = 0xF47E;
 
 // ── Module-level state (reset on each launch) ────────────────────────────────
 let S = null;
+
+const PT_SK = 'pt2000_settings';
+function savePtSettings() {
+  localStorage.setItem(PT_SK, JSON.stringify({
+    speed:      document.getElementById('pt_speed')?.value      ?? '10',
+    dwell:      document.getElementById('pt_dwell')?.value      ?? '1.0',
+    loadcell:   document.getElementById('pt_loadcell')?.value   ?? '2000 g',
+    tol:        document.getElementById('pt_tol')?.value        ?? '20',
+    repeatCount:document.getElementById('pt_repeatCount')?.value ?? '1',
+    sample:     document.getElementById('pt_sample')?.value     ?? '',
+  }));
+}
+
 function init() {
   S = {
     results: [], nextNo: 1, curGroup: null, curIdx: 0,
@@ -519,7 +532,138 @@ async function copyData() {
 }
 
 // ── Force-displacement curve graph ────────────────────────────────────────────
+function _ptBoxQ(sorted, q) {
+  const n = sorted.length;
+  if (n === 1) return sorted[0];
+  const pos = q * (n - 1), lo = Math.floor(pos), hi = Math.ceil(pos);
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
+}
+
+function _drawGroupBoxPlot() {
+  const canvas = $('pt_graphCanvas'), empty = $('pt_graphEmpty'), legend = $('pt_graphLegend');
+  if (!canvas) return;
+  const repeat = Math.max(1, parseInt($('pt_repeatCount')?.value || '1') || 1);
+
+  // 전체 그룹 구성 → 최근 3개만 표시
+  const allGroups = [];
+  for (let i = 0; i < S.results.length; i += repeat) {
+    const chunk = S.results.slice(i, i + repeat);
+    const peaks = chunk.map(r => r.peak).sort((a, b) => a - b);
+    allGroups.push({ peaks, n: chunk.length, groupNo: allGroups.length + 1 });
+  }
+  const groups = allGroups.slice(-3);
+
+  if (!groups.length) { if (empty) empty.style.display = 'flex'; canvas.style.display = 'none'; if (legend) legend.innerHTML = ''; return; }
+  if (empty) empty.style.display = 'none';
+  canvas.style.display = 'block';
+
+  const w = canvas.clientWidth || canvas.parentElement?.clientWidth || 300;
+  const h = canvas.clientHeight || canvas.parentElement?.clientHeight || 300;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  const ctx = canvas.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+
+  const allPeaks = S.results.map(r => r.peak);
+  const ymin = Math.max(0, Math.min(...allPeaks) * 0.85);
+  const ymax = Math.max(...allPeaks) * 1.20 || 1;
+  const yspan = ymax - ymin || 1;
+  const pad = { l: 50, r: 14, t: 28, b: 36 };
+  const cH = h - pad.t - pad.b, totalW = w - pad.l - pad.r;
+  const toY = v => pad.t + (1 - (v - ymin) / yspan) * cH;
+
+  const cs = getComputedStyle(document.body);
+  const C = {
+    text:    cs.getPropertyValue('--chart-text').trim()    || '#5e7790',
+    grid:    cs.getPropertyValue('--chart-grid').trim()    || 'rgba(31,59,86,.5)',
+    boxFill: cs.getPropertyValue('--chart-box-fill').trim()|| 'rgba(43,143,255,.12)',
+    boxStr:  cs.getPropertyValue('--chart-box-str').trim() || '#2b8fff',
+    accent:  cs.getPropertyValue('--accent').trim()        || '#2b8fff',
+  };
+
+  ctx.font = '10px Inter'; ctx.textAlign = 'right'; ctx.fillStyle = C.text;
+  for (let i = 0; i <= 4; i++) {
+    const gy = pad.t + cH * i / 4;
+    ctx.strokeStyle = C.grid; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(pad.l, gy); ctx.lineTo(w - pad.r, gy); ctx.stroke();
+    ctx.fillText((ymax - yspan * i / 4).toFixed(1), pad.l - 5, gy + 3);
+  }
+  ctx.fillStyle = C.text; ctx.textAlign = 'center';
+  ctx.fillText('Peak (gf)', (pad.l + w - pad.r) / 2, h - 4);
+
+  const colW = totalW / groups.length;
+  const bW = Math.max(16, Math.min(colW * 0.55, 72));
+
+  const BOX_PALETTE = [
+    { stroke: '#4da3ff', fill: 'rgba(77, 163, 255, 0.15)' },  // Blue
+    { stroke: '#2bd4a0', fill: 'rgba(43, 212, 160, 0.15)' },  // Teal
+    { stroke: '#ffb454', fill: 'rgba(255, 180, 84, 0.15)' },  // Orange
+    { stroke: '#ff6b8a', fill: 'rgba(255, 107, 138, 0.15)' }, // Rose
+    { stroke: '#b48cff', fill: 'rgba(180, 140, 255, 0.15)' }, // Purple
+    { stroke: '#3fe0d4', fill: 'rgba(63, 224, 212, 0.15)' },  // Cyan
+    { stroke: '#f0d24d', fill: 'rgba(240, 210, 77, 0.15)' },  // Yellow
+    { stroke: '#ff8a5c', fill: 'rgba(255, 138, 92, 0.15)' }   // Coral
+  ];
+
+  groups.forEach((g, gi) => {
+    const cx = pad.l + (gi + 0.5) * colW;
+    const { peaks } = g;
+    const wMin = peaks[0], wMax = peaks[peaks.length - 1];
+    const q1 = _ptBoxQ(peaks, 0.25), med = _ptBoxQ(peaks, 0.5), q3 = _ptBoxQ(peaks, 0.75);
+    const yQ1 = toY(q1), yQ3 = toY(q3), yMed = toY(med);
+    const mean = peaks.reduce((a, b) => a + b, 0) / peaks.length;
+
+    const colorObj = BOX_PALETTE[(g.groupNo - 1) % BOX_PALETTE.length];
+    const boxStr = colorObj.stroke;
+    const boxFill = colorObj.fill;
+
+    ctx.fillStyle = boxFill; ctx.strokeStyle = boxStr; ctx.lineWidth = 1.5;
+    ctx.fillRect(cx - bW/2, yQ3, bW, yQ1 - yQ3);
+    ctx.strokeRect(cx - bW/2, yQ3, bW, yQ1 - yQ3);
+    ctx.beginPath(); ctx.moveTo(cx - bW/2, yMed); ctx.lineTo(cx + bW/2, yMed); ctx.stroke();
+    const cap = bW * 0.22;
+    ctx.beginPath();
+    ctx.moveTo(cx, yQ1); ctx.lineTo(cx, toY(wMin));
+    ctx.moveTo(cx - cap, toY(wMin)); ctx.lineTo(cx + cap, toY(wMin));
+    ctx.moveTo(cx, yQ3); ctx.lineTo(cx, toY(wMax));
+    ctx.moveTo(cx - cap, toY(wMax)); ctx.lineTo(cx + cap, toY(wMax));
+    ctx.stroke();
+    peaks.forEach(p => {
+      ctx.beginPath(); ctx.arc(cx, toY(p), 3, 0, Math.PI * 2);
+      ctx.fillStyle = boxStr; ctx.globalAlpha = 0.8; ctx.fill(); ctx.globalAlpha = 1;
+    });
+
+    // 평균값 레이블 — 상단 수염 위, 기울여서 표시
+    ctx.save();
+    ctx.translate(cx, toY(wMax) - 7);
+    ctx.rotate(-Math.PI / 5.5);
+    ctx.font = 'bold 9px Inter'; ctx.textAlign = 'left'; ctx.fillStyle = boxStr;
+    ctx.fillText(`${mean.toFixed(1)} gf`, 0, 0);
+    ctx.restore();
+
+    // X축: 실제 그룹 번호 표시
+    ctx.fillStyle = C.text; ctx.textAlign = 'center'; ctx.font = '10px Inter';
+    ctx.fillText(`#${g.groupNo}`, cx, h - pad.b + 13);
+    if (g.n < repeat) {
+      ctx.fillStyle = boxStr; ctx.font = '9px Inter';
+      ctx.fillText(`${g.n}/${repeat}`, cx, h - pad.b + 23); ctx.font = '10px Inter';
+    }
+  });
+
+  if (legend) {
+    const mean = allPeaks.reduce((a, b) => a + b, 0) / allPeaks.length;
+    const sd = Math.sqrt(allPeaks.reduce((s, p) => s + (p - mean) ** 2, 0) / allPeaks.length);
+    const note = allGroups.length > 3 ? `<span class="pt-leg" style="color:var(--accent);">최근 3그룹 표시 (전체 ${allGroups.length}그룹)</span>` : '';
+    legend.innerHTML = `<span class="pt-leg">n <b>${allPeaks.length}</b></span>
+      <span class="pt-leg">Mean <b>${mean.toFixed(1)} gf</b></span>
+      <span class="pt-leg">σ <b>${sd.toFixed(1)}</b></span>${note}`;
+  }
+}
+
 function drawGraph() {
+  const repeat = Math.max(1, parseInt($('pt_repeatCount')?.value || '1') || 1);
+  if (repeat > 1 && S.results.length > 0) { _drawGroupBoxPlot(); return; }
+
   const canvas = $('pt_graphCanvas'), empty = $('pt_graphEmpty'), legend = $('pt_graphLegend');
   if (!canvas) return;
   const checked = getChecked();
@@ -538,7 +682,10 @@ function drawGraph() {
   const speed = parseFloat($('pt_speed')?.value || 10);
   const xOf = d => d.t * speed;
 
-  const w = canvas.clientWidth, h = canvas.clientHeight, dpr = window.devicePixelRatio || 1;
+  const w = canvas.clientWidth  || canvas.parentElement?.clientWidth  || 300;
+  const h = canvas.clientHeight || canvas.parentElement?.clientHeight || 300;
+  if (!w || !h) return;
+  const dpr = window.devicePixelRatio || 1;
   canvas.width = w * dpr; canvas.height = h * dpr;
   const ctx = canvas.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, w, h);
@@ -617,7 +764,8 @@ export default {
   noAutoConnect: true,   // WebHID device — connection is self-managed (not app.serial)
 
   buildSidebar(el) {
-    init();
+    if (!S) init();
+    const sv = JSON.parse(localStorage.getItem(PT_SK) || '{}');
     el.innerHTML = `<div class="sidebar-top">
       <div class="panel">
         <div class="field-label">${t('pt_conn_label')}</div>
@@ -628,31 +776,41 @@ export default {
         <div class="panel-title">${t('pt_test_settings')}</div>
         <div class="notice">${t('pt_notice')}</div>
         <label class="fl" style="margin-top:0;">${t('pt_sample_name')}</label>
-        <input id="pt_sample" class="inp" type="text" value="Sample A">
+        <input id="pt_sample" class="inp" type="text" value="${sv.sample ?? 'Sample A'}">
         <div class="param-grid">
           <div>
             <label class="fl">${t('pt_speed_label')}</label>
-            <input id="pt_speed" class="inp" type="number" value="10" min="1" max="50" step="1">
+            <input id="pt_speed" class="inp" type="number" value="${sv.speed ?? '10'}" min="1" max="50" step="1">
           </div>
           <div>
             <label class="fl">${t('pt_dwell_label')}</label>
-            <input id="pt_dwell" class="inp" type="number" value="1.0" min="0.5" max="30" step="0.1">
+            <input id="pt_dwell" class="inp" type="number" value="${sv.dwell ?? '1.0'}" min="0.5" max="30" step="0.1">
           </div>
         </div>
         <label class="fl">${t('pt_loadcell_label')}</label>
         <select id="pt_loadcell" class="inp">
           <option>500 g</option>
-          <option selected>2000 g</option>
+          <option>2000 g</option>
           <option>5000 g</option>
         </select>
         <label class="fl">${t('pt_tol_label')}</label>
-        <input id="pt_tol" class="inp" type="number" value="20" min="1" max="100" step="1" onchange="app.instr.renderTable()">
+        <input id="pt_tol" class="inp" type="number" value="${sv.tol ?? '20'}" min="1" max="100" step="1" onchange="app.instr.renderTable();app.instr._savePtSettings()">
         <div class="pt-hint-sm">${t('pt_tol_hint')}</div>
       </div>
     </div>${syslogPanelHTML()}`;
+
+    // select 복원 (innerHTML로 selected 지정이 안 되므로 별도 복원)
+    if (sv.loadcell) { const el2 = document.getElementById('pt_loadcell'); if (el2) el2.value = sv.loadcell; }
+
+    // 변경 시 자동 저장
+    ['pt_sample','pt_speed','pt_dwell','pt_loadcell'].forEach(id =>
+      document.getElementById(id)?.addEventListener('change', savePtSettings));
+    ['pt_sample','pt_speed','pt_dwell'].forEach(id =>
+      document.getElementById(id)?.addEventListener('input', savePtSettings));
   },
 
   buildCenter(el) {
+    const sv = JSON.parse(localStorage.getItem(PT_SK) || '{}');
     el.innerHTML = `
       <div class="display-bar">
         <div class="disp-value"><span id="liveValue">--</span><span class="disp-unit" id="liveUnit">gf</span></div>
@@ -664,14 +822,14 @@ export default {
       <div class="panel datalog-head-bar">
         <div class="panel-title">${t('data_panel_title')}</div>
         <div class="datalog-actions">
-          <span class="pt-count-label" title="${t('pt_repeat_hint')}">
-            <label class="fl" style="margin:0;white-space:nowrap;">${t('pt_repeat_label')}</label>
-            <input type="number" id="pt_repeatCount" class="pt-count-inp" value="1" min="1" max="99" step="1">
+          <span class="pt-count-label" title="${t('group_repeat_hint')}">
+            <label class="fl" style="margin:0;white-space:nowrap;">${t('group_repeat_label')}</label>
+            <input type="number" id="pt_repeatCount" class="pt-count-inp" value="${sv.repeatCount ?? '1'}" min="1" max="99" step="1">
           </span>
           <button class="sbtn" onclick="app.instr.copyData()">${t('btn_copy')}</button>
           <button class="sbtn green" onclick="app.instr.exportCSV()">${t('btn_csv')}</button>
-          <button class="sbtn red" onclick="app.instr.deleteSelected()">${t('pt_del_sel')}</button>
-          <button class="sbtn red-o" onclick="app.instr.clearData()">${t('btn_clear')}</button>
+          <button class="sbtn red-o" onclick="app.instr.deleteSelected()">${t('btn_del_sel')}</button>
+          <button class="sbtn red" onclick="app.instr.clearData()">${t('btn_clear')}</button>
         </div>
       </div>
       <div class="panel grow" style="min-height:0;">
@@ -702,6 +860,7 @@ export default {
           <button class="pt-modal-proceed" id="pt_modalBtn" onclick="app.instr.confirmProceed()">▶ ${t('pt_proceed_btn')} (Clean Probe)</button>
         </div>
       </div>`;
+    document.getElementById('pt_repeatCount')?.addEventListener('change', () => { savePtSettings(); drawGraph(); });
   },
 
   buildRightPanel(el) {
@@ -717,10 +876,12 @@ export default {
       </div>`;
   },
 
+  onRebuild() { renderTable(); drawGraph(); },
   onConnect, onDisconnect,
   toggleConnection,
 
   // Exposed for inline onclick handlers
   copyData, exportCSV, clearData, deleteSelected, renderTable,
   toggleAll, onSelChange, renameResult, confirmProceed, resetSelection,
+  _savePtSettings: savePtSettings,
 };

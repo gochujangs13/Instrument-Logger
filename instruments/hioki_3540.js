@@ -24,17 +24,27 @@ export default {
 
   buildSettings(area) {
     const t = k => app?.t(k) ?? k;
-    buildToggleRow(area, t('sample_rate'), ['FAST', 'SLOW'], 'SLOW', v => {
+    const SK = 'hioki3540_settings';
+    const save = (key, val) => {
+      const s = JSON.parse(localStorage.getItem(SK) || '{}');
+      s[key] = val; localStorage.setItem(SK, JSON.stringify(s));
+    };
+    const saved = JSON.parse(localStorage.getItem(SK) || '{}');
+
+    buildToggleRow(area, t('sample_rate'), ['FAST', 'SLOW'], saved.sampleRate || 'SLOW', v => {
       app.serial.sendCmd(`SMP ${v === 'FAST' ? '1' : '0'}\r`);
+      save('sampleRate', v);
     });
     buildSelect(area, t('meas_range'),
-      ['Auto', '30 mΩ', '300 mΩ', '3 Ω', '30 Ω', '300 Ω', '3 kΩ', '30 kΩ'], 'Auto',
+      ['Auto', '30 mΩ', '300 mΩ', '3 Ω', '30 Ω', '300 Ω', '3 kΩ', '30 kΩ'],
+      saved.measRange || 'Auto',
       v => {
-        if (v === 'Auto') { app.serial.sendCmd('AUTO 1\r'); return; }
+        if (v === 'Auto') { app.serial.sendCmd('AUTO 1\r'); save('measRange', v); return; }
         const M = { '30 mΩ': '30E-3', '300 mΩ': '300E-3', '3 Ω': '3', '30 Ω': '30',
                     '300 Ω': '300', '3 kΩ': '3E3', '30 kΩ': '30E3' };
         app.serial.sendCmd('AUTO 0\r');
         setTimeout(() => app.serial.sendCmd(`RNG ${M[v]}\r`), 160);
+        save('measRange', v);
       }
     );
     buildInfoRow(area, t('meas_wire'), () => t('wire_fixed'));

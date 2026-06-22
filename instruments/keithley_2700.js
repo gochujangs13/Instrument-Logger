@@ -1,4 +1,4 @@
-import { buildToggleRow } from './_utils.js';
+import { buildToggleRow, fmt } from './_utils.js';
 
 export default {
   name: 'Keithley 2700',
@@ -13,7 +13,8 @@ export default {
     const m = line.match(/([+-]?\d+\.?\d*[Ee][+-]?\d+)/);
     if (m) {
       const v = parseFloat(m[1]);
-      return { valid: true, value: v, fmt: v.toExponential(4), unit: 'Ω' };
+      if (Math.abs(v) >= 9e36) return { valid: false, fmt: 'Over Flow', unit: '' };
+      return { valid: true, value: v, fmt: fmt(v), unit: 'Ω' };
     }
     return { valid: false, fmt: line || '---', unit: '' };
   },
@@ -27,12 +28,21 @@ export default {
 
   buildSettings(area) {
     const t = k => app?.t(k) ?? k;
-    buildToggleRow(area, t('sample_rate'), ['FAST', 'MED', 'SLOW'], 'MED', v => {
+    const SK = 'keithley2700_settings';
+    const save = (key, val) => {
+      const s = JSON.parse(localStorage.getItem(SK) || '{}');
+      s[key] = val; localStorage.setItem(SK, JSON.stringify(s));
+    };
+    const saved = JSON.parse(localStorage.getItem(SK) || '{}');
+
+    buildToggleRow(area, t('sample_rate'), ['FAST', 'MED', 'SLOW'], saved.sampleRate || 'MED', v => {
       const m = { FAST: 'MIN', MED: '1', SLOW: '10' };
       app.serial.sendCmd(`SENS:FRES:NPLC ${m[v]}\r\n`);
+      save('sampleRate', v);
     });
-    buildToggleRow(area, t('meas_wire'), ['2-Wire', '4-Wire'], '4-Wire', v => {
+    buildToggleRow(area, t('meas_wire'), ['2-Wire', '4-Wire'], saved.measWire || '4-Wire', v => {
       app.serial.sendCmd(`SENS:FUNC "${v === '4-Wire' ? 'FRES' : 'RES'}"\r\n`);
+      save('measWire', v);
     });
   },
 };

@@ -3,17 +3,43 @@ import { syslogPanelHTML, fmt, dateStr } from './_utils.js';
 // ── Module-level state ────────────────────────────────────────────────────────
 let S = null;
 
+const AG_SK = 'agilent4339b_settings';
+
+function saveAgSettings() {
+  const s = {
+    mode:        S.mode,
+    voltage:     document.getElementById('ag_voltage')?.value      ?? '500',
+    autoVolt:    document.getElementById('ag_autoVolt')?.checked   ?? true,
+    ilimit:      document.getElementById('ag_ilimit')?.value       ?? '500uA',
+    charge:      document.getElementById('ag_charge')?.value       ?? '60',
+    discharge:   document.getElementById('ag_discharge')?.value    ?? '0',
+    thickness:   document.getElementById('ag_thickness')?.value    ?? '1.0',
+    sample:      document.getElementById('ag_sample')?.value       ?? '',
+    repeatCount: document.getElementById('ag_repeatCount')?.value  ?? '1',
+  };
+  localStorage.setItem(AG_SK, JSON.stringify(s));
+}
+
+function loadAgSettings() {
+  return JSON.parse(localStorage.getItem(AG_SK) || '{}');
+}
+
 function init() {
+  const sv = loadAgSettings();
   S = {
-    mode: 'VOL',
+    mode: sv.mode || 'VOL',
     running: false,
     timer: null,
     latestVal: null,
     latestOL: false,
+    lastRaw: null,
     rows: [],
     currentIlimIdx: 0,
     autoEscalating: false,
-    autoVolt: true,   // auto voltage based on thickness
+    autoVolt: sv.autoVolt !== undefined ? sv.autoVolt : true,
+    curGroup: null,
+    curIdx: 0,
+    repeatCount: parseInt(sv.repeatCount || '1') || 1,
   };
 }
 
@@ -24,8 +50,9 @@ const ILIM_CMDS   = ['500E-6', '1E-3', '2E-3', '5E-3', '10E-3'];
 // OL threshold: Agilent returns +9.9E+37 on overflow
 const OL_THRESHOLD = 9e+36;
 
-// helper
+// helpers
 const t = k => app?.t(k) ?? k;
+const escAttr = s => String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;');
 
 // ── Mode selection popup (guide image — click image to close) ─────────────────
 function showModeModal(mode) {
@@ -60,6 +87,7 @@ function applyMode(mode) {
   const lbl = document.getElementById('ag_modeLabel');
   if (lbl) lbl.textContent = mode === 'VOL' ? t('ag_mode_lbl_vol') : t('ag_mode_lbl_surf');
   app.log(`${t('ag_mode_changed')} ${mode === 'VOL' ? t('ag_mode_vol_short') : t('ag_mode_surf_short')}`, 'ok');
+  saveAgSettings();
 }
 
 // ── SOP Manual popup ──────────────────────────────────────────────────────────
@@ -136,6 +164,7 @@ function onAutoVoltChange(checked) {
   const voltSel = document.getElementById('ag_voltage');
   if (voltSel) voltSel.disabled = checked;
   if (checked) calcAutoVoltage();
+  saveAgSettings();
 }
 
 function calcAutoVoltage() {
@@ -154,95 +183,101 @@ function startMeas() {
   const chargeT    = parseInt(document.getElementById('ag_charge')?.value)     || 60;
   const dischargeT = parseInt(document.getElementById('ag_discharge')?.value)  || 0;
 
-  if (S.mode === 'VOL') {
-    S.currentIlimIdx = 0;
-    S.autoEscalating = false;
-    const ilSel = document.getElementById('ag_ilimit');
-    if (ilSel) ilSel.value = ILIM_STEPS[0];
-  }
-
-  _doStartCycle(voltage, chargeT, dischargeT);
-}
-
-function _doStartCycle(voltage, chargeT, dischargeT) {
-  S.running = true; S.latestVal = null; S.latestOL = false;
+  S.running = true;
+  S.latestVal = null;
   document.getElementById('ag_btnStart').disabled = true;
   document.getElementById('ag_btnStop').disabled  = false;
 
-  const ilimIdx = S.mode === 'VOL' ? S.currentIlimIdx : 0;
-  const ilimCmd = S.mode === 'VOL' ? ILIM_CMDS[ilimIdx] : ILIM_CMDS[0];
-  const ilimLbl = S.mode === 'VOL' ? ILIM_STEPS[ilimIdx] : ILIM_STEPS[0];
-  if (S.mode === 'VOL') {
-    const ilSel = document.getElementById('ag_ilimit');
-    if (ilSel) ilSel.value = ILIM_STEPS[ilimIdx];
-  }
+  const d = document.getElementById('ag_timerDisp');
+  if (d) d.textContent = t('ag_initializing');
+  app._setDisplay('INIT', '', 'stabilizing', 'SETUP');
+  app.log(`[4339B] 초기화: *RST → FUNC 'RES' → SOUR:VOLT ${voltage} → TRIG:SOUR BUS`, 'ok');
 
-  app.serial.sendCmd(S.mode === 'SURF' ? ':SENS:MODE SURF\r\n' : ':SENS:MODE VOL\r\n');
-  setTimeout(() => app.serial.sendCmd(`:SOUR:VOLT ${voltage}\r\n`), 200);
-  setTimeout(() => app.serial.sendCmd(`:SENS:CURR:RANG:UPP ${ilimCmd}\r\n`), 350);
-  setTimeout(() => app.serial.sendCmd(':INIT\r\n'), 500);
+  // Python _setup_instrument() 시퀀스 그대로 적용
+  app.serial.sendCmd('*RST\r\n');
+  setTimeout(() => app.serial.sendCmd('*CLS\r\n'),                       2200);
+  setTimeout(() => app.serial.sendCmd("FUNC 'RES'\r\n"),                 2500);
+  setTimeout(() => app.serial.sendCmd(`SOUR:VOLT ${voltage}\r\n`),       2800);
+  setTimeout(() => app.serial.sendCmd('TRIG:SOUR BUS\r\n'),              3100);
+  setTimeout(() => _doStartCycle(voltage, chargeT, dischargeT),          3400);
+}
 
-  let elapsed = 0;
-  const disp = () => document.getElementById('ag_timerDisp');
-  if (disp()) disp().textContent = `${t('ag_charging')} 0 / ${chargeT}s  [${ilimLbl}]`;
-  app._setDisplay('⚡ CHARGING', 'V', 'stabilizing', 'CHARGING');
+function _doStartCycle(voltage, chargeT, dischargeT) {
+  if (!S.running) return;
+  S.latestVal = null;
 
-  S.timer = setInterval(() => {
-    elapsed++;
-    const d = disp();
-    if (d) d.textContent = `${t('ag_charging')} ${elapsed} / ${chargeT}s  [${ilimLbl}]`;
-    if (elapsed >= chargeT) { clearInterval(S.timer); doMeasure(voltage, chargeT, dischargeT); }
+  const ilimLbl = document.getElementById('ag_ilimit')?.value || '500uA';
+
+  // Python measure() Step 1: OUTP ON → 1s 안정화 후 충전 카운트 시작
+  app.log('[4339B] OUTP ON — 충전 시작', 'ok');
+  app.serial.sendCmd('OUTP ON\r\n');
+
+  setTimeout(() => {
+    if (!S.running) return;
+    let elapsed = 0;
+    const disp = () => document.getElementById('ag_timerDisp');
+    if (disp()) disp().textContent = `${t('ag_charging')} 0 / ${chargeT}s  [${ilimLbl}]`;
+    app._setDisplay(chargeT, 's', 'stabilizing', 'CHARGING');
+
+    S.timer = setInterval(() => {
+      if (!S.running) { clearInterval(S.timer); return; }
+      elapsed++;
+      const remaining = chargeT - elapsed;
+      const d = disp();
+      if (d) d.textContent = `${t('ag_charging')} ${elapsed} / ${chargeT}s  [${ilimLbl}]`;
+      app._setDisplay(remaining, 's', 'stabilizing', 'CHARGING');
+      if (elapsed >= chargeT) { clearInterval(S.timer); doMeasure(voltage, chargeT, dischargeT); }
+    }, 1000);
   }, 1000);
 }
 
 function doMeasure(voltage, chargeT, dischargeT) {
   if (!S.running) return;
   const d = document.getElementById('ag_timerDisp');
-  const ilimLbl = S.mode === 'VOL' ? ILIM_STEPS[S.currentIlimIdx] : ILIM_STEPS[0];
+  const ilimLbl = document.getElementById('ag_ilimit')?.value || '500uA';
   if (d) d.textContent = `${t('ag_measuring')} [${ilimLbl}]`;
   app._setDisplay('📏 MEAS', '', 'stabilizing', 'MEASURING');
-  app.serial.sendCmd(':MEAS:RES?\r\n');
+  app.log('[4339B] ABOR → *CLS → INIT → *TRG → FETC?', 'ok');
 
-  let waited = 0;
-  const poll = setInterval(() => {
-    waited += 200;
-    if (S.latestVal !== null || waited > 5000) {
-      clearInterval(poll);
-      const raw = S.latestVal; S.latestOL = S.latestVal === null || (raw !== null && raw > OL_THRESHOLD);
-      S.latestVal = null;
+  // Python measure() Step 3: ABOR → 0.5s → *CLS → 0.3s → INIT → 0.5s → *TRG → 0.5s → FETC?
+  app.serial.sendCmd('ABOR\r\n');
+  setTimeout(() => app.serial.sendCmd('*CLS\r\n'),  500);
+  setTimeout(() => app.serial.sendCmd('INIT\r\n'),  800);
+  setTimeout(() => app.serial.sendCmd('*TRG\r\n'), 1300);
+  setTimeout(() => {
+    if (!S.running) return;
+    app.serial.sendCmd('FETC?\r\n');
 
-      if (S.mode === 'VOL' && S.latestOL) {
-        if (S.currentIlimIdx < ILIM_STEPS.length - 1) {
-          S.currentIlimIdx++;
-          S.autoEscalating = true;
-          app.log(`${t('ag_ol_escalate')} ${ILIM_STEPS[S.currentIlimIdx - 1]} → ${ILIM_STEPS[S.currentIlimIdx]}`, 'warn');
-          S.running = false;
-          doDischarge(dischargeT, () => { _doStartCycle(voltage, chargeT, dischargeT); });
-          return;
-        } else {
-          app.log(t('ag_ol_maxed'), 'err');
-        }
+    let waited = 0;
+    const poll = setInterval(() => {
+      waited += 200;
+      if (S.latestVal !== null || waited > 8000) {
+        clearInterval(poll);
+        if (!S.running) return;
+        const raw = S.latestVal;
+        S.latestVal = null;
+        S.lastRaw = raw;
+        logResult(raw, voltage, chargeT);
+        doDischarge(dischargeT);
       }
-
-      if (S.autoEscalating && !S.latestOL) {
-        app.log(`${ILIM_STEPS[S.currentIlimIdx]} ${t('ag_valid_ok')}`, 'ok');
-        S.autoEscalating = false;
-      }
-
-      logResult(raw, voltage, chargeT);
-      doDischarge(dischargeT);
-    }
-  }, 200);
+    }, 200);
+  }, 1800);
 }
 
 function logResult(raw, voltage, chargeT) {
-  const thickness  = parseFloat(document.getElementById('ag_thickness')?.value) || 1.0;
-  const ilimLbl    = S.mode === 'VOL' ? ILIM_STEPS[S.currentIlimIdx] : (document.getElementById('ag_ilimit')?.value || '500uA');
-  const sample     = document.getElementById('ag_sample')?.value || 'Sample';
-  const electrode  = 50; // mm (fixed)
-  let resistivity  = null, unit = '';
-  const isOL       = raw === null || (raw !== null && raw > OL_THRESHOLD);
+  // ── 체크박스 재측정 확인 ──
+  const chkd = [...document.querySelectorAll('.ag-row-chk:checked')];
+  if (chkd.length > 1) { app.log('재측정: 1개 행만 선택해주세요.', 'warn'); return; }
+  const reIdx = chkd.length === 1 ? +chkd[0].dataset.idx : null;
 
+  const thickness  = parseFloat(document.getElementById('ag_thickness')?.value) || 1.0;
+  const ilimLbl    = document.getElementById('ag_ilimit')?.value || '500uA';
+  const sample     = document.getElementById('ag_sample')?.value || 'Sample';
+  const repeat     = Math.max(1, parseInt(document.getElementById('ag_repeatCount')?.value || '1') || 1);
+  const electrode  = 50;
+
+  let resistivity = null, unit = '';
+  const isOL = raw === null || (raw !== null && raw > OL_THRESHOLD);
   if (!isOL && raw !== null && !isNaN(raw)) {
     const r_mm = electrode / 2;
     if (S.mode === 'SURF') {
@@ -254,8 +289,37 @@ function logResult(raw, voltage, chargeT) {
     }
   }
 
+  if (reIdx !== null && S.rows[reIdx]) {
+    // ── 기존 행 덮어쓰기 ──
+    const r = S.rows[reIdx];
+    Object.assign(r, {
+      mode: S.mode === 'SURF' ? 'Surface' : 'Volume',
+      volt: voltage, ilim: ilimLbl, charge: chargeT, thick: thickness,
+      raw: isOL ? null : raw, resistivity, unit, ol: isOL,
+      time: new Date().toLocaleString('ko-KR') + ' (재측정)',
+    });
+    document.querySelectorAll('.ag-row-chk').forEach(c => c.checked = false);
+    const sa = document.getElementById('ag_selectAll'); if (sa) sa.checked = false;
+    renderTable(); drawChart();
+    if (isOL) app.log(`재측정 완료 (No.${r.no}) — OL [${ilimLbl}]`, 'warn');
+    else app.log(`재측정 완료 (No.${r.no})  Raw=${raw?.toExponential(4)} Ω  ρ=${resistivity?.toExponential(4)} ${unit}`, 'ok');
+    return;
+  }
+
+  // ── 신규 행 추가 ──
+  if (sample !== S.curGroup) { S.curGroup = sample; S.curIdx = 1; }
+  else S.curIdx++;
+  let label;
+  if (repeat === 1) {
+    label = `${sample}-${S.curIdx}`;
+  } else {
+    const groupNo = Math.ceil(S.curIdx / repeat);
+    const subNo   = ((S.curIdx - 1) % repeat) + 1;
+    label = `${sample}-${groupNo}-${subNo}`;
+  }
+
   S.rows.push({
-    no: S.rows.length + 1, sample,
+    no: S.rows.length + 1, sample: label,
     mode: S.mode === 'SURF' ? 'Surface' : 'Volume',
     volt: voltage, ilim: ilimLbl,
     charge: chargeT, thick: thickness,
@@ -268,21 +332,29 @@ function logResult(raw, voltage, chargeT) {
   if (isOL) {
     app.log(`${t('ag_meas_done_ol')} ${ilimLbl}`, 'warn');
   } else {
-    app.log(`${t('ag_meas_done')} Raw=${raw?.toExponential(3) ?? 'N/A'} Ω  ρ=${resistivity?.toExponential(3) ?? 'N/A'} ${unit}  [${ilimLbl}]`, 'ok');
+    app.log(`${t('ag_meas_done')} Raw=${raw?.toExponential(4) ?? 'N/A'} Ω  ρ=${resistivity?.toExponential(4) ?? 'N/A'} ${unit}  [${ilimLbl}]`, 'ok');
   }
 }
 
 function doDischarge(dischargeT, onDone) {
-  app.serial.sendCmd(':OUTP OFF\r\n');
-  if (dischargeT <= 0) { (onDone ?? finishOne)(); return; }
+  // Python _safe_off(): OUTP OFF → 0.5s → *CLS
+  app.serial.sendCmd('OUTP OFF\r\n');
+  setTimeout(() => app.serial.sendCmd('*CLS\r\n'), 500);
+
+  if (dischargeT <= 0) {
+    setTimeout(() => (onDone ?? finishOne)(), 700);
+    return;
+  }
   let elapsed = 0;
   app._setDisplay('🔋 DISCH', '', 'stabilizing', 'DISCHARGING');
-  S.timer = setInterval(() => {
-    elapsed++;
-    const d = document.getElementById('ag_timerDisp');
-    if (d) d.textContent = `${t('ag_discharging')} ${elapsed} / ${dischargeT}s`;
-    if (elapsed >= dischargeT) { clearInterval(S.timer); (onDone ?? finishOne)(); }
-  }, 1000);
+  setTimeout(() => {
+    S.timer = setInterval(() => {
+      elapsed++;
+      const d = document.getElementById('ag_timerDisp');
+      if (d) d.textContent = `${t('ag_discharging')} ${elapsed} / ${dischargeT}s`;
+      if (elapsed >= dischargeT) { clearInterval(S.timer); (onDone ?? finishOne)(); }
+    }, 1000);
+  }, 700);
 }
 
 function finishOne() {
@@ -291,13 +363,19 @@ function finishOne() {
   document.getElementById('ag_btnStop').disabled  = true;
   const d = document.getElementById('ag_timerDisp');
   if (d) d.textContent = t('ag_done_wait');
-  app._setDisplay('DONE', '', 'ready', 'READY');
+  // 마지막 측정값 유지 (값 덮어쓰지 않고 상태만 READY로 변경)
+  const raw = S.lastRaw;
+  const isOL = raw === null || (raw !== null && raw > OL_THRESHOLD);
+  const dispVal = isOL ? 'OL' : raw.toExponential(4);
+  const dispUnit = isOL ? '' : 'Ω';
+  app._setDisplay(dispVal, dispUnit, 'ready', 'READY');
 }
 
 function stopMeas() {
   clearInterval(S.timer); S.timer = null; S.running = false;
-  S.autoEscalating = false;
-  app.serial.sendCmd(':OUTP OFF\r\n');
+  // Python voltage_off(): OUTP OFF → *CLS
+  app.serial.sendCmd('OUTP OFF\r\n');
+  setTimeout(() => app.serial.sendCmd('*CLS\r\n'), 500);
   document.getElementById('ag_btnStart').disabled = false;
   document.getElementById('ag_btnStop').disabled  = true;
   const d = document.getElementById('ag_timerDisp');
@@ -327,19 +405,19 @@ function clearData() {
 }
 
 function copyData() {
-  const cols = ['No','Sample','Mode','Volt','I-Lim','Charge(s)','Thick(mm)','Raw(Ω)','Resistivity','Unit','OL'];
+  const cols = ['No','Sample','Mode','Voltage (V)','I-Lim','Charge (s)','Thickness (mm)','Raw(Ω)','Resistivity','Unit','OL'];
   const lines = [cols.join('\t'), ...S.rows.map(r => [
     r.no, r.sample, r.mode, r.volt, r.ilim, r.charge, r.thick,
-    r.raw ?? '', r.resistivity?.toExponential(3) ?? '', r.unit, r.ol ? 'OL' : '',
+    r.raw != null ? r.raw.toExponential(4) : '', r.resistivity?.toExponential(4) ?? '', r.unit, r.ol ? 'OL' : '',
   ].join('\t'))];
   navigator.clipboard.writeText(lines.join('\n')).then(() => app.log(t('clipboard_ok'), 'ok'));
 }
 
 function exportCSV() {
-  const cols = ['No','Sample','Mode','Volt','I-Lim','Charge(s)','Thick(mm)','Raw(Ohm)','Resistivity','Unit','OL'];
+  const cols = ['No','Sample','Mode','Voltage (V)','I-Lim','Charge (s)','Thickness (mm)','Raw(Ohm)','Resistivity','Unit','OL'];
   const rows = [cols, ...S.rows.map(r => [
     r.no, r.sample, r.mode, r.volt, r.ilim, r.charge, r.thick,
-    r.raw ?? '', r.resistivity?.toExponential(3) ?? '', r.unit, r.ol ? 'OL' : '',
+    r.raw != null ? r.raw.toExponential(4) : '', r.resistivity?.toExponential(4) ?? '', r.unit, r.ol ? 'OL' : '',
   ])];
   const a = Object.assign(document.createElement('a'), {
     href: URL.createObjectURL(new Blob(['﻿' + rows.map(r => r.join(',')).join('\n')], { type: 'text/csv;charset=utf-8' })),
@@ -349,20 +427,34 @@ function exportCSV() {
   app.log(t('csv_ok'), 'ok');
 }
 
+function renameSample(i, val) {
+  if (S.rows[i]) S.rows[i].sample = val;
+}
+
 function renderTable() {
   const tbody = document.getElementById('agBody');
   if (!tbody) return;
   tbody.innerHTML = S.rows.map((r, i) => `<tr class="${r.ol ? 'ag-row-ol' : ''}">
     <td class="cchk"><input type="checkbox" class="ag-row-chk" data-idx="${i}"></td>
-    <td class="num">${r.no}</td><td>${r.sample}</td><td>${r.mode}</td>
+    <td class="num">${r.no}</td>
+    <td><input class="pt-name-inp" value="${escAttr(r.sample)}" onchange="app.instr.renameSample(${i}, this.value)"></td>
+    <td>${r.mode}</td>
     <td class="num">${r.volt}</td><td>${r.ilim}</td>
     <td class="num">${r.charge}</td><td class="num">${r.thick}</td>
-    <td class="num accent">${r.ol ? '<span style="color:var(--warn);">OL</span>' : (r.raw?.toExponential(3) ?? '—')}</td>
-    <td class="num accent">${r.resistivity?.toExponential(3) ?? '—'}</td>
+    <td class="num accent">${r.ol ? '<span style="color:var(--warn);">OL</span>' : (r.raw?.toExponential(4) ?? '—')}</td>
+    <td class="num accent">${r.resistivity?.toExponential(4) ?? '—'}</td>
     <td>${r.unit}</td>
   </tr>`).join('');
   const wrap = tbody.closest('.table-wrap');
   if (wrap) wrap.scrollTop = wrap.scrollHeight;
+}
+
+function _quartile(sorted, q) {
+  // Linear interpolation quartile (q: 0~1)
+  const n = sorted.length;
+  if (n === 1) return sorted[0];
+  const pos = q * (n - 1), lo = Math.floor(pos), hi = Math.ceil(pos);
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
 }
 
 function drawChart() {
@@ -375,24 +467,30 @@ function drawChart() {
   const W = canvas.width, H = canvas.height;
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, W, H);
-  const vals = S.rows.filter(r => r.resistivity !== null && !r.ol).map(r => r.resistivity);
-  if (!vals.length) { if (emptyEl) emptyEl.style.display = ''; return; }
+
+  const repeat = Math.max(1, parseInt(document.getElementById('ag_repeatCount')?.value || '1') || 1);
+  const validRows = S.rows.filter(r => r.resistivity !== null && !r.ol);
+  if (!validRows.length) { if (emptyEl) emptyEl.style.display = ''; return; }
   if (emptyEl) emptyEl.style.display = 'none';
-  const logs   = vals.map(v => Math.log10(Math.abs(v)));
-  const minLog = Math.floor(Math.min(...logs)) - 0.5;
-  const maxLog = Math.ceil(Math.max(...logs))  + 0.5;
+
+  const allLogVals = validRows.map(r => Math.log10(Math.abs(r.resistivity)));
+  const minLog = Math.floor(Math.min(...allLogVals)) - 0.5;
+  const maxLog = Math.ceil(Math.max(...allLogVals))  + 0.5;
   const spanLog = maxLog - minLog || 1;
-  const padT = 20, padB = 40, padL = 54, padR = 16;
+  const padT = 30, padB = 40, padL = 54, padR = 16;
   const cH = H - padT - padB, totalW = W - padL - padR;
-  const bW = Math.max(8, Math.min(28, totalW / (vals.length + 1) - 4));
   const toY = v => padT + (1 - (v - minLog) / spanLog) * cH;
+
   const cs = getComputedStyle(document.body);
   const C = {
     text:    cs.getPropertyValue('--chart-text').trim()    || '#5e7790',
     grid:    cs.getPropertyValue('--chart-grid').trim()    || 'rgba(31,59,86,.5)',
     boxFill: cs.getPropertyValue('--chart-box-fill').trim()|| 'rgba(43,143,255,.12)',
     boxStr:  cs.getPropertyValue('--chart-box-str').trim() || '#2b8fff',
+    accent:  cs.getPropertyValue('--accent').trim()        || '#2b8fff',
   };
+
+  // Y-axis grid
   ctx.fillStyle = C.text;
   ctx.font = '10px JetBrains Mono'; ctx.textAlign = 'right';
   for (let e = Math.ceil(minLog); e <= Math.floor(maxLog); e++) {
@@ -401,23 +499,113 @@ function drawChart() {
     ctx.strokeStyle = C.grid; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
   }
-  vals.forEach((v, i) => {
-    const lv = Math.log10(Math.abs(v));
-    const x  = padL + (i + 0.5) * totalW / vals.length - bW / 2;
-    // bar fill: use accent with some opacity
-    ctx.fillStyle = C.boxFill.replace(',.12)', ',.6)').replace(',.10)', ',.5)');
-    ctx.strokeStyle = C.boxStr; ctx.lineWidth = 1;
-    ctx.fillRect(x, toY(lv), bW, toY(minLog) - toY(lv));
-    ctx.strokeRect(x, toY(lv), bW, toY(minLog) - toY(lv));
-    ctx.fillStyle = C.text; ctx.textAlign = 'center';
-    ctx.fillText(String(i + 1), x + bW / 2, H - padB + 14);
-  });
-  const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
-  const sd   = Math.sqrt(vals.reduce((s, v) => s + (v - mean) ** 2, 0) / vals.length);
+
+  const allVals = validRows.map(r => r.resistivity);
+  const mean = allVals.reduce((a, b) => a + b, 0) / allVals.length;
+  const sd   = Math.sqrt(allVals.reduce((s, v) => s + (v - mean) ** 2, 0) / allVals.length);
+
+  if (repeat > 1) {
+    // ── Box-and-whisker mode: group every `repeat` rows — 최근 3그룹만 표시 ──
+    const allGroups = [];
+    for (let start = 0; start < S.rows.length; start += repeat) {
+      const chunk = S.rows.slice(start, start + repeat)
+                         .filter(r => r.resistivity !== null && !r.ol);
+      if (!chunk.length) continue;
+      const logVals = chunk.map(r => Math.log10(Math.abs(r.resistivity))).sort((a, b) => a - b);
+      const rawVals = chunk.map(r => r.resistivity);
+      allGroups.push({ logVals, rawVals, n: chunk.length, groupNo: allGroups.length + 1 });
+    }
+    if (!allGroups.length) return;
+    const groups = allGroups.slice(-3);
+
+    const colW = totalW / groups.length;
+    const bW = Math.max(16, Math.min(colW * 0.55, 72));
+
+    const BOX_PALETTE = [
+      { stroke: '#2b8fff', fill: 'rgba(43, 143, 255, 0.15)' }, // Blue
+      { stroke: '#10b981', fill: 'rgba(16, 185, 129, 0.15)' }, // Emerald
+      { stroke: '#a855f7', fill: 'rgba(168, 85, 247, 0.15)' }, // Purple
+      { stroke: '#f97316', fill: 'rgba(249, 115, 22, 0.15)' }, // Orange
+      { stroke: '#f43f5e', fill: 'rgba(244, 63, 94, 0.15)' }, // Rose
+      { stroke: '#06b6d4', fill: 'rgba(6, 182, 212, 0.15)' },  // Cyan
+      { stroke: '#eab308', fill: 'rgba(234, 179, 8, 0.15)' },   // Yellow
+      { stroke: '#ec4899', fill: 'rgba(236, 72, 153, 0.15)' }   // Pink
+    ];
+
+    groups.forEach((g, gi) => {
+      const { logVals, rawVals } = g;
+      const cx   = padL + (gi + 0.5) * colW;
+      const x1   = cx - bW / 2, x2 = cx + bW / 2;
+      const wMin = logVals[0], wMax = logVals[logVals.length - 1];
+      const q1   = _quartile(logVals, 0.25);
+      const med  = _quartile(logVals, 0.5);
+      const q3   = _quartile(logVals, 0.75);
+      // 기하평균 (로그평균의 역변환) — 레이블 표시용
+      const geoMean = Math.pow(10, logVals.reduce((a, b) => a + b, 0) / logVals.length);
+
+      const colorObj = BOX_PALETTE[(g.groupNo - 1) % BOX_PALETTE.length];
+      const boxStr = colorObj.stroke;
+      const boxFill = colorObj.fill;
+
+      // Box fill
+      ctx.fillStyle = boxFill;
+      ctx.strokeStyle = boxStr; ctx.lineWidth = 1.5;
+      const yQ1 = toY(q1), yQ3 = toY(q3), yMed = toY(med);
+      ctx.fillRect(x1, yQ3, bW, yQ1 - yQ3);
+      ctx.strokeRect(x1, yQ3, bW, yQ1 - yQ3);
+      // Median line
+      ctx.beginPath(); ctx.moveTo(x1, yMed); ctx.lineTo(x2, yMed); ctx.stroke();
+      // Whiskers
+      const capHalf = bW * 0.22;
+      ctx.beginPath();
+      ctx.moveTo(cx, yQ1); ctx.lineTo(cx, toY(wMin));
+      ctx.moveTo(cx - capHalf, toY(wMin)); ctx.lineTo(cx + capHalf, toY(wMin));
+      ctx.moveTo(cx, yQ3); ctx.lineTo(cx, toY(wMax));
+      ctx.moveTo(cx - capHalf, toY(wMax)); ctx.lineTo(cx + capHalf, toY(wMax));
+      ctx.stroke();
+      // Data points
+      logVals.forEach(lv => {
+        ctx.beginPath(); ctx.arc(cx, toY(lv), 3, 0, Math.PI * 2);
+        ctx.fillStyle = boxStr; ctx.globalAlpha = 0.85; ctx.fill(); ctx.globalAlpha = 1;
+      });
+      // 평균값 레이블 — 상단 수염 위, 기울여서 표시
+      ctx.save();
+      ctx.translate(cx, toY(wMax) - 7);
+      ctx.rotate(-Math.PI / 5.5);
+      ctx.font = 'bold 9px JetBrains Mono'; ctx.textAlign = 'left'; ctx.fillStyle = boxStr;
+      ctx.fillText(geoMean.toExponential(2), 0, 0);
+      ctx.restore();
+      // X label: 실제 그룹 번호와 범위
+      ctx.fillStyle = C.text; ctx.textAlign = 'center';
+      ctx.font = '9px JetBrains Mono';
+      const labelText = `#${g.groupNo} (${g.groupNo}-1~${g.groupNo}-${repeat})`;
+      ctx.fillText(labelText, cx, H - padB + 14);
+      if (g.n < repeat) {
+        ctx.fillStyle = C.boxStr; ctx.font = '8.5px JetBrains Mono';
+        ctx.fillText(`${g.n}/${repeat}`, cx, H - padB + 25);
+      }
+    });
+  } else {
+    // ── Bar chart mode (repeat = 1, individual bars) ──
+    const vals = validRows.map(r => r.resistivity);
+    const colW = totalW / vals.length;
+    const bW   = Math.max(12, Math.min(colW * 0.65, 80));
+    vals.forEach((v, i) => {
+      const lv = Math.log10(Math.abs(v));
+      const x  = padL + (i + 0.5) * totalW / vals.length - bW / 2;
+      ctx.fillStyle = C.boxFill.replace(',.12)', ',.6)').replace(',.10)', ',.5)');
+      ctx.strokeStyle = C.boxStr; ctx.lineWidth = 1;
+      ctx.fillRect(x, toY(lv), bW, toY(minLog) - toY(lv));
+      ctx.strokeRect(x, toY(lv), bW, toY(minLog) - toY(lv));
+      ctx.fillStyle = C.text; ctx.textAlign = 'center';
+      ctx.fillText(String(i + 1), x + bW / 2, H - padB + 14);
+    });
+  }
+
   if (statsEl) statsEl.innerHTML = [
-    ['n', vals.length], ['Min', vals[0].toExponential(2)],
-    ['Max', vals[vals.length - 1].toExponential(2)],
-    ['Mean', mean.toExponential(2)], ['σ', sd.toExponential(2)],
+    ['n', validRows.length], ['Min', Math.min(...allVals).toExponential(4)],
+    ['Max', Math.max(...allVals).toExponential(4)],
+    ['Mean', mean.toExponential(4)], ['σ', sd.toExponential(4)],
   ].map(([k, v]) => `<div class="stat-chip">${k} <b>${v}</b></div>`).join('');
 }
 
@@ -430,7 +618,8 @@ export default {
   serial: { baudRate: 9600, dataBits: 8, parity: 'none', stopBits: 1 },
 
   buildSidebar(el) {
-    init();
+    if (!S) init();
+    const sv = loadAgSettings();
     el.innerHTML = `<div class="sidebar-top">
       <div class="panel">
         <div class="notice">${t('ag_gpib_notice')}</div>
@@ -509,6 +698,25 @@ export default {
         <button id="ag_btnStop" class="big-btn danger" onclick="app.instr.stopMeas()" disabled>${t('ag_stop_btn')}</button>
       </div>
     </div>${syslogPanelHTML()}`;
+
+    // 저장된 값 복원
+    if (sv.voltage)   { const el = document.getElementById('ag_voltage');   if (el) el.value = sv.voltage; }
+    if (sv.ilimit)    { const el = document.getElementById('ag_ilimit');    if (el) el.value = sv.ilimit; }
+    if (sv.charge)    { const el = document.getElementById('ag_charge');    if (el) el.value = sv.charge; }
+    if (sv.discharge) { const el = document.getElementById('ag_discharge'); if (el) el.value = sv.discharge; }
+    if (sv.thickness) { const el = document.getElementById('ag_thickness'); if (el) el.value = sv.thickness; }
+    if (sv.sample)    { const el = document.getElementById('ag_sample');    if (el) el.value = sv.sample; }
+    if (sv.autoVolt !== undefined) {
+      const cb = document.getElementById('ag_autoVolt');
+      if (cb) { cb.checked = sv.autoVolt; onAutoVoltChange(sv.autoVolt); }
+    }
+    if (sv.mode && sv.mode !== 'VOL') applyMode(sv.mode);
+
+    // 변경 시 자동 저장
+    ['ag_voltage','ag_ilimit','ag_charge','ag_discharge','ag_thickness','ag_sample'].forEach(id =>
+      document.getElementById(id)?.addEventListener('change', saveAgSettings));
+    document.getElementById('ag_thickness')?.addEventListener('input', saveAgSettings);
+    document.getElementById('ag_sample')?.addEventListener('input', saveAgSettings);
   },
 
   buildCenter(el) {
@@ -523,9 +731,15 @@ export default {
       <div class="panel datalog-head-bar">
         <div class="panel-title">${t('data_panel_title')} (Agilent 4339B)</div>
         <div class="datalog-actions">
+          <span style="font-size:12px;color:var(--text-dim);white-space:nowrap;">${t('group_repeat_label')}</span>
+          <input id="ag_repeatCount" class="inp" type="number"
+                 value="${JSON.parse(localStorage.getItem(AG_SK)||'{}').repeatCount ?? '1'}"
+                 min="1" max="99" step="1"
+                 style="width:54px;padding:5px 8px;font-size:13px;text-align:center;"
+                 onchange="app.instr._saveAgSettings(); app.instr._redrawChart()">
           <button class="sbtn" onclick="app.instr.copyData()">${t('btn_copy')}</button>
           <button class="sbtn green" onclick="app.instr.exportCSV()">${t('btn_csv')}</button>
-          <button class="sbtn red" onclick="app.instr.deleteSel()">DELETE SEL</button>
+          <button class="sbtn red-o" onclick="app.instr.deleteSel()">${t('btn_del_sel')}</button>
           <button class="sbtn red" onclick="app.instr.clearData()">${t('btn_clear')}</button>
         </div>
       </div>
@@ -560,23 +774,41 @@ export default {
 
   onLine(line) {
     if (!S) return;
+    // SCPI 에러 응답 필터: -213,"INIT IGNORED" 등 (따옴표 포함)
+    if (/^[+-]\d+\s*,\s*"/.test(line)) {
+      const code = parseInt(line);
+      if (code !== 0) app.log(`4339B 오류: ${line}`, 'err');
+      return;
+    }
     if (/OL|9\.9[0-9]*E\+37/i.test(line)) {
       S.latestVal = 9.9e37;
       return;
     }
-    const m = line.match(/([+-]?\d+\.?\d*[Ee][+-]?\d+)/);
-    if (m) {
-      const v = parseFloat(m[1]);
-      app._setDisplay(v.toExponential(3), 'Ω');
-      S.latestVal = v;
+    // FETC? 응답: "+0,+1.234E+09" — 상태코드,측정값
+    // 상태코드가 0이면 정상, 非0이면 I-Limit 등 오류
+    const fetchMatch = line.match(/^([+-]?\d+(?:\.\d+)?),([+-]?\d+\.?\d*[Ee][+-]?\d+)/);
+    if (fetchMatch) {
+      const statusCode = parseInt(parseFloat(fetchMatch[1]));
+      const value = parseFloat(fetchMatch[2]);
+      if (statusCode !== 0) {
+        app.log(`[4339B] I-Limit 또는 측정 오류 (status=${statusCode})`, 'warn');
+        S.latestVal = 9.9e37; // OL로 처리
+      } else {
+        app._setDisplay(value.toExponential(4), 'Ω');
+        S.latestVal = value;
+      }
+      return;
     }
   },
 
+  onRebuild() { renderTable(); drawChart(); },
   onDisconnect() { if (S?.running) stopMeas(); },
 
   // Exposed for inline onclick handlers
   showModeModal, applyMode, showSOPModal,
   onAutoVoltChange, calcAutoVoltage,
   startMeas, stopMeas,
-  toggleAll, deleteSel, clearData, copyData, exportCSV,
+  toggleAll, deleteSel, clearData, copyData, exportCSV, renameSample,
+  _redrawChart: drawChart,
+  _saveAgSettings: saveAgSettings,
 };
