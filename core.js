@@ -265,6 +265,36 @@ const T = {
     lt_conn_btn: '시리얼 포트 연결',
     lt_test_settings: '시험 설정',
     lt_notice: 'LT-1000은 장비에서 직접 시험을 시작합니다.<br>시험 완료 후 Print 메뉴(P)에서 Enter를 눌러 데이터를 전송하세요.',
+    lt_calib_btn: '로드셀 캘리브레이션 방법',
+    lt_calib_title: '로드셀 캘리브레이션',
+    lt_calib_body: '캘리브레이션은 정확한 측정값을 유지하기 위해 주기적으로 수행하세요.',
+    lt_calib_s1: '로드셀을 끝까지 위로 올린 후 고정핀으로 안전하게 고정합니다.',
+    lt_calib_s2: '을 3초 이상 동시에 눌러 캘리브레이션 모드로 진입합니다.',
+    lt_calib_s3: '화면이 표시되면 Enter를 눌러 확인합니다.',
+    lt_calib_s4: '<b>LC 0.000</b> 화면에서 무부하(영점) 상태를 확인하고 Enter를 누릅니다.',
+    lt_calib_s5: '<b>HC 1000</b> 화면이 나타납니다.',
+    lt_calib_s6: '로드셀 상단에 <b>1 kg 분동(추)</b>을 올린 후 Enter를 누릅니다.',
+    lt_calib_s7: '추를 제거하고, 로드셀을 손으로 잡은 상태에서 고정핀을 해제한 후 조심히 내려놓습니다.',
+    lt_calib_img_cap: '1 kg 분동을 로드셀 상단에 올려놓은 상태',
+    lt_calib_prep: '① 준비',
+    lt_calib_prep_s1: '로드셀 최상단 이동',
+    lt_calib_prep_s2: '고정핀 체결',
+    lt_calib_enter: '② 캘리브레이션 모드 진입',
+    lt_calib_zero: '③ 영점 교정 (무부하)',
+    lt_calib_zero_check: 'LC 0.000 확인',
+    lt_calib_span: '④ 스팬 교정 (1 kg 분동)',
+    lt_calib_span_show: 'HC 1000 표시',
+    lt_calib_span_place: '1 kg 분동 올리기',
+    lt_calib_img_alt: '1kg 추 올리기',
+    lt_calib_done: '⑤ 완료',
+    lt_calib_done_s1: '추 제거',
+    lt_calib_done_s2: '로드셀 파지',
+    lt_calib_done_s3: '고정핀 해제',
+    lt_calib_done_s4: '조심히 내려놓기',
+    lt_howto_btn: '데이터 전송 방법',
+    lt_howto_title: '📋 데이터 전송 방법',
+    lt_howto_body: '시험 완료 후 아래 순서대로 버튼을 누르면 데이터가 자동으로 기록됩니다.',
+    lt_howto_auto: '타이머 종료 후<br>자동 기록',
     lt_sample_label: '샘플명',
     lt_tol_label: '이상치 허용 (%)',
     lt_unit_label: '단위',
@@ -276,6 +306,11 @@ const T = {
     lt_probe_label: '프로브',
     lt_mem_warn: '⚠ P — 20개 등록 시 메모리 초기화해주세요',
     lt_mem_how: '방법',
+    lt_run_hint: 'Run 상태에서 평가를 진행하세요',
+    lt_stfull_btn: 'ST FULL 해결 방법',
+    lt_stfull_title: 'ST FULL 해결 방법',
+    lt_stfull_body: '장비에 저장 가능한 메모리가 가득 찼습니다. 아래 순서로 메모리를 초기화하고 다시 평가를 시작하세요.',
+    lt_stfull_done: '초기화 완료<br>다시 평가 시작',
     lt_data_title: '📋 측정 데이터',
     group_repeat_label: '그룹 개수',
     group_repeat_hint: '같은 샘플명을 N개씩 묶어 번호를 매깁니다 (예: 3 → A-1-1, A-1-2, A-1-3, A-2-1...)',
@@ -616,6 +651,36 @@ const T = {
     lt_conn_btn: 'Connect Serial Port',
     lt_test_settings: 'Test Settings',
     lt_notice: 'Tests are started directly on the LT-1000.<br>After the test, press Enter in the Print menu (P) to send data.',
+    lt_calib_btn: 'Load Cell Calibration Guide',
+    lt_calib_title: 'Load Cell Calibration',
+    lt_calib_body: 'Perform calibration periodically to maintain measurement accuracy.',
+    lt_calib_s1: 'Raise the load cell to the top and secure it firmly with the locking pin.',
+    lt_calib_s2: 'Press and hold simultaneously for 3+ seconds to enter calibration mode.',
+    lt_calib_s3: 'When the Setup screen appears, press Enter to confirm.',
+    lt_calib_s4: 'On the <b>LC 0.000</b> screen, confirm the zero (no-load) state and press Enter.',
+    lt_calib_s5: 'The <b>HC 1000</b> screen will appear.',
+    lt_calib_s6: 'Place a <b>1 kg calibration weight</b> on top of the load cell, then press Enter.',
+    lt_calib_s7: 'Remove the weight, hold the load cell securely, release the locking pin, and gently lower it into position.',
+    lt_calib_img_cap: '1 kg calibration weight placed on top of the load cell',
+    lt_calib_prep: '① Preparation',
+    lt_calib_prep_s1: 'Move load cell to top',
+    lt_calib_prep_s2: 'Secure locking pin',
+    lt_calib_enter: '② Enter Calibration Mode',
+    lt_calib_zero: '③ Zero Calibration (No-load)',
+    lt_calib_zero_check: 'Verify LC 0.000',
+    lt_calib_span: '④ Span Calibration (1 kg weight)',
+    lt_calib_span_show: 'HC 1000 Display',
+    lt_calib_span_place: 'Place 1 kg weight',
+    lt_calib_img_alt: 'Place 1kg weight',
+    lt_calib_done: '⑤ Complete',
+    lt_calib_done_s1: 'Remove weight',
+    lt_calib_done_s2: 'Hold load cell',
+    lt_calib_done_s3: 'Release pin',
+    lt_calib_done_s4: 'Lower gently',
+    lt_howto_btn: 'How to Send Data',
+    lt_howto_title: '📋 How to Send Data',
+    lt_howto_body: 'After the test, press the buttons in the following order to record data automatically.',
+    lt_howto_auto: 'Auto-recorded<br>after timer ends',
     lt_sample_label: 'Sample Name',
     lt_tol_label: 'Outlier Tolerance (%)',
     lt_unit_label: 'Unit',
@@ -627,6 +692,11 @@ const T = {
     lt_probe_label: 'Probe',
     lt_mem_warn: '⚠ P — Clear memory after 20 entries',
     lt_mem_how: 'How',
+    lt_run_hint: 'Perform test in Run state',
+    lt_stfull_btn: 'ST FULL Fix',
+    lt_stfull_title: 'ST FULL Fix',
+    lt_stfull_body: 'Device memory is full. Follow the steps below to clear memory and restart testing.',
+    lt_stfull_done: 'Memory cleared<br>Restart test',
     lt_data_title: '📋 Measurement Data',
     group_repeat_label: 'Group Count',
     group_repeat_hint: 'Groups N measurements per sample name for auto-numbering (e.g. 3 → A-1-1, A-1-2, A-1-3, A-2-1...)',
@@ -985,13 +1055,69 @@ class BoxPlot {
     this.ctx = canvas.getContext('2d');
     this.emptyEl = emptyEl;
     this.statsEl = statsEl;
+    this._customYMin = null;
+    this._customYMax = null;
+    this._lastArgs   = null;
+    this._minInp     = null;
+    this._maxInp     = null;
+  }
+
+  attachYControls(graphAreaEl) {
+    const overlay = document.createElement('div');
+    overlay.className = 'y-overlay';
+    graphAreaEl.appendChild(overlay);
+
+    const make = (cls) => {
+      const inp = document.createElement('input');
+      inp.type = 'number'; inp.step = 'any'; inp.placeholder = '자동';
+      inp.className = `y-axis-inp ${cls}`;
+      overlay.appendChild(inp);
+      return inp;
+    };
+    this._maxInp = make('y-axis-max');
+    this._minInp = make('y-axis-min');
+
+    const resetBtn = document.createElement('button');
+    resetBtn.className = 'y-reset-btn';
+    resetBtn.title = 'Y축 자동';
+    resetBtn.textContent = '↺';
+    overlay.appendChild(resetBtn);
+
+    const redraw = () => {
+      const mn = parseFloat(this._minInp.value);
+      const mx = parseFloat(this._maxInp.value);
+      this._customYMin = (this._minInp.value !== '' && !isNaN(mn)) ? mn : null;
+      this._customYMax = (this._maxInp.value !== '' && !isNaN(mx)) ? mx : null;
+      resetBtn.style.display = (this._customYMin !== null || this._customYMax !== null) ? '' : 'none';
+      if (this._lastArgs) this.draw(...this._lastArgs);
+    };
+    for (const inp of [this._maxInp, this._minInp]) {
+      inp.addEventListener('change', redraw);
+      inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); inp.blur(); redraw(); } });
+    }
+    resetBtn.onclick = () => {
+      this._customYMin = null; this._customYMax = null;
+      this._maxInp.value = ''; this._minInp.value = '';
+      resetBtn.style.display = 'none';
+      if (this._lastArgs) this.draw(...this._lastArgs);
+    };
+    resetBtn.style.display = 'none';
+    this._resetBtn = resetBtn;
+  }
+
+  _positionInputs(H) {
+    if (this._maxInp) { this._maxInp.style.top = `${28 - 9}px`; this._maxInp.style.left = '3px'; }
+    if (this._minInp) { this._minInp.style.top = `${H - 44 - 9}px`; this._minInp.style.left = '3px'; }
+    if (this._resetBtn) { this._resetBtn.style.top = '6px'; this._resetBtn.style.right = '6px'; }
   }
 
   draw(grid, groupCount) {
+    this._lastArgs = [grid, groupCount];
     const cv = this.canvas;
     cv.width  = cv.offsetWidth  || 320;
     cv.height = cv.offsetHeight || 240;
     const W = cv.width, H = cv.height;
+    this._positionInputs(cv.offsetHeight || H);
     const ctx = this.ctx;
     ctx.clearRect(0, 0, W, H);
 
@@ -1035,8 +1161,13 @@ class BoxPlot {
     if (empty) empty.style.display = 'none';
 
     const sortedAll = [...allVals].sort((a, b) => a - b);
-    const mn = sortedAll[0], mx = sortedAll[sortedAll.length - 1];
+    const autoMn = sortedAll[0], autoMx = sortedAll[sortedAll.length - 1];
+    const mn = this._customYMin !== null ? this._customYMin : autoMn;
+    const mx = this._customYMax !== null ? this._customYMax : autoMx;
     const span = mx - mn || 1;
+
+    if (this._minInp && this._customYMin === null) this._minInp.placeholder = autoMn.toPrecision(4).replace(/\.?0+$/, '');
+    if (this._maxInp && this._customYMax === null) this._maxInp.placeholder = autoMx.toPrecision(4).replace(/\.?0+$/, '');
 
     const padT = 28, padB = 44, padL = 64, padR = 20;
     const cH = H - padT - padB;
@@ -1054,10 +1185,14 @@ class BoxPlot {
       dot:     cs.getPropertyValue('--chart-dot').trim()     || 'rgba(63,182,232,.55)',
     };
 
-    ctx.fillStyle = C.text; ctx.font = '10px JetBrains Mono'; ctx.textAlign = 'right';
+    ctx.font = '10px JetBrains Mono'; ctx.textAlign = 'right';
     [mn, (mn+mx)/2, mx].forEach(v => {
       const y = toY(v);
-      ctx.fillText(_fmt(v), padL - 6, y + 4);
+      // Skip min/max text when overlay inputs show those values
+      if (v === (mn+mx)/2 || !this._maxInp) {
+        ctx.fillStyle = C.text;
+        ctx.fillText(_fmt(v), padL - 6, y + 4);
+      }
       ctx.strokeStyle = C.grid; ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
     });
@@ -1692,19 +1827,39 @@ class App {
         <button class="ci-edit-btn">✏ ${this.t('card_edit_title')}</button>
       </div>`;
 
-    document.body.appendChild(popup);
+    // 1행 여부: 카드가 속한 .cards-grid 상단과의 BoundingClientRect 차이로 판별
+    // (두 값 모두 같은 좌표계이므로 DPI/zoom에 무관하게 정확함)
+    const _grid   = cardEl.closest('.cards-grid') || cardEl.parentElement;
+    const _cardT  = cardEl.getBoundingClientRect().top;
+    const _gridT  = _grid ? _grid.getBoundingClientRect().top : 0;
+    const _isRow1 = (_cardT - _gridT) <= 8;
 
-    // 카드 상단 배치, 화면 경계 보정
-    const cardRect = cardEl.getBoundingClientRect();
+    document.body.appendChild(popup);
     popup.style.cssText = 'position:fixed;z-index:8000;';
-    const pRect = popup.getBoundingClientRect();
-    let top  = cardRect.top - pRect.height - 10;
-    let left = cardRect.left + cardRect.width / 2 - pRect.width / 2;
-    if (top < 8) top = cardRect.bottom + 10;     // 상단 공간 부족 시 하단으로
-    if (left < 8) left = 8;
-    if (left + pRect.width > window.innerWidth - 8) left = window.innerWidth - pRect.width - 8;
-    popup.style.top  = `${top}px`;
-    popup.style.left = `${left}px`;
+
+    const _place = () => {
+      if (!document.contains(popup)) return;
+      const cr  = cardEl.getBoundingClientRect();
+      const pw  = popup.offsetWidth;
+      const ph  = popup.offsetHeight;
+      const vw  = document.documentElement.clientWidth  || window.innerWidth;
+      const vh  = document.documentElement.clientHeight || window.innerHeight;
+      // getBoundingClientRect()와 clientWidth/Height의 단위가 같으면
+      // 비율은 항상 정확하므로 DPI·배율·창 크기와 무관하게 올바른 위치에 배치됨
+      const pwPct = pw / vw * 100;
+      const phPct = ph / vh * 100;
+      const topPct = _isRow1
+        ? cr.bottom / vh * 100 + 0.4
+        : cr.top    / vh * 100 - phPct - 0.4;
+      const cardCxPct = (cr.left + cr.width / 2) / vw * 100;
+      let leftPct = cardCxPct - pwPct / 2;
+      if (leftPct < 0.5)          leftPct = 0.5;
+      if (leftPct + pwPct > 99.5) leftPct = 99.5 - pwPct;
+      popup.style.top  = `${topPct}%`;
+      popup.style.left = `${leftPct}%`;
+    };
+    _place();
+    requestAnimationFrame(() => requestAnimationFrame(_place));
 
     // 팝업 위에 마우스 있을 때 hover 타이머 취소
     popup.addEventListener('mouseenter', () => clearTimeout(this._cardHoverTimer));
@@ -1861,6 +2016,7 @@ class App {
         <div id="statsPanel" class="stats-area"></div>
       </div>`;
     this._chart = new BoxPlot(document.getElementById('mainChart'));
+    this._chart.attachYControls(document.querySelector('#rightpanel .graph-area'));
 
     const area = document.getElementById('dynamicSettings');
     if (area) { area.innerHTML = ''; cfg.buildSettings?.(area); }
@@ -2218,7 +2374,9 @@ class App {
         const canvas = document.getElementById(`mainChart_${i}`);
         const emptyEl = document.getElementById(`chartEmpty_${i}`);
         const statsEl = document.getElementById(`statsPanel_${i}`);
-        this._charts.push(new BoxPlot(canvas, emptyEl, statsEl));
+        const bp = new BoxPlot(canvas, emptyEl, statsEl);
+        bp.attachYControls(wrap.children[i].querySelector('.graph-area'));
+        this._charts.push(bp);
       }
     }
 

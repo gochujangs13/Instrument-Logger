@@ -37,6 +37,45 @@ function init() {
     hidPending: null,
     importing: false, autoImport: true, lastAutoImport: 0,
     awaitingProceed: false, proceedTimer: null, saveTime: 0, sendSaveSeq: true,
+    _yMin: null, _yMax: null, _yMaxInp: null, _yMinInp: null, _yResetBtn: null,
+  };
+}
+
+// ── Y-axis overlay helper ─────────────────────────────────────────────────────
+function _attachYOverlay(graphAreaEl, redrawFn) {
+  if (!graphAreaEl) return;
+  const overlay = document.createElement('div');
+  overlay.className = 'y-overlay';
+  graphAreaEl.appendChild(overlay);
+  const make = cls => {
+    const inp = document.createElement('input');
+    inp.type = 'number'; inp.step = 'any'; inp.placeholder = '자동';
+    inp.className = `y-axis-inp ${cls}`;
+    overlay.appendChild(inp);
+    return inp;
+  };
+  S._yMaxInp = make('y-axis-max');
+  S._yMinInp = make('y-axis-min');
+  const resetBtn = document.createElement('button');
+  resetBtn.className = 'y-reset-btn'; resetBtn.title = 'Y축 자동'; resetBtn.textContent = '↺';
+  resetBtn.style.display = 'none';
+  overlay.appendChild(resetBtn);
+  S._yResetBtn = resetBtn;
+  const apply = () => {
+    S._yMin = S._yMinInp.value !== '' ? parseFloat(S._yMinInp.value) : null;
+    S._yMax = S._yMaxInp.value !== '' ? parseFloat(S._yMaxInp.value) : null;
+    resetBtn.style.display = (S._yMin !== null || S._yMax !== null) ? '' : 'none';
+    redrawFn();
+  };
+  for (const inp of [S._yMaxInp, S._yMinInp]) {
+    inp.addEventListener('change', apply);
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); inp.blur(); apply(); } });
+  }
+  resetBtn.onclick = () => {
+    S._yMin = null; S._yMax = null;
+    S._yMaxInp.value = ''; S._yMinInp.value = '';
+    resetBtn.style.display = 'none';
+    redrawFn();
   };
 }
 
@@ -565,10 +604,17 @@ function _drawGroupBoxPlot() {
   ctx.clearRect(0, 0, w, h);
 
   const allPeaks = S.results.map(r => r.peak);
-  const ymin = Math.max(0, Math.min(...allPeaks) * 0.85);
-  const ymax = Math.max(...allPeaks) * 1.20 || 1;
-  const yspan = ymax - ymin || 1;
+  const autoYmin = Math.max(0, Math.min(...allPeaks) * 0.85);
+  const autoYmax = Math.max(...allPeaks) * 1.20 || 1;
+  const ymin = S._yMin !== null ? S._yMin : autoYmin;
+  const ymax = S._yMax !== null ? S._yMax : autoYmax;
+  if (S._yMaxInp && S._yMax === null) S._yMaxInp.placeholder = autoYmax.toFixed(0);
+  if (S._yMinInp && S._yMin === null) S._yMinInp.placeholder = autoYmin.toFixed(0);
   const pad = { l: 50, r: 14, t: 28, b: 36 };
+  if (S._yMaxInp) { S._yMaxInp.style.top = `${pad.t - 9}px`; S._yMaxInp.style.left = '3px'; }
+  if (S._yMinInp) { S._yMinInp.style.top = `${h - pad.b - 9}px`; S._yMinInp.style.left = '3px'; }
+  if (S._yResetBtn) { S._yResetBtn.style.top = '6px'; S._yResetBtn.style.right = '6px'; }
+  const yspan = ymax - ymin || 1;
   const cH = h - pad.t - pad.b, totalW = w - pad.l - pad.r;
   const toY = v => pad.t + (1 - (v - ymin) / yspan) * cH;
 
@@ -581,12 +627,15 @@ function _drawGroupBoxPlot() {
     accent:  cs.getPropertyValue('--accent').trim()        || '#2b8fff',
   };
 
-  ctx.font = '10px Inter'; ctx.textAlign = 'right'; ctx.fillStyle = C.text;
+  ctx.font = '10px Inter'; ctx.textAlign = 'right';
   for (let i = 0; i <= 4; i++) {
     const gy = pad.t + cH * i / 4;
     ctx.strokeStyle = C.grid; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(pad.l, gy); ctx.lineTo(w - pad.r, gy); ctx.stroke();
-    ctx.fillText((ymax - yspan * i / 4).toFixed(1), pad.l - 5, gy + 3);
+    if (!S._yMaxInp || (i > 0 && i < 4)) {
+      ctx.fillStyle = C.text;
+      ctx.fillText((ymax - yspan * i / 4).toFixed(1), pad.l - 5, gy + 3);
+    }
   }
   ctx.fillStyle = C.text; ctx.textAlign = 'center';
   ctx.fillText('Peak (gf)', (pad.l + w - pad.r) / 2, h - 4);
@@ -874,6 +923,7 @@ export default {
         </div>
         <div id="pt_graphLegend" class="pt-legend"></div>
       </div>`;
+    _attachYOverlay(el.querySelector('#pt_graphCanvas').closest('.graph-area'), () => drawGraph());
   },
 
   onRebuild() { renderTable(); drawGraph(); },

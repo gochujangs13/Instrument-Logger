@@ -7,10 +7,49 @@ function init() {
     records: [], recId: 0, nCounter: 0,
     liveCfg: {}, prevText: '', frameBuf: [], frameTimer: null,
     lastWaveBytes: null, lastWaveCfg: null, lastRec: null,
+    _yMin: null, _yMax: null, _yMaxInp: null, _yMinInp: null, _yResetBtn: null,
   };
 }
 
 const t = k => app?.t(k) ?? k;
+
+// ── Y-axis overlay helper ─────────────────────────────────────────────────────
+function _attachYOverlay(graphAreaEl, redrawFn) {
+  if (!graphAreaEl) return;
+  const overlay = document.createElement('div');
+  overlay.className = 'y-overlay';
+  graphAreaEl.appendChild(overlay);
+  const make = cls => {
+    const inp = document.createElement('input');
+    inp.type = 'number'; inp.step = 'any'; inp.placeholder = '자동';
+    inp.className = `y-axis-inp ${cls}`;
+    overlay.appendChild(inp);
+    return inp;
+  };
+  S._yMaxInp = make('y-axis-max');
+  S._yMinInp = make('y-axis-min');
+  const resetBtn = document.createElement('button');
+  resetBtn.className = 'y-reset-btn'; resetBtn.title = 'Y축 자동'; resetBtn.textContent = '↺';
+  resetBtn.style.display = 'none';
+  overlay.appendChild(resetBtn);
+  S._yResetBtn = resetBtn;
+  const apply = () => {
+    S._yMin = S._yMinInp.value !== '' ? parseFloat(S._yMinInp.value) : null;
+    S._yMax = S._yMaxInp.value !== '' ? parseFloat(S._yMaxInp.value) : null;
+    resetBtn.style.display = (S._yMin !== null || S._yMax !== null) ? '' : 'none';
+    redrawFn();
+  };
+  for (const inp of [S._yMaxInp, S._yMinInp]) {
+    inp.addEventListener('change', apply);
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); inp.blur(); apply(); } });
+  }
+  resetBtn.onclick = () => {
+    S._yMin = null; S._yMax = null;
+    S._yMaxInp.value = ''; S._yMinInp.value = '';
+    resetBtn.style.display = 'none';
+    redrawFn();
+  };
+}
 
 // ── Display formatting ────────────────────────────────────────────────────────
 // Rule: every measured value (Val/SP/Avg/KP/RMS) is rounded to 1 decimal place
@@ -336,17 +375,28 @@ function drawChart() {
   names = names.slice(-3);
   if (emptyEl) emptyEl.style.display = 'none';
 
-  let mn = Math.min(...used, 0), mx = Math.max(...used, 0);
-  if (mn === mx) { mn -= 1; mx += 1; }
-  const m = (mx - mn) * 0.15 || 1; mn -= m; mx += m;
+  const autoMn0 = Math.min(...used, 0), autoMx0 = Math.max(...used, 0);
+  let autoMn = autoMn0, autoMx = autoMx0;
+  if (autoMn === autoMx) { autoMn -= 1; autoMx += 1; }
+  const m = (autoMx - autoMn) * 0.15 || 1; autoMn -= m; autoMx += m;
+  const mn = S._yMin !== null ? S._yMin : autoMn;
+  const mx = S._yMax !== null ? S._yMax : autoMx;
+  if (S._yMaxInp && S._yMax === null) S._yMaxInp.placeholder = autoMx.toFixed(1);
+  if (S._yMinInp && S._yMin === null) S._yMinInp.placeholder = autoMn.toFixed(1);
+  if (S._yMaxInp) { S._yMaxInp.style.top = '11px'; S._yMaxInp.style.left = '3px'; }
+  if (S._yMinInp) { S._yMinInp.style.top = `${H - 55}px`; S._yMinInp.style.left = '3px'; }
+  if (S._yResetBtn) { S._yResetBtn.style.top = '6px'; S._yResetBtn.style.right = '6px'; }
   const pad = 46;
   const Y = v => H - pad - ((v - mn) / (mx - mn)) * (H - pad - 20);
 
-  ctx.strokeStyle = C.grid; ctx.fillStyle = C.text;
+  ctx.strokeStyle = C.grid;
   for (let g = 0; g <= 4; g++) {
     const v = mn + (mx - mn) * g / 4, y = Y(v);
     ctx.beginPath(); ctx.moveTo(pad, y); ctx.lineTo(W - 14, y); ctx.stroke();
-    ctx.fillText(v.toFixed(1), 4, y + 3);
+    if (!S._yMaxInp || (g > 0 && g < 4)) {
+      ctx.fillStyle = C.text;
+      ctx.fillText(v.toFixed(1), 4, y + 3);
+    }
   }
   if (mn < 0 && mx > 0) {
     ctx.strokeStyle = C.text; ctx.setLineDash([3, 3]);
@@ -864,6 +914,7 @@ export default {
           <div class="graph-empty" id="spChartEmpty">${t('chart_empty')}</div>
         </div>
       </div>`;
+    _attachYOverlay(el.querySelector('#spChart').closest('.graph-area'), () => drawChart());
   },
 
   onLine,

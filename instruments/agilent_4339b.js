@@ -40,6 +40,45 @@ function init() {
     curGroup: null,
     curIdx: 0,
     repeatCount: parseInt(sv.repeatCount || '1') || 1,
+    _yMin: null, _yMax: null, _yMaxInp: null, _yMinInp: null, _yResetBtn: null,
+  };
+}
+
+// ── Y-axis overlay helper ─────────────────────────────────────────────────────
+function _attachYOverlay(graphAreaEl, redrawFn) {
+  if (!graphAreaEl) return;
+  const overlay = document.createElement('div');
+  overlay.className = 'y-overlay';
+  graphAreaEl.appendChild(overlay);
+  const make = cls => {
+    const inp = document.createElement('input');
+    inp.type = 'number'; inp.step = 'any'; inp.placeholder = '자동';
+    inp.className = `y-axis-inp ${cls}`;
+    overlay.appendChild(inp);
+    return inp;
+  };
+  S._yMaxInp = make('y-axis-max');
+  S._yMinInp = make('y-axis-min');
+  const resetBtn = document.createElement('button');
+  resetBtn.className = 'y-reset-btn'; resetBtn.title = 'Y축 자동'; resetBtn.textContent = '↺';
+  resetBtn.style.display = 'none';
+  overlay.appendChild(resetBtn);
+  S._yResetBtn = resetBtn;
+  const apply = () => {
+    S._yMin = S._yMinInp.value !== '' ? parseFloat(S._yMinInp.value) : null;
+    S._yMax = S._yMaxInp.value !== '' ? parseFloat(S._yMaxInp.value) : null;
+    resetBtn.style.display = (S._yMin !== null || S._yMax !== null) ? '' : 'none';
+    redrawFn();
+  };
+  for (const inp of [S._yMaxInp, S._yMinInp]) {
+    inp.addEventListener('change', apply);
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); inp.blur(); apply(); } });
+  }
+  resetBtn.onclick = () => {
+    S._yMin = null; S._yMax = null;
+    S._yMaxInp.value = ''; S._yMinInp.value = '';
+    resetBtn.style.display = 'none';
+    redrawFn();
   };
 }
 
@@ -474,10 +513,17 @@ function drawChart() {
   if (emptyEl) emptyEl.style.display = 'none';
 
   const allLogVals = validRows.map(r => Math.log10(Math.abs(r.resistivity)));
-  const minLog = Math.floor(Math.min(...allLogVals)) - 0.5;
-  const maxLog = Math.ceil(Math.max(...allLogVals))  + 0.5;
+  const autoMinLog = Math.floor(Math.min(...allLogVals)) - 0.5;
+  const autoMaxLog = Math.ceil(Math.max(...allLogVals))  + 0.5;
+  const minLog = S._yMin !== null ? S._yMin : autoMinLog;
+  const maxLog = S._yMax !== null ? S._yMax : autoMaxLog;
+  if (S._yMaxInp && S._yMax === null) S._yMaxInp.placeholder = autoMaxLog.toFixed(1);
+  if (S._yMinInp && S._yMin === null) S._yMinInp.placeholder = autoMinLog.toFixed(1);
   const spanLog = maxLog - minLog || 1;
   const padT = 30, padB = 40, padL = 54, padR = 16;
+  if (S._yMaxInp) { S._yMaxInp.style.top = `${padT - 9}px`; S._yMaxInp.style.left = '3px'; }
+  if (S._yMinInp) { S._yMinInp.style.top = `${(canvas.offsetHeight || H) - padB - 9}px`; S._yMinInp.style.left = '3px'; }
+  if (S._yResetBtn) { S._yResetBtn.style.top = '6px'; S._yResetBtn.style.right = '6px'; }
   const cH = H - padT - padB, totalW = W - padL - padR;
   const toY = v => padT + (1 - (v - minLog) / spanLog) * cH;
 
@@ -491,11 +537,14 @@ function drawChart() {
   };
 
   // Y-axis grid
-  ctx.fillStyle = C.text;
   ctx.font = '10px JetBrains Mono'; ctx.textAlign = 'right';
-  for (let e = Math.ceil(minLog); e <= Math.floor(maxLog); e++) {
+  const eMin = Math.ceil(minLog), eMax = Math.floor(maxLog);
+  for (let e = eMin; e <= eMax; e++) {
     const y = toY(e);
-    ctx.fillText(`10^${e}`, padL - 4, y + 4);
+    if (!S._yMaxInp || (e > eMin && e < eMax)) {
+      ctx.fillStyle = C.text;
+      ctx.fillText(`10^${e}`, padL - 4, y + 4);
+    }
     ctx.strokeStyle = C.grid; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
   }
@@ -770,6 +819,7 @@ export default {
         </div>
         <div id="agStatsPanel" class="stats-area"></div>
       </div>`;
+    _attachYOverlay(el.querySelector('#agChart').closest('.graph-area'), () => drawChart());
   },
 
   onLine(line) {

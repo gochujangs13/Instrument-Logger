@@ -23,6 +23,45 @@ function init() {
     rxBuffer:   '',
     eotTimer:   null,
     repeatCount: parseInt(sv.repeatCount || '1') || 1,
+    _yMin: null, _yMax: null, _yMaxInp: null, _yMinInp: null, _yResetBtn: null,
+  };
+}
+
+// ── Y-axis overlay helper ─────────────────────────────────────────────────────
+function _attachYOverlay(graphAreaEl, redrawFn) {
+  if (!graphAreaEl) return;
+  const overlay = document.createElement('div');
+  overlay.className = 'y-overlay';
+  graphAreaEl.appendChild(overlay);
+  const make = cls => {
+    const inp = document.createElement('input');
+    inp.type = 'number'; inp.step = 'any'; inp.placeholder = '자동';
+    inp.className = `y-axis-inp ${cls}`;
+    overlay.appendChild(inp);
+    return inp;
+  };
+  S._yMaxInp = make('y-axis-max');
+  S._yMinInp = make('y-axis-min');
+  const resetBtn = document.createElement('button');
+  resetBtn.className = 'y-reset-btn'; resetBtn.title = 'Y축 자동'; resetBtn.textContent = '↺';
+  resetBtn.style.display = 'none';
+  overlay.appendChild(resetBtn);
+  S._yResetBtn = resetBtn;
+  const apply = () => {
+    S._yMin = S._yMinInp.value !== '' ? parseFloat(S._yMinInp.value) : null;
+    S._yMax = S._yMaxInp.value !== '' ? parseFloat(S._yMaxInp.value) : null;
+    resetBtn.style.display = (S._yMin !== null || S._yMax !== null) ? '' : 'none';
+    redrawFn();
+  };
+  for (const inp of [S._yMaxInp, S._yMinInp]) {
+    inp.addEventListener('change', apply);
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); inp.blur(); apply(); } });
+  }
+  resetBtn.onclick = () => {
+    S._yMin = null; S._yMax = null;
+    S._yMaxInp.value = ''; S._yMinInp.value = '';
+    resetBtn.style.display = 'none';
+    redrawFn();
   };
 }
 
@@ -347,10 +386,17 @@ function _drawGroupBoxPlot() {
   ctx.clearRect(0, 0, w, h);
 
   const allPeaks = S.results.map(r => r.peak);
-  const ymin = Math.max(0, Math.min(...allPeaks) * 0.85);
-  const ymax = Math.max(...allPeaks) * 1.20 || 1;
-  const yspan = ymax - ymin || 1;
+  const autoYmin = Math.max(0, Math.min(...allPeaks) * 0.85);
+  const autoYmax = Math.max(...allPeaks) * 1.20 || 1;
+  const ymin = S._yMin !== null ? S._yMin : autoYmin;
+  const ymax = S._yMax !== null ? S._yMax : autoYmax;
+  if (S._yMaxInp && S._yMax === null) S._yMaxInp.placeholder = autoYmax.toFixed(0);
+  if (S._yMinInp && S._yMin === null) S._yMinInp.placeholder = autoYmin.toFixed(0);
   const pad = { l: 52, r: 14, t: 28, b: 36 };
+  if (S._yMaxInp) { S._yMaxInp.style.top = `${pad.t - 9}px`; S._yMaxInp.style.left = '3px'; }
+  if (S._yMinInp) { S._yMinInp.style.top = `${h - pad.b - 9}px`; S._yMinInp.style.left = '3px'; }
+  if (S._yResetBtn) { S._yResetBtn.style.top = '6px'; S._yResetBtn.style.right = '6px'; }
+  const yspan = ymax - ymin || 1;
   const cH = h - pad.t - pad.b, totalW = w - pad.l - pad.r;
   const toY = v => pad.t + (1 - (v - ymin) / yspan) * cH;
 
@@ -363,12 +409,15 @@ function _drawGroupBoxPlot() {
     accent:  cs.getPropertyValue('--accent').trim()        || '#2b8fff',
   };
 
-  ctx.font = '10px Inter'; ctx.textAlign = 'right'; ctx.fillStyle = C.text;
+  ctx.font = '10px Inter'; ctx.textAlign = 'right';
   for (let i = 0; i <= 4; i++) {
     const gy = pad.t + cH * i / 4;
     ctx.strokeStyle = C.grid; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(pad.l, gy); ctx.lineTo(w - pad.r, gy); ctx.stroke();
-    ctx.fillText((ymax - yspan * i / 4).toFixed(1), pad.l - 5, gy + 3);
+    if (!S._yMaxInp || (i > 0 && i < 4)) {
+      ctx.fillStyle = C.text;
+      ctx.fillText((ymax - yspan * i / 4).toFixed(1), pad.l - 5, gy + 3);
+    }
   }
   ctx.fillStyle = C.text; ctx.textAlign = 'center';
   ctx.fillText('Peak (gf)', (pad.l + w - pad.r) / 2, h - 4);
@@ -600,6 +649,8 @@ function buildSidebar(el) {
   const btnSty = 'width:100%;margin-top:18px;font-family:var(--ui);font-size:16px;font-weight:700;cursor:pointer;padding:14px;border-radius:10px;';
   const stepSty = 'background:var(--panel-3);border:1px solid var(--border-2);border-radius:7px;padding:6px 12px;font-family:var(--mono);font-size:13px;';
   const arrSty = 'color:var(--text-mut);';
+  const ledSty = `${stepSty}display:inline-flex;align-items:center;gap:6px;`;
+  const redLed = '<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#ef4444;box-shadow:0 0 5px 1px rgba(239,68,68,.7);flex-shrink:0;"></span>';
   el.innerHTML = `
     <div class="sidebar-top">
       <div class="panel">
@@ -611,9 +662,18 @@ function buildSidebar(el) {
 
       <div class="panel">
         <div class="panel-title">${t('lt_test_settings')}</div>
-        <div class="notice" style="font-size:11.5px;line-height:1.65;color:var(--log-warn-col);background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.35);border-radius:8px;padding:9px 11px;margin-bottom:10px;">
-          ${t('lt_notice')}
-        </div>
+        <button class="btn-outline" style="width:100%;margin-bottom:6px;font-size:13px;padding:8px 12px;"
+                onclick="document.getElementById('lt_modal_calib').style.display='flex'">
+          ⚖️ ${t('lt_calib_btn')}
+        </button>
+        <button class="btn-outline" style="width:100%;margin-bottom:6px;font-size:13px;padding:8px 12px;"
+                onclick="document.getElementById('lt_modal_howto').style.display='flex'">
+          📋 ${t('lt_howto_btn')}
+        </button>
+        <button class="btn-outline" style="width:100%;margin-bottom:10px;font-size:13px;padding:8px 12px;"
+                onclick="document.getElementById('lt_modal_stfull').style.display='flex'">
+          ⚠️ ${t('lt_stfull_btn')}
+        </button>
         <label class="fl">${t('lt_sample_label')}</label>
         <input id="lt_sample" class="inp" type="text" value="${sv.sample ?? 'Sample A'}">
         <label class="fl">${t('lt_tol_label')}</label>
@@ -638,6 +698,110 @@ function buildSidebar(el) {
     </div>
     ${syslogPanelHTML()}
 
+    <!-- ── Calibration guide modal ── -->
+    <div id="lt_modal_calib" class="modal-overlay" style="display:none;">
+      <div class="modal-box" style="max-width:500px;">
+        <div class="modal-title">⚖️ ${t('lt_calib_title')}</div>
+
+        <!-- ① 준비 -->
+        <div style="font-size:11px;color:var(--text-mut);margin:0 0 5px 2px;">${t('lt_calib_prep')}</div>
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;background:var(--panel-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px;">
+          <span style="${stepSty}">${t('lt_calib_prep_s1')}</span>
+          <span style="${arrSty}">→</span>
+          <span style="${stepSty}">${t('lt_calib_prep_s2')}</span>
+        </div>
+
+        <!-- ② 모드 진입 -->
+        <div style="font-size:11px;color:var(--text-mut);margin:0 0 5px 2px;">${t('lt_calib_enter')}</div>
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;background:var(--panel-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px;">
+          <span style="background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.5);border-radius:7px;padding:6px 12px;font-family:var(--mono);font-size:13px;color:var(--log-warn-col);text-align:center;">Select+Enter<br><span style="font-size:11px;">3s+</span></span>
+          <span style="${arrSty}">→</span>
+          <span style="${ledSty}">${redLed}Setup</span>
+          <span style="${arrSty}">→</span>
+          <span style="${stepSty}">Enter</span>
+        </div>
+
+        <!-- ③ 영점 교정 -->
+        <div style="font-size:11px;color:var(--text-mut);margin:0 0 5px 2px;">${t('lt_calib_zero')}</div>
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;background:var(--panel-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px;">
+          <span style="${stepSty}">${t('lt_calib_zero_check')}</span>
+          <span style="${arrSty}">→</span>
+          <span style="${stepSty}">Enter</span>
+        </div>
+
+        <!-- ④ 스팬 교정 -->
+        <div style="font-size:11px;color:var(--text-mut);margin:0 0 5px 2px;">${t('lt_calib_span')}</div>
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;background:var(--panel-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:8px;">
+          <span style="${stepSty}">${t('lt_calib_span_show')}</span>
+          <span style="${arrSty}">→</span>
+          <span style="background:rgba(59,130,246,.12);border:1px solid rgba(59,130,246,.4);border-radius:7px;padding:6px 12px;font-family:var(--mono);font-size:13px;color:#3b82f6;">${t('lt_calib_span_place')}</span>
+          <span style="${arrSty}">→</span>
+          <span style="${stepSty}">Enter</span>
+        </div>
+        <div style="text-align:center;margin-bottom:10px;">
+          <img src="assets/LT-1000 1kg.png" alt="${escAttr(t('lt_calib_img_alt'))}"
+               style="max-width:100%;max-height:200px;border-radius:8px;border:1px solid var(--border);object-fit:contain;">
+          <div style="font-size:11px;color:var(--text-mut);margin-top:4px;">${t('lt_calib_img_cap')}</div>
+        </div>
+
+        <!-- ⑤ 완료 -->
+        <div style="font-size:11px;color:var(--text-mut);margin:0 0 5px 2px;">${t('lt_calib_done')}</div>
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;background:var(--panel-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:14px;">
+          <span style="${stepSty}">${t('lt_calib_done_s1')}</span>
+          <span style="${arrSty}">→</span>
+          <span style="${stepSty}">${t('lt_calib_done_s2')}</span>
+          <span style="${arrSty}">→</span>
+          <span style="${stepSty}">${t('lt_calib_done_s3')}</span>
+          <span style="${arrSty}">→</span>
+          <span style="${stepSty}">${t('lt_calib_done_s4')}</span>
+        </div>
+
+        <button style="${btnSty}background:var(--panel-3);color:var(--text);border:1px solid var(--border-2);"
+                onclick="document.getElementById('lt_modal_calib').style.display='none'">${t('lt_guide1_btn') || 'OK'}</button>
+      </div>
+    </div>
+
+    <!-- ── ST FULL fix modal ── -->
+    <div id="lt_modal_stfull" class="modal-overlay" style="display:none;">
+      <div class="modal-box" style="max-width:480px;">
+        <div class="modal-title" style="color:var(--log-warn-col);">⚠️ ${t('lt_stfull_title')}</div>
+        <div style="font-size:13.5px;color:var(--text-dim);line-height:1.8;margin-bottom:14px;">
+          ${t('lt_stfull_body')}
+        </div>
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;background:var(--panel-2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:14px;">
+          <span style="${stepSty}">Select</span><span style="${arrSty}">→</span>
+          <span style="${ledSty}">${redLed}Print</span><span style="${arrSty}">→</span>
+          <span style="${stepSty}">▲ ×2</span><span style="${arrSty}">→</span>
+          <span style="${stepSty}">DL</span><span style="${arrSty}">→</span>
+          <span style="${stepSty}">Enter</span><span style="${arrSty}">→</span>
+          <span style="background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.5);border-radius:7px;padding:6px 12px;font-family:var(--mono);font-size:13px;color:var(--log-warn-col);text-align:center;">Select+Enter<br><span style="font-size:11px;">3s+</span></span>
+          <span style="${arrSty}">→</span>
+          <span style="background:rgba(34,197,94,.10);border:1px solid rgba(34,197,94,.45);border-radius:7px;padding:6px 12px;font-family:var(--mono);font-size:12px;color:#22c55e;text-align:center;">${t('lt_stfull_done')}</span>
+        </div>
+        <button style="${btnSty}background:var(--panel-3);color:var(--text);border:1px solid var(--border-2);"
+                onclick="document.getElementById('lt_modal_stfull').style.display='none'">${t('lt_guide1_btn') || 'OK'}</button>
+      </div>
+    </div>
+
+    <!-- ── How-to send data modal ── -->
+    <div id="lt_modal_howto" class="modal-overlay" style="display:none;">
+      <div class="modal-box" style="max-width:460px;">
+        <div class="modal-title">${t('lt_howto_title')}</div>
+        <div style="font-size:13.5px;color:var(--text-dim);line-height:1.8;margin-bottom:14px;">
+          ${t('lt_howto_body')}
+        </div>
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;background:var(--panel-2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;">
+          <span style="${stepSty}">Select</span><span style="${arrSty}">→</span>
+          <span style="${ledSty}">${redLed}Print</span><span style="${arrSty}">→</span>
+          <span style="${stepSty}">Enter</span><span style="${arrSty}">→</span>
+          <span style="${stepSty}">Enter</span><span style="${arrSty}">→</span>
+          <span style="background:rgba(34,197,94,.10);border:1px solid rgba(34,197,94,.45);border-radius:7px;padding:6px 12px;font-family:var(--mono);font-size:12px;color:#22c55e;text-align:center;">${t('lt_howto_auto')}</span>
+        </div>
+        <button style="${btnSty}background:var(--panel-3);color:var(--text);border:1px solid var(--border-2);"
+                onclick="document.getElementById('lt_modal_howto').style.display='none'">${t('lt_guide1_btn') || 'OK'}</button>
+      </div>
+    </div>
+
     <!-- ── Connection guide modals ── -->
     <div id="lt_modal_guide0" class="modal-overlay" style="display:none;">
       <div class="modal-box" style="max-width:460px;">
@@ -646,7 +810,7 @@ function buildSidebar(el) {
           ${t('lt_guide0_body')}
         </div>
         <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;background:var(--panel-2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-top:10px;">
-          <span style="${stepSty}">Run</span>
+          <span style="${ledSty}">${redLed}Run</span>
           <span style="${arrSty}">→</span>
           <span style="${stepSty}">Units</span>
           <span style="${arrSty}">→</span>
@@ -665,7 +829,7 @@ function buildSidebar(el) {
         </div>
         <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;background:var(--panel-2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;">
           <span style="${stepSty}">Select</span><span style="${arrSty}">→</span>
-          <span style="${stepSty}">Print</span><span style="${arrSty}">→</span>
+          <span style="${ledSty}">${redLed}Print</span><span style="${arrSty}">→</span>
           <span style="${stepSty}">ST → On</span><span style="${arrSty}">→</span>
           <span style="${stepSty}">Enter</span>
         </div>
@@ -683,7 +847,7 @@ function buildSidebar(el) {
         </div>
         <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;background:var(--panel-2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;">
           <span style="${stepSty}">Select</span><span style="${arrSty}">→</span>
-          <span style="${stepSty}">Print</span><span style="${arrSty}">→</span>
+          <span style="${ledSty}">${redLed}Print</span><span style="${arrSty}">→</span>
           <span style="${stepSty}">▲ dL</span><span style="${arrSty}">→</span>
           <span style="${stepSty}">Enter</span><span style="${arrSty}">→</span>
           <span style="background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.5);border-radius:7px;padding:6px 12px;font-family:var(--mono);font-size:13px;color:var(--log-warn-col);text-align:center;">Select+Enter<br><span style="font-size:11px;">3s+</span></span>
@@ -721,9 +885,9 @@ function buildCenter(el) {
       <div class="disp-value">
         <span id="liveValue">— — —</span><span class="disp-unit" id="liveUnit"></span>
       </div>
-      <div style="font-size:11.5px;color:var(--log-warn-col);opacity:.75;flex:1;display:flex;align-items:center;padding:0 16px;gap:10px;">
-        ${t('lt_mem_warn')}
-        <button onclick="app.instr.showMemFullModal()" style="font-size:11px;font-family:var(--ui);font-weight:700;background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.4);color:var(--log-warn-col);border-radius:5px;padding:2px 10px;cursor:pointer;">${t('lt_mem_how')}</button>
+      <div style="font-size:12px;color:var(--text-dim);flex:1;display:flex;align-items:center;justify-content:center;gap:7px;padding:0 16px;">
+        <span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#ef4444;box-shadow:0 0 5px 1px rgba(239,68,68,.7);flex-shrink:0;"></span>
+        ${t('lt_run_hint')}
       </div>
       <div class="disp-meta">
         <span id="liveStatus" class="disp-status off">${t('disconnected')}</span>
@@ -779,7 +943,7 @@ function buildRightPanel(el) {
     <div class="panel grow" style="min-height:0;display:flex;flex-direction:column;">
       <div style="font-size:11px;font-weight:700;letter-spacing:1px;color:var(--text-dim);text-transform:uppercase;margin-bottom:6px;flex-shrink:0;">${t('lt_graph_title')}</div>
       <div style="font-size:11px;color:var(--text-mut);margin-bottom:8px;flex-shrink:0;">${t('lt_graph_hint')}</div>
-      <div style="flex:1;min-height:0;position:relative;background:var(--syslog-bg);border:1px solid var(--border);border-radius:8px;overflow:hidden;">
+      <div id="lt_graphArea" style="flex:1;min-height:0;position:relative;background:var(--syslog-bg);border:1px solid var(--border);border-radius:8px;overflow:hidden;">
         <canvas id="lt_graphCanvas" style="width:100%;height:100%;display:block;"></canvas>
         <div id="lt_graphEmpty" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--text-mut);font-size:13px;text-align:center;padding:20px;pointer-events:none;">
           ${t('lt_graph_empty')}
@@ -787,6 +951,8 @@ function buildRightPanel(el) {
       </div>
       <div id="lt_graphLegend" style="display:flex;flex-wrap:wrap;gap:10px 16px;margin-top:10px;font-size:12px;color:var(--text-dim);flex-shrink:0;"></div>
     </div>`;
+
+  _attachYOverlay(el.querySelector('#lt_graphArea'), () => drawGraph());
 
   window.addEventListener('resize', () => { if (S?.results?.length) drawGraph(); });
 }

@@ -241,6 +241,66 @@ python build/package_exe.py dist/SP2100
 
 ## 7. 직전 작업 / 다음 할 일
 
+### 2026-06-23 완료 작업
+
+#### 수염차트 Y축 수동 편집 기능 (`core.js`, `index.css`, `sp2100_logger.js`, `agilent_4339b.js`, `pt2000_probe_tack.js`, `lt1000_loop_tack.js`)
+
+모든 수염차트(Box & Whisker)에 Y축 범위를 사용자가 직접 수정할 수 있는 기능을 추가했습니다.
+
+- **동작 방식**:
+  - 처음 평가 시 Y축은 데이터 범위에 맞게 자동 설정됨
+  - 차트 좌측 Y축의 최댓값/최솟값 위치에 투명 입력창(`y-axis-inp`)이 오버레이됨
+  - 값을 입력(Enter 또는 포커스 이탈)하면 즉시 차트에 반영
+  - 커스텀 Y값이 설정되면 우측 상단에 ↺ 초기화 버튼(`y-reset-btn`) 표시 → 클릭하면 자동 Y축으로 복귀
+  - 변경값은 세션 내에서만 유효 (localStorage에 저장하지 않음)
+  - 캔버스에 그리던 최솟값/최댓값 텍스트는 입력창이 있을 때 생략 (겹침 방지)
+
+- **`core.js` 변경 내용 (BoxPlot 클래스 — Hioki·Keithley·VL-50)**:
+  - `BoxPlot` 생성자에 `_customYMin`, `_customYMax`, `_lastArgs`, `_minInp`, `_maxInp`, `_resetBtn` 필드 추가
+  - `attachYControls(graphAreaEl)` 메서드 신규 추가: `.y-overlay` div + 두 개의 `y-axis-inp` input + ↺ 버튼 생성 및 이벤트 연결
+  - `_positionInputs(H)` 메서드 신규 추가: 캔버스 높이 기준으로 max/min 입력창과 ↺ 버튼 절대 위치 계산 (`padT=28, padB=44`)
+  - `draw()` 에서 `_lastArgs` 저장, 커스텀/자동 Y 범위 선택, placeholder 업데이트, min/max 레이블 조건부 생략
+
+- **`index.css` 변경 내용**:
+  - `.y-overlay`: `position:absolute; inset:0; pointer-events:none`
+  - `.y-axis-inp`: 투명 배경, hover/focus 시 테두리 표시, `pointer-events:all`
+  - `.y-reset-btn`: 우측 상단 절대 위치, 기본 숨김(`display:none`), 커스텀 값 설정 시 표시
+
+- **각 계측기 파일 공통 변경 패턴** (`sp2100_logger.js`, `agilent_4339b.js`, `pt2000_probe_tack.js`, `lt1000_loop_tack.js`):
+  - `S` 초기화: `_yMin: null, _yMax: null, _yMaxInp: null, _yMinInp: null, _yResetBtn: null` 추가
+  - 모듈 레벨에 `_attachYOverlay(graphAreaEl, redrawFn)` 헬퍼 함수 추가 (↺ 버튼 포함)
+  - `buildRightPanel()`에서 기존 `y-ctrl` HTML 제거 → `_attachYOverlay()` 호출로 대체
+  - 각 계측기 drawChart/drawGraph 함수에서 커스텀/자동 Y 범위 분기 처리, 입력창·버튼 위치 동적 계산
+
+#### LT-1000 Loop Tack UI 개선 (`lt1000_loop_tack.js`, `core.js`)
+
+**팝업 모달 버튼 LED 표시**
+- 기존 팝업(`lt_modal_guide0`, `lt_modal_guide1`, `lt_memFullModal`)에서 `Run`, `Print` 버튼 텍스트 앞에 빨간 LED(●) 인디케이터 추가
+- 공통 변수: `ledSty` (flex 정렬 포함 stepSty), `redLed` (red 원형 span with box-shadow)
+
+**"데이터 전송 방법" 버튼 + 팝업 (`lt_modal_howto`)**
+- 사이드바의 정적 안내 박스(`lt_notice`)를 **"📋 데이터 전송 방법"** 버튼으로 교체
+- 팝업 내 플로우: `Select` → 🔴`Print` → `Enter` → `Enter` → `타이머 종료 후 자동 기록(녹색)`
+
+**"로드셀 캘리브레이션 방법" 버튼 + 팝업 (`lt_modal_calib`)**
+- "데이터 전송 방법" 버튼 위에 **"⚖️ 로드셀 캘리브레이션 방법"** 버튼 추가
+- 팝업 5단계 플로우 스타일:
+  1. `로드셀 최상단 이동` → `고정핀 체결`
+  2. `Select+Enter 3s+` → 🔴`Setup` → `Enter`
+  3. `LC 0.000 확인` → `Enter`
+  4. `HC 1000 표시` → `1 kg 분동 올리기(파란색)` → `Enter` + `assets/LT-1000 1kg.png` 이미지 표시
+  5. `추 제거` → `로드셀 파지` → `고정핀 해제` → `조심히 내려놓기`
+- 이미지 파일 경로: `assets/LT-1000 1kg.png`
+
+**디스플레이 바 Run 상태 안내**
+- 디스플레이 가운데 경고 문구(`⚠ P — 20개 등록 시…`) 제거
+- 대신 🔴 LED + `"Run 상태(빨간 LED)에서 평가를 진행하세요"` 상시 표시
+
+**"ST FULL 해결 방법" 버튼 + 팝업 (`lt_modal_stfull`)**
+- "데이터 전송 방법" 버튼 아래에 **"⚠️ ST FULL 해결 방법"** 버튼 추가
+- 팝업 플로우: `Select` → 🔴`Print` → `▲ ×2` → `DL` → `Enter` → `Select+Enter 3s+` → `초기화 완료 / 다시 평가 시작(녹색)`
+- `core.js` 번역 키 추가: `lt_run_hint`, `lt_stfull_btn/title/body/done`, `lt_calib_btn/title/body/s1~s7/img_cap`, `lt_howto_btn/title/body/auto`
+
 ### 2026-06-18 완료 작업
 
 #### 수염차트(Box plot) 상단 평균값(사선) 표기 및 LT-1000 설명 보완 (`core.js`, `sp2100_logger.js`, `dist/3M_Instrument_Logger.exe`)
@@ -396,14 +456,82 @@ python build/package_exe.py dist/SP2100
 - **버튼 표준화**: 데이터 테이블 버튼을 `[복사][CSV 저장][선택 삭제][전체 삭제]` 순서로 통일, 언어 전환 시 반영
 - **그룹 개수 통일**: `group_repeat_label` 키로 PT-2000·LT-1000·Agilent 4339B 라벨 통일; 번호 자동 채번 로직 동일화
 
+### 2026-06-23 추가 완료 작업 (EXE 런처 카드 미표시 버그 근본 수정)
+
+#### EXE 실행 시 런처 카드가 전혀 표시되지 않는 문제 — 3중 근본 원인 발견 및 수정
+
+**현상**: EXE를 실행하면 "계측기를 선택하세요" 텍스트와 상단 내비게이션 바만 보이고
+계측기 카드가 하나도 표시되지 않음. 브라우저(`http://localhost:8001/index.html`)에서는
+정상 작동. try-catch 오류 메시지도 표시되지 않음.
+
+**중요 함정**: 내비게이션 바(테마/언어/연결 안됨)와 "계측기를 선택하세요"는
+**정적 HTML**(`standalone.html`)로 JavaScript 없이도 표시됨.
+이것이 보인다고 해서 JavaScript가 실행된 것이 **아님**.
+
+**근본 원인 1 (핵심) — dist 파일 스탤(stale) 문제:**
+- `dist/3M_Instrument_Logger/instruments/sp2100_logger.js`에 `const isNum`이
+  **동일 스코프에서 2회 선언**되어 있었음
+- ES 모듈은 `strict mode` 자동 적용 → `const` 중복 선언 = `SyntaxError`
+- `standalone_entry.js` → `sp2100_logger.js` import 시 SyntaxError 발생
+  → import 체인 전체가 **조용히 실패** (try-catch도 module import 오류는 포착 불가)
+- 소스 `instruments/sp2100_logger.js`에는 해당 중복이 없었음 — **dist가 소스와 달랐던 것**
+- **수정**: dist의 `sp2100_logger.js`에서 중복 선언 1줄 제거 (by 안티그래비티)
+
+**근본 원인 2 — PyInstaller 환경 MIME 타입 문제:**
+- PyInstaller로 번들된 Python은 Windows 레지스트리 접근이 제한되어
+  `mimetypes.guess_type('.js')` → `application/octet-stream` 또는 `None` 반환
+- Chromium(pywebview)은 잘못된 MIME 타입의 ES 모듈 import를 **조용히 거부**
+- **수정**: `build/package_exe.py`의 Handler 클래스에 `guess_type()` 메서드 오버라이드 추가
+  ```python
+  def guess_type(self, path):
+      ext = os.path.splitext(path)[-1].lower()
+      if ext in ('.js', '.mjs'): return 'application/javascript'
+      if ext == '.css': return 'text/css'
+      # ... (png, jpg, svg, woff 등 포함)
+      return super().guess_type(path)
+  ```
+
+**근본 원인 3 — localStorage 인라인 주입 크기 문제:**
+- 기존: `app_storage.json` 전체(사진 base64 포함 ~41KB)를 HTML `<head>` 인라인 `<script>`에 삽입
+- Qt WebEngine이 대용량 인라인 스크립트 파싱에 실패하는 경우 발생
+- **수정**: 동기 XHR 방식으로 변경 — 폴리필이 `/api/storage/data` 엔드포인트를 동기 호출
+  ```js
+  var _x = new XMLHttpRequest();
+  _x.open('GET', '/api/storage/data', false);  // 동기
+  _x.send();
+  var d = JSON.parse(_x.responseText);
+  ```
+  → HTML은 항상 작은 크기, 데이터는 별도 API로 요청
+
+**CSS 스탤 문제 (카드 팝업 디자인 깨짐):**
+- `dist/3M_Instrument_Logger/index.css`가 소스와 달리 구버전이어서
+  `.card-info-popup` 등 최신 스타일이 누락되어 있었음
+- **수정**: 소스 `index.css`를 dist에 복사
+
+#### EXE 재빌드 절차 표준화
+
+EXE 빌드 전 반드시 다음 순서로 dist 파일을 소스와 동기화해야 함:
+```powershell
+# 1. 소스에서 dist 재생성 (instruments가 읽기 전용인 경우 먼저 attrib -r)
+python build/build_standalone.py Hioki3540 Keithley2700 MitutoyoVL50 Agilent4339B DAQ6510 SP2100 PT2000 LT1000 AIPhotoEditor ClubExpense
+
+# 2. EXE 패키징
+python build/package_exe.py dist/3M_Instrument_Logger
+```
+파일이 읽기 전용 잠금으로 `build_standalone.py` 실패 시, 최소한 변경된 소스 파일을
+dist에 수동 복사 후 `package_exe.py` 실행.
+
 ### 미해결 / 후속 작업
 - **체크박스 재측정**: ✅ 전 계측기 완료
   - PT-2000: 기존 구현, LT-1000: `importTest()` 수정 완료, Agilent 4339B: `logResult()` 수정 완료
 - **그룹별 그래프 (PT-2000 / LT-1000)**: ✅ 완료 — 그룹 개수 ≥ 2 시 Peak(gf) 수염차트로 전환
-- **DAQ-6510 실기 테스트**: 수동 릴레이 제어(`ROUT:OPEN:ALL → ROUT:CLOS → READ?`) 방식으로 10채널 순차 측정 + 딜레이 정밀도 현장 확인 필요
-- **Agilent 4339B 실기 테스트**: 새 시퀀스가 -213 에러 없이 정상 측정되는지 확인 필요
-- **SP-2100 파형 디코딩**: 원본 `sp2100_logger.html` 확보 후 `decodeWave` 포맷 적용
-- **Agilent 4339B GPIB**: NI GPIB-USB-HS 드라이버 확보 시 PyVISA IPC 브리지 아키텍처 설계
+- **수염차트 Y축 수동 편집**: ✅ 완료 — 전 계측기(Hioki·Keithley·VL-50·SP-2100·Agilent·PT-2000·LT-1000) 적용
+- **LT-1000 팝업 가이드**: ✅ 완료 — 데이터 전송 방법 / 캘리브레이션 방법 / ST FULL 해결 방법 팝업 구현
+- **DAQ-6510 실기 테스트**: ✅ 완료 — 10채널 순차 측정 및 딜레이 정밀도 현장 확인 완료
+- **Agilent 4339B 실기 테스트**: ✅ 완료 — 재작성 시퀀스로 -213 에러 없이 정상 측정 확인
+- **SP-2100 파형 디코딩**: ❌ 종결 — 장비에서 파형 데이터 수집 자체가 불가하여 파형 그래프 구현 불가. `sp2100_logger.js`의 `decodeWave` 관련 코드는 현 상태로 동결.
+- **Agilent 4339B GPIB**: 🔧 드라이버 설치만 하면 완료 — NI GPIB-USB-HS 드라이버 설치 후 PyVISA IPC 브리지 연결 예정. 코드 측 준비는 완료된 상태.
+- **EXE 재패키징**: ✅ 완료 — 2026-06-23 세션 변경사항 반영, `dist/3M_Instrument_Logger.exe` 재빌드 완료
 
 ## 8-0. 파일 보호 목록 (읽기 전용 — 별도 지시 없이 수정 절대 금지)
 
@@ -444,10 +572,49 @@ attrib -r "instruments\파일명.js"
 ## 9. 자주 발생하는 오류 및 방지 대책 (Gotchas & Troubleshooting)
 
 ### 9-1. 메인 화면 빈 페이지(블랭크) 및 카드 미표시 현상 방지
-* **현상**: 앱 실행 시 런처 메인 화면에 아무것도 나타나지 않음 (빈 화면/카드 미표시).
-* **원인**: JavaScript 코드 로딩 시 구문 오류(Syntax Error) 또는 정의되지 않은 클래스 참조(`ReferenceError: BoxPlot is not defined` 등) 예외가 발생하여 초기 렌더링 스크립트 실행이 완전히 중단되어 버림.
+
+#### A. 브라우저(개발 서버)에서 카드 미표시
+* **현상**: `http://localhost:8000/index.html`에서 런처 카드가 표시되지 않음.
+* **원인**: JavaScript 코드 로딩 시 구문 오류(Syntax Error) 또는 정의되지 않은 클래스 참조(`ReferenceError: BoxPlot is not defined` 등) 예외 발생.
 * **예방 대책**:
-  1. **코드 병합 검증**: `core.js` 등 공통 스크립트 수정 시, 불필요하게 클래스(예: `BoxPlot`, `EditableGrid`, `StateMachine` 등)가 통째로 훼손되거나 삭제되지 않았는지 수동으로 Diff를 엄격하게 교차 확인해야 합니다.
-  2. **오버라이트 및 자동 치환 주의**: 소스코드를 대량으로 자동 교체(replace)하거나 코드 영역을 덮어쓸 때, 타깃 영역의 범위를 좁게 잡고 필요한 부분만 수정되도록 제한하십시오.
-  3. **브라우저 개발자 도구 콘솔 모니터링**: 수정 후 반드시 브라우저 콘솔(`F12` -> `Console` 탭)을 열고, 스크립트 에러나 미정의 에러(`Uncaught ReferenceError` 등)가 출력되는지 점검하십시오.
-  4. **빌드 전/후 검증**: 빌드를 진행하기 전 반드시 로컬 서버 환경에서 브라우저를 띄워 기본 기능과 런처 카드가 올바르게 로드되는지 선 검증 후 PyInstaller EXE 패키징을 수행해야 합니다.
+  1. **코드 병합 검증**: `core.js` 수정 시 `BoxPlot`, `EditableGrid`, `StateMachine` 등 핵심 클래스가 훼손되지 않았는지 Diff 교차 확인.
+  2. **오버라이트 주의**: 대량 자동 교체 시 타깃 범위를 좁게 잡아 필요한 부분만 수정.
+  3. **콘솔 모니터링**: `F12` → Console 탭에서 `SyntaxError`, `ReferenceError` 확인.
+  4. **빌드 전 검증**: EXE 패키징 전 반드시 브라우저에서 카드 로드 확인.
+
+#### B. EXE에서만 카드 미표시 (⚠ 2026-06-23 실제 발생 — 절대 잊지 말 것)
+
+> **핵심 함정**: 내비게이션 바(테마/언어)와 "계측기를 선택하세요"는 **정적 HTML**이므로
+> JavaScript가 전혀 실행되지 않아도 표시됨. 이것이 보인다고 JS가 실행된 것이 아님.
+> ES 모듈 import 오류는 **try-catch로도 잡히지 않고 조용히 실패**함.
+
+**원인 1 — dist 파일이 소스와 다름 (가장 흔한 원인):**
+- `dist/3M_Instrument_Logger/` 안의 JS/CSS 파일이 소스(`instruments/*.js`, `core.js`, `index.css`)보다
+  오래된 버전인 경우, 소스에서 수정된 버그가 EXE에는 반영되지 않음
+- 특히 `const`/`let` 중복 선언이 dist 파일에만 있으면 ES 모듈 strict mode에서 `SyntaxError` 발생
+  → import 체인 전체 실패 → 카드 전혀 미표시
+- **예방**: EXE 빌드 전 반드시 소스 → dist 동기화:
+  ```powershell
+  # 읽기 전용 해제 후
+  python build/build_standalone.py Hioki3540 Keithley2700 MitutoyoVL50 Agilent4339B DAQ6510 SP2100 PT2000 LT1000 AIPhotoEditor ClubExpense
+  # 위 명령이 실패(읽기 전용)하면 변경된 파일만 수동 복사:
+  Copy-Item core.js dist\3M_Instrument_Logger\core.js
+  Copy-Item index.css dist\3M_Instrument_Logger\index.css
+  ```
+
+**원인 2 — PyInstaller 환경 MIME 타입 누락:**
+- 번들된 Python은 레지스트리 접근 불가 → `.js` 파일이 `application/octet-stream`으로 서빙됨
+- Chromium은 잘못된 MIME 타입의 ES 모듈을 **조용히 거부** → 카드 미표시
+- **현재 상태**: `build/package_exe.py`의 `Handler.guess_type()` 오버라이드로 해결됨.
+  이 메서드를 삭제하거나 변경하지 말 것.
+
+**원인 3 — localStorage 인라인 주입 크기:**
+- 사진 데이터 등으로 `app_storage.json`이 수십 KB가 되면 HTML `<head>` 인라인 스크립트가 거대해져
+  Qt WebEngine 파싱 실패 가능
+- **현재 상태**: 동기 XHR 방식(`/api/storage/data`)으로 해결됨. 되돌리지 말 것.
+
+**EXE 카드 미표시 진단 순서:**
+1. `dist/3M_Instrument_Logger/instruments/*.js` 파일을 소스와 md5 비교
+2. dist JS 파일에서 `const`/`let` 중복 선언 grep 확인
+3. `build/package_exe.py`에 `debug=True`가 없는지 확인 (`webview.start()` 여야 함)
+4. `build/package_exe.py`의 `Handler.guess_type()` 메서드가 살아있는지 확인
