@@ -34,7 +34,7 @@ const T = {
     auto_log_wait: '자동 기록 대기 (초)',
     meas_wire: '측정 방식', sample_rate: '측정 속도',
     meas_range: '측정 레인지',
-    btn_copy: '복사', btn_csv: 'CSV 저장', btn_clear: '전체 삭제', btn_del_sel: '선택 삭제',
+    btn_copy: '복사', btn_csv: 'CSV 저장', btn_excel: 'Excel 저장', btn_clear: '전체 삭제', btn_del_sel: '선택 삭제',
     test_add_new: '새 평가 방법 추가',
     test_name_label: '테스트명', test_total_cells: '총 칸 수',
     test_group_cells: '구분 칸 수 (0=없음)', test_set_group: '셋트 크기',
@@ -137,6 +137,7 @@ const T = {
     daq_csv_ok: 'CSV 내보내기 완료.',
     daq_cleared: 'DAQ 데이터 초기화됨.',
     daq_stopped: '정지됨',
+    daq_stop_pending: '사이클 완료 후 정지...',
     daq_rt_running: '실시간 측정 중... (1초)',
     daq_full_running: '3분 간격 측정 중...',
     daq_start_log_rt: '실시간(1s)',
@@ -385,6 +386,10 @@ const T = {
     ai_per_row: '한 열 개수',
     ai_export_excel: '📥 엑셀로 내보내기',
     ai_exporting: '내보내는 중…',
+    home_confirm_title: '홈으로 나가기',
+    home_confirm_body: '현재 계측기 화면을 닫고 홈으로 돌아갑니다.',
+    home_confirm_ok: '나가기',
+    home_confirm_cancel: '취소',
   },
   en: {
     // topbar / launcher
@@ -420,7 +425,7 @@ const T = {
     auto_log_wait: 'Auto-log Wait (s)',
     meas_wire: 'Wire Mode', sample_rate: 'Sample Rate',
     meas_range: 'Meas. Range',
-    btn_copy: 'Copy', btn_csv: 'Save CSV', btn_clear: 'Clear All', btn_del_sel: 'Delete Sel',
+    btn_copy: 'Copy', btn_csv: 'Save CSV', btn_excel: 'Save Excel', btn_clear: 'Clear All', btn_del_sel: 'Delete Sel',
     test_add_new: 'Add New Test Method',
     test_name_label: 'Name', test_total_cells: 'Total Cells',
     test_group_cells: 'Group Size (0=none)', test_set_group: 'Set Size',
@@ -523,6 +528,7 @@ const T = {
     daq_csv_ok: 'CSV export complete.',
     daq_cleared: 'DAQ data cleared.',
     daq_stopped: 'Stopped',
+    daq_stop_pending: 'Stopping after current cycle...',
     daq_rt_running: 'Real-time measuring... (1s)',
     daq_full_running: 'Measuring every 3 min...',
     daq_start_log_rt: 'real-time(1s)',
@@ -771,6 +777,10 @@ const T = {
     ai_per_row: 'Cols per sheet',
     ai_export_excel: '📥 Export to Excel',
     ai_exporting: 'Exporting…',
+    home_confirm_title: 'Go Home',
+    home_confirm_body: 'Close the instrument view and return to the launcher.',
+    home_confirm_ok: 'Go Home',
+    home_confirm_cancel: 'Cancel',
   },
 };
 
@@ -1351,7 +1361,12 @@ class App {
     this.sm.onLogTriggered = (v, f) => this._onLogTriggered(v, f);
     this.serial.onLine  = line => this._onLine(line);
     this.serial.onByte  = b    => { if (this.instr?.onByte) this.instr.onByte(b); };
-    this.serial.onError = msg  => this.log(`[ERR] ${msg}`, 'err');
+    this.serial.onError = msg  => {
+      this.log(`[ERR] ${msg}`, 'err');
+      if (msg.includes('unknown system error') || msg.includes('An unknown')) {
+        this._showSerialErrorPopup();
+      }
+    };
   }
 
   // ── i18n ───────────────────────────────────────────────────────────────────
@@ -1493,15 +1508,17 @@ class App {
     'SP-2100 / TL-2200': 'Adhesive',
     'PT-2000 Probe Tack':'Adhesive',
     'LT-1000 Loop Tack': 'Adhesive',
+    'PST-3202':          'Power',
     'Photo Editor':      'Software',
     'Club Expense':      'Software',
   };
-  static _GROUP_ORDER  = ['Resistance', 'Thickness', 'Adhesive', 'Software'];
+  static _GROUP_ORDER  = ['Resistance', 'Thickness', 'Adhesive', 'Power', 'Software'];
   static _GROUP_LABELS = {
-    Resistance: { ko: '저항',    en: 'Resistance' },
-    Thickness:  { ko: '두께',    en: 'Thickness'  },
-    Adhesive:   { ko: '점착력', en: 'Adhesive'   },
-    Software:   { ko: 'Software', en: 'Software'  },
+    Resistance: { ko: '저항',      en: 'Resistance'   },
+    Thickness:  { ko: '두께',      en: 'Thickness'    },
+    Adhesive:   { ko: '점착력',    en: 'Adhesive'     },
+    Power:      { ko: '전원공급기', en: 'Power Supply' },
+    Software:   { ko: 'Software',  en: 'Software'     },
   };
 
   _buildLauncher() {
@@ -1524,36 +1541,33 @@ class App {
       root.appendChild(sec);
     }
 
-    // Group visible instruments — 즐겨찾기에 있는 카드는 그룹에서 제외
+    // 계측기 / Software 두 섹션으로 구성
     const nonFavNames = visibleNames.filter(n => !this._lFavs.has(n));
-    const groups = {};
-    nonFavNames.forEach(n => {
-      const g = this._lGroups?.[n] ?? App._LAUNCHER_GROUPS[n] ?? 'Other';
-      if (!groups[g]) groups[g] = [];
-      groups[g].push(n);
+    const instrNames = [];
+    const softNames  = [];
+    App._GROUP_ORDER.forEach(g => {
+      nonFavNames
+        .filter(n => (this._lGroups?.[n] ?? App._LAUNCHER_GROUPS[n]) === g)
+        .forEach(n => (g === 'Software' ? softNames : instrNames).push(n));
     });
 
-    const orderedGroups = [
-      ...App._GROUP_ORDER.filter(g => groups[g]?.length),
-      ...Object.keys(groups).filter(g => !App._GROUP_ORDER.includes(g) && groups[g]?.length),
-    ];
-
-    orderedGroups.forEach(g => {
-      const labels = App._GROUP_LABELS[g];
-      const title  = labels ? (this.lang === 'ko' ? labels.ko : labels.en) : g;
+    const makeSection = (label, names) => {
       const sec = document.createElement('div');
       sec.className = 'launcher-section';
-      sec.innerHTML = `<div class="launcher-sec-title">${title}</div>`;
+      sec.innerHTML = `<div class="launcher-sec-title">${label}</div>`;
       const grid = document.createElement('div');
       grid.className = 'cards-grid';
-      groups[g].forEach(n => {
+      names.forEach(n => {
         const card = this._makeCard(n);
-        card.draggable = true;   // 그룹 카드만 드래그 가능
+        card.draggable = true;
         grid.appendChild(card);
       });
       sec.appendChild(grid);
-      root.appendChild(sec);
-    });
+      return sec;
+    };
+
+    if (instrNames.length) root.appendChild(makeSection(this.lang === 'ko' ? '계측기' : 'Instruments', instrNames));
+    if (softNames.length)  root.appendChild(makeSection('Software', softNames));
 
     // Hidden restore bar
     if (hiddenNames.length) {
@@ -1637,11 +1651,22 @@ class App {
       img.replaceWith(ph);
     };
 
+    const g  = this._lGroups?.[name] ?? App._LAUNCHER_GROUPS[name] ?? 'Other';
+    const gl = App._GROUP_LABELS[g];
+
+    // 카드 상단: 계측기 / Software 타입 라벨
+    const tp = document.createElement('div'); tp.className = 'card-type';
+    tp.textContent = g === 'Software' ? 'Software' : (this.lang === 'ko' ? '계측기' : 'Instrument');
+
     const nm = document.createElement('div'); nm.className = 'card-name'; nm.textContent = displayName;
-    const ct = document.createElement('div'); ct.className = 'card-cat';  ct.textContent = cfg.category;
+
+    // 카드 하단: 저항 / 두께 / 점착력 (Software는 빈칸)
+    const ct = document.createElement('div'); ct.className = 'card-cat';
+    ct.textContent = g !== 'Software' ? (gl ? (this.lang === 'ko' ? gl.ko : gl.en) : g) : '';
 
     card.appendChild(favBtn);
     card.appendChild(delBtn);
+    card.appendChild(tp);
     card.appendChild(img);
     card.appendChild(nm);
     card.appendChild(ct);
@@ -1815,8 +1840,10 @@ class App {
       </div>`
     ).join('');
 
-    const photoHTML = m.photo
-      ? `<img class="ci-photo" src="${m.photo}" alt="">`
+    const defImg = this._instruments?.[name]?.popupImage ?? '';
+    const photoSrc = m.photo || defImg;
+    const photoHTML = photoSrc
+      ? `<img class="ci-photo" src="${photoSrc}" alt="">`
       : `<div class="ci-photo ci-photo-empty">사진 없음</div>`;
 
     popup.innerHTML = `
@@ -1909,16 +1936,38 @@ class App {
   }
 
   goHome() {
-    this.instr?.onDisconnect?.();
-    if (this.serial.isConnected) this._doDisconnect();
-    this.instr     = null;
-    this.instrName = null;
-    document.getElementById('launcher').hidden = false;
-    document.getElementById('instrumentView').hidden = true;
-    document.getElementById('deviceName').textContent = '';
-    this._connBadge(false);
-    this._buildLauncher();
-    this._saveConfig();
+    if (!this.instrName) return;
+    this._showHomeConfirm(() => {
+      this.instr?.onDisconnect?.();
+      if (this.serial.isConnected) this._doDisconnect();
+      this.instr     = null;
+      this.instrName = null;
+      document.getElementById('launcher').hidden = false;
+      document.getElementById('instrumentView').hidden = true;
+      document.getElementById('deviceName').textContent = '';
+      this._connBadge(false);
+      this._buildLauncher();
+      this._saveConfig();
+    });
+  }
+
+  _showHomeConfirm(onConfirm) {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center';
+    const box = document.createElement('div');
+    box.style.cssText = 'background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:28px 32px;max-width:340px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,.4)';
+    box.innerHTML = `
+      <div style="font-size:17px;font-weight:700;margin-bottom:8px;color:var(--text)">⌂ ${this.t('home_confirm_title')}</div>
+      <div style="font-size:13px;color:var(--text-mut);margin-bottom:24px;">${this.t('home_confirm_body')}</div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;">
+        <button id="_homeCancel" style="padding:8px 18px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text);cursor:pointer;font-size:14px;">${this.t('home_confirm_cancel')}</button>
+        <button id="_homeOk" style="padding:8px 18px;border-radius:8px;border:none;background:var(--accent,#3b82f6);color:#fff;cursor:pointer;font-size:14px;font-weight:600;">${this.t('home_confirm_ok')}</button>
+      </div>`;
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+    box.querySelector('#_homeCancel').onclick = () => overlay.remove();
+    box.querySelector('#_homeOk').onclick = () => { overlay.remove(); onConfirm(); };
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
   }
 
   // ── Instrument launch ──────────────────────────────────────────────────────
@@ -1975,6 +2024,7 @@ class App {
     this._updateCount();
     this._setDisplay('— — —', '', 'off', this.t('disconnected'));
     this.refreshPorts();
+    this.instr.onRebuild?.();
   }
 
   // ── Grid view ──────────────────────────────────────────────────────────────
@@ -2198,6 +2248,33 @@ class App {
     this._setDisplay('— — —', '', 'off', this.t('disconnected'));
     this._resetUsbAddress();
     this.log('Disconnected.');
+  }
+
+  _showSerialErrorPopup() {
+    if (this._serialErrPopupShown) return; // 중복 팝업 방지
+    this._serialErrPopupShown = true;
+    // 자동 연결 해제
+    this._doDisconnect();
+
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center';
+    overlay.innerHTML = `
+      <div style="background:var(--panel);border:1px solid #ef4444;border-radius:14px;padding:28px 32px;max-width:400px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,.5)">
+        <div style="font-size:22px;margin-bottom:10px">⚠️ 통신 오류</div>
+        <div style="font-size:14px;color:var(--text);line-height:1.8;margin-bottom:20px">
+          장비와의 통신이 끊겼습니다.<br>
+          아래 순서대로 진행해 주세요:<br><br>
+          <b>① USB 케이블을 분리하세요</b><br>
+          <b>② 5초 후 다시 연결하세요</b><br>
+          <b>③ 아래 확인 버튼 후 재연결하세요</b>
+        </div>
+        <button id="_serialErrOk" style="width:100%;padding:12px;background:#ef4444;border:none;border-radius:8px;color:#fff;font-size:15px;font-weight:700;cursor:pointer">확인</button>
+      </div>`;
+    document.body.appendChild(overlay);
+    document.getElementById('_serialErrOk').onclick = () => {
+      document.body.removeChild(overlay);
+      this._serialErrPopupShown = false;
+    };
   }
 
   // ── Reflect the actually-connected device's USB address ───────────────────

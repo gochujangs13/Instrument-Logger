@@ -264,7 +264,7 @@ this.onByte = null;            // 신규: 매 수신 바이트마다 호출
 ### PST-3202 알려진 제약 / 후속 작업
 - **실기 테스트 미완료**: SCPI 통신, OVP/OCP 동작, 폴링 타이밍 현장 검증 필요
 - **CH3 사용 토글**: CH3 동기화 토글(`syncCh3`)은 통합 앱에만 구현 — 단독 프로그램(`PST-3202/index.html`)에는 없음
-- **EXE 패키징**: PST-3202는 아직 `build/build_standalone.py` INSTRUMENT_MAP에 미등록 — 필요 시 추가
+- **EXE 패키징**: PST3202 항목 `build/build_standalone.py` INSTRUMENT_MAP에 등록 완료 — 재패키징 전 dist 동기화 필요
 - **그래프 테마 전환 즉시 반영**: 현재 데이터가 있을 때만 `drawGraph()`가 배경을 채움. 데이터 없을 땐 캔버스 투명 → 컨테이너 배경색으로 표시 (`.pst-graph-section`의 `background:var(--panel)`). 실사용 시 문제 없음.
 
 ## 5. 파형(WAVE) 표시 현황 및 미해결 과제
@@ -715,7 +715,7 @@ dist에 수동 복사 후 `package_exe.py` 실행.
 - **Agilent 4339B GPIB**: 🔧 드라이버 설치만 하면 완료 — NI GPIB-USB-HS 드라이버 설치 후 PyVISA IPC 브리지 연결 예정. 코드 측 준비는 완료된 상태.
 - **EXE 재패키징**: ✅ 완료 — 2026-06-30 세션 변경사항 반영, `dist/3M_Instrument_Logger.exe` 재빌드 완료
 - **PST-3202 실기 테스트**: 🔧 미완료 — 3채널 동기화·입력 검증·auto-clamp 기능 구현 완료, 실기 연결 검증 필요
-- **PST-3202 EXE 등록**: 🔧 미완료 — `build/build_standalone.py` INSTRUMENT_MAP에 PST3202 항목 추가 및 EXE 재패키징 필요
+- **PST-3202 EXE 등록**: ✅ 등록 완료 — `build/build_standalone.py` INSTRUMENT_MAP에 PST3202 항목 존재, dist에도 포함됨. 단 dist 파일이 소스보다 오래됨(2026-07-04 점검 기준 core.js/index.css/standalone.html/pst3202.js/pt2000 5개 DIFF) — **EXE 재패키징 전 dist 동기화 필수**
 
 ## 8-0. 파일 보호 목록 (읽기 전용 — 별도 지시 없이 수정 절대 금지)
 

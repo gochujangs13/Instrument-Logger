@@ -38,6 +38,7 @@ function init() {
     importing: false, autoImport: true, lastAutoImport: 0,
     awaitingProceed: false, proceedTimer: null, saveTime: 0, sendSaveSeq: true,
     _yMin: null, _yMax: null, _yMaxInp: null, _yMinInp: null, _yResetBtn: null,
+    graphViewMode: 'box',
   };
 }
 
@@ -463,6 +464,7 @@ async function importTest(auto = false) {
   }
   document.querySelectorAll('.pt-row-chk').forEach(c => c.checked = false);
   const sa = $('pt_selectAll'); if (sa) sa.checked = false;
+  S.graphViewMode = 'curve';
   renderTable(); updateCount(); drawGraph();
 
   app._setDisplay('--', 'gf', 'ready', 'READY');
@@ -529,26 +531,122 @@ function clearData() {
   if (S.results.length === 0) return;
   if (!confirm(t('pt_clear_confirm'))) return;
   S.results = []; S.nextNo = 1; S.curGroup = null; S.curIdx = 0;
+  S.graphViewMode = 'box';
   renderTable(); updateCount(); drawGraph();
   app.log(t('pt_cleared'));
 }
 function updateCount() { app.count = S.results.length; app._updateCount(); }
 
 // ── Export / copy ─────────────────────────────────────────────────────────────
-function resultsToRows() {
-  const head = ['No', t('pt_sample'), 'Max/Peak(gf)', 'Avg(gf)', 'Min(gf)', 'Std Dev', 'Work(J)', t('pt_failure_mode')];
-  const rows = S.results.map(r => [r.no, r.label, r.peak.toFixed(1), r.avg.toFixed(4), r.min.toFixed(1), r.stdev.toFixed(4), r.work.toExponential(4), r.mode]);
-  return [head, ...rows];
-}
-function exportCSV() {
+async function exportExcel() {
   if (!S.results.length) { app.log(t('pt_no_export_data'), 'warn'); return; }
-  const csv = resultsToRows().map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\r\n');
-  const a = Object.assign(document.createElement('a'), {
-    href: URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })),
-    download: `PT2000_${dateStr()}.csv`,
-  });
-  a.click(); URL.revokeObjectURL(a.href);
-  app.log(t('pt_csv_ok'), 'ok');
+  const btn = document.getElementById('ptExportBtn');
+  const origText = btn ? btn.textContent : '';
+  if (btn) { btn.textContent = app?.lang === 'ko' ? '생성 중…' : 'Generating…'; btn.disabled = true; }
+
+  try {
+    const mod = await import('https://cdn.jsdelivr.net/npm/exceljs@4.4.0/+esm');
+    const Workbook = mod.Workbook || mod.default?.Workbook || mod.default;
+    if (typeof Workbook !== 'function') throw new Error('ExcelJS 로드 실패');
+
+    const wb = new Workbook();
+
+    // Sheet 1: 요약 결과
+    const sheet1Name = app?.lang === 'ko' ? '요약 결과' : 'Summary Results';
+    const ws1 = wb.addWorksheet(sheet1Name);
+
+    // Headers for Sheet 1
+    const head1 = ['No', t('pt_sample'), 'Max/Peak (gf)', 'Avg (gf)', 'Min (gf)', 'Std Dev', 'Work (J)', t('pt_failure_mode')];
+    ws1.addRow(head1);
+
+    // Rows for Sheet 1
+    S.results.forEach(r => {
+      ws1.addRow([
+        r.no,
+        r.label,
+        parseFloat(r.peak.toFixed(1)),
+        parseFloat(r.avg.toFixed(4)),
+        parseFloat(r.min.toFixed(1)),
+        parseFloat(r.stdev.toFixed(4)),
+        parseFloat(r.work.toExponential(4)),
+        r.mode
+      ]);
+    });
+
+    // Style Header row of Sheet 1
+    ws1.getRow(1).font = { bold: true };
+    // Adjust column widths for Sheet 1
+    ws1.columns = [
+      { width: 8 },   // No
+      { width: 25 },  // Sample
+      { width: 16 },  // Peak
+      { width: 14 },  // Avg
+      { width: 12 },  // Min
+      { width: 12 },  // Std Dev
+      { width: 14 },  // Work
+      { width: 16 },  // Failure Mode
+    ];
+
+    // Sheet 2: 샘플별 Raw Data
+    const sheet2Name = app?.lang === 'ko' ? '샘플별 Raw Data' : 'Raw Data';
+    const ws2 = wb.addWorksheet(sheet2Name);
+
+    const speed = parseFloat($('pt_speed')?.value || 10);
+
+    // Headers for Sheet 2
+    const head2 = [];
+    S.results.forEach(r => {
+      head2.push(`${r.label} Time (s)`);
+      head2.push(`${r.label} Disp (mm)`);
+      head2.push(`${r.label} Force (gf)`);
+    });
+    ws2.addRow(head2);
+    ws2.getRow(1).font = { bold: true };
+
+    // Align headers and set widths
+    const cols2 = [];
+    S.results.forEach(() => {
+      cols2.push({ width: 16 }); // Time
+      cols2.push({ width: 16 }); // Disp
+      cols2.push({ width: 16 }); // Force
+    });
+    ws2.columns = cols2;
+
+    // Populate Sheet 2 raw data
+    const maxLen = Math.max(...S.results.map(r => r.data.length));
+    for (let i = 0; i < maxLen; i++) {
+      const row = [];
+      S.results.forEach(r => {
+        if (i < r.data.length) {
+          const pt = r.data[i];
+          row.push(pt.t);
+          row.push(pt.t * speed);
+          row.push(pt.f);
+        } else {
+          row.push(null);
+          row.push(null);
+          row.push(null);
+        }
+      });
+      ws2.addRow(row);
+    }
+
+    const buf = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const a = Object.assign(document.createElement('a'), {
+      href: url,
+      download: `PT2000_${dateStr()}.xlsx`
+    });
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    app.log(app?.lang === 'ko' ? '✅ Excel 저장 완료.' : '✅ Excel export complete.', 'ok');
+  } catch (err) {
+    app.log(`${app?.lang === 'ko' ? '❌ Excel 저장 실패' : '❌ Excel export failed'}: ${err.message}`, 'err');
+    alert(`${app?.lang === 'ko' ? 'Excel 저장 실패' : 'Excel export failed'}: ${err.message}`);
+  } finally {
+    if (btn) { btn.textContent = origText; btn.disabled = false; }
+  }
 }
 async function copyData() {
   if (!S.results.length) { app.log(t('pt_no_copy_data'), 'warn'); return; }
@@ -711,11 +809,33 @@ function _drawGroupBoxPlot() {
 
 function drawGraph() {
   const repeat = Math.max(1, parseInt($('pt_repeatCount')?.value || '1') || 1);
-  if (repeat > 1 && S.results.length > 0) { _drawGroupBoxPlot(); return; }
+  const checked = getChecked();
+
+  let showBoxPlot = false;
+  if (repeat > 1 && S.results.length > 0) {
+    if (checked.length > 1) {
+      showBoxPlot = true;
+      S.graphViewMode = 'box';
+    } else if (checked.length === 1) {
+      showBoxPlot = false;
+      S.graphViewMode = 'curve';
+    } else {
+      if (S.graphViewMode === 'curve') {
+        showBoxPlot = false;
+      } else {
+        showBoxPlot = true;
+        S.graphViewMode = 'box';
+      }
+    }
+  }
+
+  if (showBoxPlot) {
+    _drawGroupBoxPlot();
+    return;
+  }
 
   const canvas = $('pt_graphCanvas'), empty = $('pt_graphEmpty'), legend = $('pt_graphLegend');
   if (!canvas) return;
-  const checked = getChecked();
   let curves = S.results.filter(r => checked.includes(r.no));
   if (curves.length === 0 && S.results.length) curves = [S.results[S.results.length - 1]];
 
@@ -876,7 +996,7 @@ export default {
             <input type="number" id="pt_repeatCount" class="pt-count-inp" value="${sv.repeatCount ?? '1'}" min="1" max="99" step="1">
           </span>
           <button class="sbtn" onclick="app.instr.copyData()">${t('btn_copy')}</button>
-          <button class="sbtn green" onclick="app.instr.exportCSV()">${t('btn_csv')}</button>
+          <button id="ptExportBtn" class="sbtn green" onclick="app.instr.exportExcel()">${t('btn_excel') !== 'btn_excel' ? t('btn_excel') : (app?.lang === 'ko' ? 'Excel 저장' : 'Save Excel')}</button>
           <button class="sbtn red-o" onclick="app.instr.deleteSelected()">${t('btn_del_sel')}</button>
           <button class="sbtn red" onclick="app.instr.clearData()">${t('btn_clear')}</button>
         </div>
@@ -931,7 +1051,7 @@ export default {
   toggleConnection,
 
   // Exposed for inline onclick handlers
-  copyData, exportCSV, clearData, deleteSelected, renderTable,
+  copyData, exportExcel, clearData, deleteSelected, renderTable,
   toggleAll, onSelChange, renameResult, confirmProceed, resetSelection,
   _savePtSettings: savePtSettings,
 };
