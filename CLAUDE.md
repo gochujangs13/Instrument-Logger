@@ -26,6 +26,7 @@
   - `build/package_exe.py` — pywebview + PyInstaller로 EXE 패키징
   - `docs/INSTRUMENT_COMMUNICATION_PROTOCOLS.md` — 계측기별 통신 프로토콜 검증 문서 (SSOT)
   - `docs/SP2100_PROTOCOL_REFERENCE.md` — SP-2100/TL-2200 파싱 규칙 SSOT
+  - `docs/manuals/` — 계측기별 사용자 매뉴얼 (MD, 2026-07-04 신규 — PST-3202는 초보자용 상세판)
   - `instruments/*/`, `instruments/*.py` — 구버전 PyInstaller(Electron 이전) 데스크톱
     구현체. **참고용일 뿐, 현재 통합 작업의 기준이 아님** (단, SP-2100은 예외 — 아래 참고)
 
