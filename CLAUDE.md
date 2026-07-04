@@ -74,7 +74,8 @@ this.onByte = null;            // 신규: 매 수신 바이트마다 호출
 | DAQ-6510 | daq_6510.js | 🔧 실기 테스트 필요 | 수동 릴레이 제어(ROUT:OPEN:ALL→ROUT:CLOS→READ?), Front/Rear 토글, 3-컬럼 디스플레이, 동적 X축 그래프 구현 완료. ROUT:SCAN:CRE 폐기(2859 오류). 실기 테스트 필요 |
 | PT-2000 Probe Tack | pt2000_probe_tack.js | 🔧 작업 중 | |
 | LT-1000 Loop Tack | lt1000_loop_tack.js | 🔧 작업 중 | |
-| AI Photo Editor | ai_photo_editor.js | ✅ 신규 웹 포팅 | 비-시리얼 Tool. 아래 4-1 항목 참고 |
+| Photo Editor | photo_editor.js | ✅ 신규 웹 포팅 | 비-시리얼 Tool. 아래 4-1 항목 참고 |
+| PST-3202 | pst3202.js | 🔧 실기 테스트 필요 | GW Instek 3채널 DC 전원공급기. 아래 4-2 항목 참고 |
 
 ## 4. SP-2100 / TL-2200 — 이번 세션 핵심 작업
 
@@ -121,14 +122,14 @@ this.onByte = null;            // 신규: 매 수신 바이트마다 호출
   필요** (자동 후보 선택 로직이 PEAK 값에 의존하므로, PEAK가 없으면 기본값
   `16bit·LE·U·a0`로 디코딩됨).
 
-## 4-1. AI Photo Editor (신규 웹 포팅)
+## 4-1. Photo Editor (신규 웹 포팅)
 
 ### 배경
 - 기존 `instruments/ai_photo_editor/` (CustomTkinter + PyTorch/YOLO 데스크톱 앱)의
   기능을 통합 웹 앱으로 포팅. **YOLO 학습 기능(`ui_train.py`, `ui_yolo_train.py`,
   `yolo_dataset/`, `feature_brain.pkl`)은 사용자 요청에 따라 완전히 제외** —
   테스트가 잘 안 되어 제거 결정.
-- `instruments/ai_photo_editor.js` (신규 파일, `viewType: 'custom'`)로 구현,
+- `instruments/photo_editor.js` (신규 파일, `viewType: 'custom'`)로 구현,
   `index.js`의 `INSTRUMENTS`에 등록. 기존 `DESKTOP_TOOLS`의 `desktop-only`
   placeholder 항목은 제거됨.
 
@@ -163,6 +164,108 @@ this.onByte = null;            // 신규: 매 수신 바이트마다 호출
   필요 시 로컬 vendor 파일로 교체 검토.
 - 아직 실제 브라우저에서 전체 플로우(업로드→크롭→자동맞춤→Step2→엑셀) 실기
   테스트는 미완료.
+
+## 4-2. PST-3202 (GW Instek 3채널 DC 전원공급기)
+
+### 기본 정보
+- **파일**: `instruments/pst3202.js` (통합 앱), `C:\Users\0op64\.gemini\antigravity\scratch\PST-3202\index.html` (단독 프로그램 SSOT)
+- **통신**: 9600 8N1, SCPI 명령, `\n` 종료
+- **채널 사양**: CH1/CH2 최대 32V/2A, CH3 최대 6V/5A
+- **viewType**: `'custom'` — `buildSidebar`, `buildCenter`, `buildRightPanel` 직접 구현
+
+### 2026-07-03 완료 작업
+
+#### CSS 클래스 불일치 수정 (`index.css`)
+- JS가 `pst-sel`을 사용하는데 CSS에 `.pst-ch-card.selected` → `.pst-ch-card.pst-sel`로 수정 (4곳)
+- JS가 `pst-v`/`pst-i`를 사용하는데 CSS에 `.v`/`.i` → `.pst-led-val.pst-v`, `.pst-led-val.pst-i`로 수정
+
+#### `initTabLock()` 호출 타이밍 수정 (`pst3202.js`)
+- 기존: `init()` 내부에서 호출 → DOM에 모달이 없는 상태라 탭락 미작동
+- 수정: `buildCenter()` 끝에서 `el.innerHTML` 설정 후 호출
+
+#### OVP 버튼 반응 없음 수정 (`pst3202.js`)
+- 원인: `setOVP()`가 브라우저 `prompt()`를 사용 → pywebview/일부 환경에서 완전 차단
+- 수정: `pstOvpModal` 커스텀 모달로 교체 (`applyOvp()`, `closeOvpModal()`, `_ovpCh` 상태 추가)
+
+#### 불필요한 폴링 차단 (`pst3202.js`, `PST-3202/index.html`)
+- 출력 OFF 상태에서도 항상 폴링하던 문제 수정
+- `doPoll()`에 `|| !S.outputActive` 조건 추가 → 출력이 꺼져 있으면 폴링 생략
+
+#### CH1↔CH2 동기화 토글 (`pst3202.js`, `index.css`)
+- **배경**: 독립 모드에서 CH1·CH2에 동일 전압/전류를 설정하여 2개 샘플을 동시 평가하려는 용도
+- **병렬 트래킹 주의**: 병렬/직렬 트래킹은 전류/전압을 물리적으로 결합 → 독립 샘플 2개 동시 측정 불가. 이 용도에는 반드시 독립 모드(Track = 0) + 동기화 토글을 사용할 것
+- **UI**: CH1 카드와 CH2 카드 사이에 52px 폭 동기화 컬럼 배치 (`pst-sync-col`)
+  - 동기화 ON: 흘러내리는 점 애니메이션(`pst-flow` 키프레임, 0s/0.3s/0.6s 지연 3점)
+  - 독립 모드(Track=0)에서만 표시, 병렬/직렬 전환 시 자동 해제
+- **동작**: CH1 Vset/Iset 변경 시 CH2도 동일값으로 즉시 복사 (`setV`/`setI` 내 `ch===1 && S.syncCh1Ch2 && S.trackMode===0` 조건)
+- `setSyncCh1Ch2(on)` 함수 export
+
+#### 병렬/직렬 트래킹 안내 툴팁 (`pst3202.js`)
+- 병렬/직렬 라디오 레이블에 `⚠️` 추가 + `title` 속성으로 물리 배선 요구 및 독립 측정 불가 안내
+
+#### OCP·OVP 툴팁 (`pst3202.js`)
+- OCP 보호 라벨에 `title` 속성 추가 (과전류 자동 차단 설명)
+- OVP 설정 버튼에 `title` 속성 추가 (임계 전압 초과 시 출력 차단 설명)
+
+#### 그래프 제목 변경 (`pst3202.js`)
+- "실시간 모니터링" → "📈 실시간 그래프"
+
+#### CH2 그래프 표시 버그 수정 (`pst3202.js`)
+- 원인: `activeGraphChannels()`가 `S.selectedCh`를 무조건 포함해 "사용 안함" 채널도 그래프에 표시됨
+- 수정: `isChUsed(ch)` 헬퍼 추가, `activeGraphChannels()` 및 `isChannelActive()`에서 사용 토글 여부 우선 확인
+
+#### 시스템 로그 UI 수정 (`index.css`)
+- 모서리 직각 → 둥근 테두리: `border-top` → 전체 `border` + `border-radius:var(--radius)` + `overflow:hidden`
+- 내부 어두운 배경 복원: `.pst-syslog`에 `background:var(--syslog-bg)` 추가
+
+#### 자동 정지 토글 크기 확대 (`pst3202.js`, `index.css`)
+- `pst-toggle-sw-lg` 클래스 추가 (48×26px, 기존 36×20px 대비 확대)
+
+#### 라이트 테마 대응 — 그래프 배경·테두리 (`pst3202.js`, `PST-3202/index.html`)
+- **핵심 함정**: `core.js`는 `document.body.classList.toggle('light', ...)` 방식으로 테마를 적용.
+  `document.documentElement.dataset.theme === 'light'` 는 **절대 true가 되지 않음** (잘못된 감지).
+- **올바른 감지**: `document.body.classList.contains('light')`
+- `drawGraph()` 내 `isLight` 변수를 올바른 방식으로 수정
+- 테마별 색상 객체 `T`(통합 앱) / `TC`(단독 프로그램): bg/grid/border/axis 4가지 색상 분기
+- 테마 변경 시 그래프 자동 갱신: 테마 변경 → `_rebuildInstrumentSidebar()` → `onRebuild()` → `drawGraph()` 순으로 호출됨
+
+#### 라이트 테마 대응 — LED 디스플레이 배경 (`index.css`, `PST-3202/index.html`)
+- LED 디스플레이는 라이트 테마에서도 의도적으로 어두운 배경 유지 (계측기 디스플레이 느낌)
+- **잘못된 선택자**: `:root[data-theme="light"]` → **올바른 선택자**: `body.light`
+- 통합 앱: `body.light .pst-led-display { background: #12202e; }`
+- 단독 프로그램: `body.light .led-display { background: #12202e; }`
+
+#### 3채널 동기화 — CH1↔CH2↔CH3 (`pst3202.js`, `index.css`)
+- **배경**: 독립 모드에서 CH1·CH2 동기화 ON 상태에서 CH3까지 동기화하여 3채널 동일 설정 평가 목적
+- **상수**: `CH3_SYNC_MAX_I = 2` — CH3 물리 사양은 5A지만 3채널 동기화 시 2A로 제한 (안전)
+- **상태**: `S.syncCh3: false` — CH1↔CH2 동기화 ON 상태에서만 표시 (`pstSyncCh3Row`)
+- **`_effMaxV(ch)`**: CH3 동기화 ON 상태에서 CH1 편집 시 최대 전압을 `CH_MAX_V[3]`(6V)으로 반환, 그 외에는 `CH_MAX_V[ch]` 반환
+- **`setSyncCh3(on)` 동작**:
+  - ON: CH1의 현재 V/I를 CH3에 복사(전압 6V 캡, 전류 2A 캡), CH3 입력 잠금 (`pst-sync-lock`)
+  - CH1 전압이 6V 초과 상태에서 ON 시: CH1·CH2·CH3 모두 6V로 즉시 클램프
+  - `pstCh3Spec` 스펙 레이블 → `"0–6 V / 0–2 A (동기화)"`로 변경
+  - `setSyncCh1Ch2` OFF 시 CH3 동기화도 자동 해제
+- **사이클 편집기 적용**: `renderEditor()` → `_effMaxV(ch)` 사용 → CH3 동기화 ON 상태에서 전압 범위 레이블이 `(0–6V)`로 표시되고 입력값도 자동 클램프
+
+#### 고정값 입력 실시간 검증 (`pst3202.js`, `index.css`)
+- **`validateFixedField(ch, field)` 함수**: V/I 입력칸에 `oninput` 이벤트로 연결
+  - 물리 최댓값 초과 시: 값을 즉시 최댓값으로 자동 조정 + 파란색 `↩ 최대 NV로 자동 조정됨` 메시지
+  - CH3 동기화 ON + CH1 전압이 6V 초과 시: 파란색 `↩ 3채널 최대 전압(6V)으로 조정됩니다` 메시지 (Enter 시 `setV`에서 실제 클램프)
+  - 0 미만 입력 시: 빨간색 `⚠ 0V/0A 이상 입력` 경고
+  - 정상 범위: 메시지 제거
+- **`pst-fix-warn` CSS** (`index.css`): `font-size:10px; color:#f87171; min-height:12px; white-space:nowrap`
+  - V/I 입력칸 바로 아래 `<span id="pstFixWarnV{ch}">` / `<span id="pstFixWarnI{ch}>` 배치
+- **`setV` / `setI` 변경**: alert 대신 자동 클램프 — 물리 최댓값 초과 시 값을 최댓값으로 수정 후 진행
+
+#### 전류 입력 소수점 3자리 표준화 (`pst3202.js`)
+- `setI()`, `setSyncCh1Ch2()`, `setSyncCh3()` 모두에서 전류 input 표시를 `val.toFixed(3)`으로 정규화
+- 예: 입력 `2` → 표시 `2.000` (CH3와 동일 형식 통일)
+
+### PST-3202 알려진 제약 / 후속 작업
+- **실기 테스트 미완료**: SCPI 통신, OVP/OCP 동작, 폴링 타이밍 현장 검증 필요
+- **CH3 사용 토글**: CH3 동기화 토글(`syncCh3`)은 통합 앱에만 구현 — 단독 프로그램(`PST-3202/index.html`)에는 없음
+- **EXE 패키징**: PST-3202는 아직 `build/build_standalone.py` INSTRUMENT_MAP에 미등록 — 필요 시 추가
+- **그래프 테마 전환 즉시 반영**: 현재 데이터가 있을 때만 `drawGraph()`가 배경을 채움. 데이터 없을 땐 캔버스 투명 → 컨테이너 배경색으로 표시 (`.pst-graph-section`의 `background:var(--panel)`). 실사용 시 문제 없음.
 
 ## 5. 파형(WAVE) 표시 현황 및 미해결 과제
 
@@ -521,6 +624,85 @@ python build/package_exe.py dist/3M_Instrument_Logger
 파일이 읽기 전용 잠금으로 `build_standalone.py` 실패 시, 최소한 변경된 소스 파일을
 dist에 수동 복사 후 `package_exe.py` 실행.
 
+> **주의**: `build_standalone.py`의 `AIPhotoEditor` 항목은 `instruments/photo_editor.js`를 가리킴.
+> `ai_photo_editor.js`로 되돌리지 말 것 (2026-06-30 파일명 변경).
+
+### 2026-06-29~30 완료 작업 (Photo Editor USB 현미경 기능 개선)
+
+#### Photo Editor (`instruments/photo_editor.js`) — 파일명 변경 + USB 현미경 안정화
+
+**파일명 변경**
+- `instruments/ai_photo_editor.js` → `instruments/photo_editor.js` (ai_ 접두사 제거)
+- `assets/ai_photo_editor.png` → `assets/photo_editor.png` (아이콘 동시 업데이트)
+- `index.js`, `build/build_standalone.py`, `CLAUDE.md` 참조 모두 업데이트
+- `SETTINGS_KEY = 'ai_photo_editor_settings'` (localStorage 키)는 기존 저장 설정 보호를 위해 유지
+
+**USB 현미경 연결 안정화**
+- `listUSBCams()` 권한 요청 후 임시 스트림 즉시 해제 — 내장 카메라 점유로 인한 현미경 연결 실패 방지
+- `deviceId: { exact: … }` → `{ ideal: … }` 변경 — deviceId 불일치 시 폴백 허용
+- 내장 카메라 키워드 필터(`integrated`, `built-in`, `webcam` 등) 적용 → Digital Microscope 자동 우선 선택
+
+**Step 2 → 돌아가기 시 카메라 복원**
+- `backToStep1()` 이 `buildCenterStep1()`로 HTML 재생성 후 기존 `S.usbStream`을 새 `<video>` 요소에 자동 재연결
+- 줌 슬라이더(`aiUsbZoomRow`), 크롭 섹션(`aiUsbCropSection`) 표시 상태 복원
+- `setupUSBCropCanvas()` 재호출로 크롭 오버레이 재설정
+
+**크롭 박스 버그 수정**
+- 카메라 모드(`S.showCamera=true`)에서 `aiCropCanvas` 명시적 `display:none` — 실수로 드래그해도 `_cropPct` 변경 안 됨
+- 파일 썸네일 클릭 시 `_cropPct = null` 초기화 — 이전 잔여 크롭 박스가 다음 사진 미리보기에 표시되지 않음
+
+**촬영 중복 방지**
+- `_capturing` 플래그 + 촬영 중 버튼 `disabled`/반투명 처리 — 빠른 다중 클릭으로 인한 중복 촬영 방지
+
+**파일 이름 자동 생성**
+- 기존 `usb_타임스탬프.jpg` → `그룹번호-위치번호.jpg` (예: `1-1.jpg` ~ `1-6.jpg`, `2-1.jpg` ~ `2-6.jpg`)
+- 그룹 개수(`S.perRow`) 기준으로 촬영 순서에 따라 자동 산출
+
+### 2026-07-01 완료 작업 (Photo Editor 엑셀 내보내기 개선 + 런처 UI 개편)
+
+#### Photo Editor (`instruments/photo_editor.js`) — 엑셀 이미지 겹침 수정 + 그룹화 + ZIP 저장
+
+**엑셀 이미지 겹침 버그 근본 수정**
+- **원인**: 기존 `ext: { width: px, height: px }` 방식에서 ExcelJS 내부가 픽셀을 포인트로 해석 → 96dpi vs 72dpi 차이로 이미지가 33% 크게 배치 → 겹침 발생
+- **수정**: `tl/br` 셀 기반 배치로 전면 교체 (픽셀/포인트 단위 혼선 없음)
+  ```js
+  ws.addImage(imgId, { tl: { col: c, row: r+1 }, br: { col: c+1, row: r+2 }, editAs: 'oneCell' });
+  ```
+- 열 너비: `outW * 96 / 7` 글자 (인치→픽셀→글자 정확 변환)
+- 행 높이: `outH * 72` pt (인치→포인트 직접 변환)
+- 헤더 셀: `N그룹` 형식으로 변경
+
+**Excel 네이티브 그룹 기능 (`_groupImagesInXlsx()`)**
+- ExcelJS 생성 xlsx를 JSZip(`cdn.jsdelivr.net/npm/jszip@3.10.1/+esm`)으로 후처리
+- `xl/drawings/drawing1.xml`에서 개별 `<xdr:twoCellAnchor>` 블록 추출
+- 그룹당 `perRow`개를 하나의 `<xdr:grpSp>`로 묶어 재조립
+  - 그룹 좌표계: `chOff/chExt`로 정의, 내부 이미지는 EMU 오프셋(`y = r * outH * 914400`)
+- JSZip 로드 실패 시 그룹 없이 원본 xlsx 반환 (폴백)
+- **결과**: Excel에서 그룹 내 사진 클릭 시 6장 통 선택, 우클릭 → 그룹 해제로 개별 선택 가능
+
+**JPEG 저장 → ZIP 저장**
+- 기존: 개별 파일 n번 다운로드 팝업
+- 수정: JSZip으로 모든 사진을 `photos.zip` 한 파일로 묶어 1회 다운로드
+- 처리 중 버튼 "압축 중…" 표시 + disabled 처리
+
+#### 런처 카드 UI 개편 (`core.js`, `index.css`)
+
+**섹션 구성 변경**
+- 기존: 저항 / 두께 / 점착력 / Software 4개 섹션 헤더
+- 변경: **계측기 / Software 2개 섹션**으로 통합
+  - 계측기 섹션: 저항·두께·점착력 전체
+  - Software 섹션: Photo Editor 등
+
+**카드 레이아웃 변경**
+- 상단에 `card-type` 라벨 추가 ("계측기" or "Software", 10px 소문자, 회색)
+- 하단 `card-cat`에 분류 표시 (저항/두께/점착력, 차분한 텍스트 — 기존 파란 배지 제거)
+- 전체 카드 구조: `card-type` → 이미지 → 이름 → `card-cat`
+
+#### ClubExpense 런처 카드 제거 (`index.js`, `build/build_standalone.py`)
+- `instruments/club_expense.js` 파일 자체는 유지
+- `index.js` import 및 INSTRUMENTS 레지스트리에서 제거
+- `build/build_standalone.py` `INSTRUMENT_MAP`에서 항목 제거
+
 ### 미해결 / 후속 작업
 - **체크박스 재측정**: ✅ 전 계측기 완료
   - PT-2000: 기존 구현, LT-1000: `importTest()` 수정 완료, Agilent 4339B: `logResult()` 수정 완료
@@ -531,7 +713,9 @@ dist에 수동 복사 후 `package_exe.py` 실행.
 - **Agilent 4339B 실기 테스트**: ✅ 완료 — 재작성 시퀀스로 -213 에러 없이 정상 측정 확인
 - **SP-2100 파형 디코딩**: ❌ 종결 — 장비에서 파형 데이터 수집 자체가 불가하여 파형 그래프 구현 불가. `sp2100_logger.js`의 `decodeWave` 관련 코드는 현 상태로 동결.
 - **Agilent 4339B GPIB**: 🔧 드라이버 설치만 하면 완료 — NI GPIB-USB-HS 드라이버 설치 후 PyVISA IPC 브리지 연결 예정. 코드 측 준비는 완료된 상태.
-- **EXE 재패키징**: ✅ 완료 — 2026-06-23 세션 변경사항 반영, `dist/3M_Instrument_Logger.exe` 재빌드 완료
+- **EXE 재패키징**: ✅ 완료 — 2026-06-30 세션 변경사항 반영, `dist/3M_Instrument_Logger.exe` 재빌드 완료
+- **PST-3202 실기 테스트**: 🔧 미완료 — 3채널 동기화·입력 검증·auto-clamp 기능 구현 완료, 실기 연결 검증 필요
+- **PST-3202 EXE 등록**: 🔧 미완료 — `build/build_standalone.py` INSTRUMENT_MAP에 PST3202 항목 추가 및 EXE 재패키징 필요
 
 ## 8-0. 파일 보호 목록 (읽기 전용 — 별도 지시 없이 수정 절대 금지)
 
@@ -548,7 +732,7 @@ Claude가 자체 판단으로 건드리거나, DAQ-6510 작업 중 side-effect�
 | `instruments/agilent_4339b.js` | 🔒 읽기 전용 |
 | `instruments/pt2000_probe_tack.js` | 🔒 읽기 전용 |
 | `instruments/lt1000_loop_tack.js` | 🔒 읽기 전용 |
-| `instruments/ai_photo_editor.js` | 🔒 읽기 전용 |
+| `instruments/photo_editor.js` | 🔒 읽기 전용 |
 | `instruments/_utils.js` | 🔒 읽기 전용 |
 
 **잠금 해제 방법** (사용자 직접 실행):
