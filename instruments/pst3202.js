@@ -1804,6 +1804,59 @@ async function saveEvalRecords() {
   }
 }
 
+// ── 평가 목록 파일 내보내기/가져오기 (다른 컴퓨터로 이동용) ─────────────────────
+function exportEvalListFile() {
+  if (!S.evalRecords.length) { alert(t('pst_export_select')); return; }
+  const now = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+  const filename = `PST3202_records_${stamp}.json`;
+  const blob = new Blob([JSON.stringify(S.evalRecords, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = Object.assign(document.createElement('a'), { href: url, download: filename });
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  pstLog(tf('pst_log_list_exported', { n: S.evalRecords.length, f: filename }), 'ok');
+}
+
+function importEvalListFile() {
+  const inp = $('pstImportFileInp');
+  if (inp) inp.click();
+}
+
+function handleImportFile(fileInput) {
+  const file = fileInput.files?.[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    let incoming;
+    try {
+      incoming = JSON.parse(reader.result);
+      if (!Array.isArray(incoming)) throw new Error('not an array');
+    } catch (e) {
+      alert(t('pst_import_invalid'));
+      fileInput.value = '';
+      return;
+    }
+    const existingTimestamps = new Set(S.evalRecords.map(r => r.timestamp));
+    let added = 0, skipped = 0;
+    incoming.forEach(rec => {
+      if (existingTimestamps.has(rec.timestamp)) { skipped++; return; }
+      const newRec = { ...rec, id: S.nextEvalId++, checked: false };
+      S.evalRecords.push(newRec);
+      existingTimestamps.add(rec.timestamp);
+      added++;
+    });
+    renderEvalTable();
+    saveEvalRecords();
+    pstLog(tf('pst_log_list_imported', { added, skipped }), 'ok');
+    showInfoModal(tf('pst_import_done_msg', { added, skipped }), t('pst_import_done_title'));
+    fileInput.value = '';
+  };
+  reader.onerror = () => { alert(t('pst_import_invalid')); fileInput.value = ''; };
+  reader.readAsText(file, 'utf-8');
+}
+
 async function loadEvalRecords() {
   try {
     const res = await fetch('/api/evaldata');
@@ -2093,6 +2146,9 @@ function buildCenter(el) {
           <div class="pst-gctrls">
             <button class="sbtn" id="pstBtnExport" onclick="app.instr.exportSelectedRawData()" style="font-size:11px;">📥 Raw Data (xlsx)</button>
             <button class="sbtn" onclick="app.instr.manualSaveRecords()" style="font-size:11px;color:var(--cyan);border-color:var(--cyan);">${t('pst_dt_save')}</button>
+            <button class="sbtn" onclick="app.instr.exportEvalListFile()" style="font-size:11px;">${t('pst_list_export_btn')}</button>
+            <button class="sbtn" onclick="app.instr.importEvalListFile()" style="font-size:11px;">${t('pst_list_import_btn')}</button>
+            <input type="file" id="pstImportFileInp" accept=".json,application/json" style="display:none;" onchange="app.instr.handleImportFile(this)">
             <button class="sbtn" onclick="app.instr.deleteSelectedEvals()" style="font-size:11px;color:var(--red);border-color:var(--red);">${t('pst_dt_delsel')}</button>
           </div>
         </div>
@@ -2268,7 +2324,7 @@ export default {
   drawGraph, resetGraph, viewEval, viewLiveGraph,
   renameEval, setEvalStressCondition, setEvalAgingTime,
   toggleEvalCheck, toggleAllEvals, deleteSelectedEvals,
-  exportSelectedRawData, manualSaveRecords,
+  exportSelectedRawData, manualSaveRecords, exportEvalListFile, importEvalListFile, handleImportFile,
   setEvalFilter, clearProtectionFromModal, closeConfirmModal, hideTrackImageModal,
   showWarningModal, closeWarningModal, showInfoModal, closeInfoModal,
   applyOvp, closeOvpModal,

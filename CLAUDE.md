@@ -262,6 +262,28 @@ this.onByte = null;            // 신규: 매 수신 바이트마다 호출
 - `setI()`, `setSyncCh1Ch2()`, `setSyncCh3()` 모두에서 전류 input 표시를 `val.toFixed(3)`으로 정규화
 - 예: 입력 `2` → 표시 `2.000` (CH3와 동일 형식 통일)
 
+#### 평가 목록 파일 내보내기/가져오기 — 다른 컴퓨터로 데이터 이동 (`pst3202.js`, `core.js`, 2026-07-05)
+- **배경**: 측정 완료 시 `saveEvalRecords()`가 서버 옆 `PST3202_eval_data.json`에 자동 저장되지만
+  (기존 기능, `server.py`/`package_exe.py`의 `/api/evaldata` 핸들러), 이 파일을 다른 컴퓨터로
+  옮겨서 불러오는 UI가 없었음 — 사용자 요청으로 신규 추가.
+- **내보내기(`exportEvalListFile`)**: 현재 `S.evalRecords` 전체를 `PST3202_records_<타임스탬프>.json`
+  으로 브라우저 다운로드 (blob + `<a download>`, 서버 API 불필요 — 순수 클라이언트 사이드)
+- **가져오기(`importEvalListFile` → 숨김 `<input type=file>` → `handleImportFile`)**:
+  - `FileReader`로 JSON 파싱 → 배열 형식 검증, 실패 시 `pst_import_invalid` 경고
+  - **병합 방식**: 기존 목록에 추가(치환 아님) — 사용자가 명시적으로 요청한 동작
+  - **중복 제거**: `timestamp` 필드가 기존 레코드와 정확히 일치하면 건너뜀 (같은 날 같은 시간대
+    동일 평가로 간주). 새로 추가되는 레코드는 `id`를 로컬 `S.nextEvalId`로 재할당(원본 파일의
+    id는 무시 — 다른 컴퓨터의 id 시퀀스와 충돌 방지)
+  - 가져오기 완료 후 자동으로 `saveEvalRecords()` 호출 → 병합 결과가 이 컴퓨터에도 영구 저장됨
+  - 완료 안내 모달에 추가/중복제외 개수 표시 (`pst_import_done_msg`)
+- **UI**: Data Table 패널에 `📤 목록 내보내기` / `📂 목록 가져오기` 버튼 추가 (Raw Data·저장·선택삭제 버튼 사이)
+- **엑셀 내보내기와의 관계**: 가져온 레코드도 `S.evalRecords`에 정상 병합되므로, 기존
+  `exportSelectedRawData()`(📥 Raw Data xlsx)로 체크박스 선택 후 그대로 엑셀 내보내기 가능
+  — 별도 구현 불필요, 기존 경로 재사용
+- **검증**: 헤드리스 브라우저로 `handleImportFile`을 실제 코드 경로로 호출해 3가지 시나리오 확인 —
+  신규 2건 추가, 동일 데이터 재가져오기 시 0건 추가(중복 제거 정상), 잘못된 파일 형식 시 번역된
+  경고 메시지 정상 표시
+
 ### PST-3202 알려진 제약 / 후속 작업
 - **실기 테스트 미완료**: SCPI 통신, OVP/OCP 동작, 폴링 타이밍 현장 검증 필요
 - **CH3 사용 토글**: CH3 동기화 토글(`syncCh3`)은 통합 앱에만 구현 — 단독 프로그램(`PST-3202/index.html`)에는 없음
