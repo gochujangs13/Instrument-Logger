@@ -47,6 +47,12 @@ const T = {
     running_warn: '측정 중에는 테마/언어 변경이 불가합니다.',
     chart_hint: '현재 패널 측정값 분포 (박스 플롯)',
     chart_empty: '측정 데이터가 없습니다',
+    y_axis_auto: '자동',
+    test_name_ph: '예: ETM-9',
+    card_meta_location_ph: '예) 3F EMSD Lab',
+    card_meta_asset_ph: '예) EQ-0042',
+    card_meta_manager_ph: '예) 홍길동',
+    card_meta_note_ph: '예) 교정 주기 1년',
     wire_fixed: '4-Wire (고정)',
     web_serial_unsupported: 'Web Serial API가 지원되지 않습니다.\nChrome 또는 Edge 89+ 를 사용하세요.',
     settings_title: '설정',
@@ -383,9 +389,49 @@ const T = {
     ai_auto_align: '⚡ 크롭 자동 지정',
     ai_next: '다음 단계 ▶',
     ai_back: '◀ 돌아가기',
-    ai_per_row: '한 열 개수',
-    ai_export_excel: '📥 엑셀로 내보내기',
+    ai_per_row: '그룹 개수',
+    ai_export_excel: '📊 엑셀로 내보내기',
     ai_exporting: '내보내는 중…',
+    ai_output_size: '출력 크기',
+    ai_s2_per_col: '한 열',
+    ai_unit_sheets: '장',
+    ai_camera_btn: '📷 카메라',
+    ai_rotation_label: '회전',
+    ai_reset_btn: '초기화',
+    ai_status_idle: '● 대기 중',
+    ai_status_usb_connected: '● USB 현미경 연결됨',
+    ai_overwrite_hint: '🔄 덮어쓰기 예정',
+    ai_shoot_btn: '📸 촬영 (Enter)',
+    ai_cam_overlay_line1: '좌측 사이드바에서 USB 현미경을 연결하세요',
+    ai_cam_overlay_line2: '또는 아래 파일 선택으로 이미지 업로드',
+    ai_usb_mic_title: 'USB 현미경',
+    ai_usb_connect_btn: '🔬 현미경 연결',
+    ai_usb_disconnect_btn: '⏹ 연결 해제',
+    ai_zoom_label: '배율',
+    ai_crop_unset: '미설정',
+    ai_crop_set: '✅ 크롭 설정됨',
+    ai_crop_set_btn: '✂️ 크롭 설정',
+    ai_crop_done_btn: '✔ 완료',
+    ai_delete_selected: '선택 삭제',
+    ai_drop_zone: '📁 파일 선택 / 드롭',
+    ai_phone_connecting: '연결 중…',
+    ai_phone_synced: '폰 연동 중',
+    ai_phone_start_txt: '폰 연동 시작',
+    ai_fail_generic: '실패',
+    ai_adb_missing: 'ADB 미설치 — 폰에서 직접 접속하세요:\nhttp://{ip}:8000/phone.html',
+    ai_phone_sync_fail: '폰 연동 실패: ',
+    ai_server_not_running: 'server.py가 실행 중이지 않습니다.\n시작.bat를 먼저 실행하세요.',
+    ai_usb_cam_fail: 'USB 카메라 연결 실패: ',
+    ai_capture_signal_fail: '촬영 신호 실패 — server.py 실행 확인',
+    ai_no_photos_to_save: '저장할 사진이 없습니다.',
+    ai_save_fail: '저장 실패: ',
+    ai_export_fail: '내보내기 실패: ',
+    ai_confirm_delete_all: '모든 사진을 삭제하시겠습니까?',
+    ai_upload_first: '사진을 먼저 업로드하세요.',
+    ai_zipping: '압축 중…',
+    ai_jpeg_save_btn: '📁 JPEG 저장',
+    ai_generating: '생성 중…',
+    ai_group_num: '{n}그룹',
     home_confirm_title: '홈으로 나가기',
     home_confirm_body: '현재 계측기 화면을 닫고 홈으로 돌아갑니다.',
     home_confirm_ok: '나가기',
@@ -597,6 +643,12 @@ const T = {
     running_warn: 'Cannot change theme/language during measurement.',
     chart_hint: 'Box plot of active panel values',
     chart_empty: 'No data yet',
+    y_axis_auto: 'Auto',
+    test_name_ph: 'e.g. ETM-9',
+    card_meta_location_ph: 'e.g. 3F EMSD Lab',
+    card_meta_asset_ph: 'e.g. EQ-0042',
+    card_meta_manager_ph: 'e.g. John Doe',
+    card_meta_note_ph: 'e.g. Calibration cycle 1yr',
     wire_fixed: '4-Wire (Fixed)',
     web_serial_unsupported: 'Web Serial API not supported.\nUse Chrome or Edge 89+.',
     settings_title: 'Settings',
@@ -922,7 +974,7 @@ const T = {
     ai_phone_start: '▶ Start Sync',
     ai_phone_stop: '⏹ Stop Sync',
     ai_file_list: '📁 File List',
-    ai_file_count: 'files',
+    ai_file_count: ' files',
     ai_drop_hint: 'Drop files here or click to upload',
     ai_delete_all: 'Delete All',
     ai_size_label: 'Excel Output Size (inch)',
@@ -933,9 +985,49 @@ const T = {
     ai_auto_align: '⚡ Auto Align',
     ai_next: 'Next Step ▶',
     ai_back: '◀ Back',
-    ai_per_row: 'Cols per sheet',
-    ai_export_excel: '📥 Export to Excel',
+    ai_per_row: 'Group Count',
+    ai_export_excel: '📊 Export to Excel',
     ai_exporting: 'Exporting…',
+    ai_output_size: 'Output Size',
+    ai_s2_per_col: 'Per Column',
+    ai_unit_sheets: ' photos',
+    ai_camera_btn: '📷 Camera',
+    ai_rotation_label: 'Rotation',
+    ai_reset_btn: 'Reset',
+    ai_status_idle: '● Standby',
+    ai_status_usb_connected: '● USB Microscope Connected',
+    ai_overwrite_hint: '🔄 Will Overwrite',
+    ai_shoot_btn: '📸 Capture (Enter)',
+    ai_cam_overlay_line1: 'Connect a USB microscope from the left sidebar',
+    ai_cam_overlay_line2: 'or upload images using the file picker below',
+    ai_usb_mic_title: 'USB Microscope',
+    ai_usb_connect_btn: '🔬 Connect Microscope',
+    ai_usb_disconnect_btn: '⏹ Disconnect',
+    ai_zoom_label: 'Zoom',
+    ai_crop_unset: 'Not Set',
+    ai_crop_set: '✅ Crop Set',
+    ai_crop_set_btn: '✂️ Set Crop',
+    ai_crop_done_btn: '✔ Done',
+    ai_delete_selected: 'Delete Selected',
+    ai_drop_zone: '📁 Select / Drop Files',
+    ai_phone_connecting: 'Connecting…',
+    ai_phone_synced: 'Phone Synced',
+    ai_phone_start_txt: 'Start Phone Sync',
+    ai_fail_generic: 'Failed',
+    ai_adb_missing: 'ADB not installed — connect directly from the phone:\nhttp://{ip}:8000/phone.html',
+    ai_phone_sync_fail: 'Phone sync failed: ',
+    ai_server_not_running: 'server.py is not running.\nRun 시작.bat (start.bat) first.',
+    ai_usb_cam_fail: 'USB camera connection failed: ',
+    ai_capture_signal_fail: 'Capture signal failed — check that server.py is running',
+    ai_no_photos_to_save: 'No photos to save.',
+    ai_save_fail: 'Save failed: ',
+    ai_export_fail: 'Export failed: ',
+    ai_confirm_delete_all: 'Delete all photos?',
+    ai_upload_first: 'Upload photos first.',
+    ai_zipping: 'Zipping…',
+    ai_jpeg_save_btn: '📁 Save JPEG',
+    ai_generating: 'Generating…',
+    ai_group_num: 'Group {n}',
     home_confirm_title: 'Go Home',
     home_confirm_body: 'Close the instrument view and return to the launcher.',
     home_confirm_ok: 'Go Home',
@@ -1397,7 +1489,9 @@ class BoxPlot {
 
     const make = (cls) => {
       const inp = document.createElement('input');
-      inp.type = 'number'; inp.step = 'any'; inp.placeholder = '자동';
+      inp.type = 'number'; inp.step = 'any';
+      inp.placeholder = window.app?.t('y_axis_auto') ?? '자동';
+      inp.dataset.i18nPlaceholder = 'y_axis_auto';
       inp.className = `y-axis-inp ${cls}`;
       overlay.appendChild(inp);
       return inp;
@@ -1407,7 +1501,8 @@ class BoxPlot {
 
     const resetBtn = document.createElement('button');
     resetBtn.className = 'y-reset-btn';
-    resetBtn.title = 'Y축 자동';
+    resetBtn.title = window.app?.t('y_axis_auto') ?? '자동';
+    resetBtn.dataset.i18nTitle = 'y_axis_auto';
     resetBtn.textContent = '↺';
     overlay.appendChild(resetBtn);
 
@@ -1697,6 +1792,9 @@ class App {
     document.querySelectorAll('[data-i18n-title]').forEach(el => {
       el.title = this.t(el.dataset.i18nTitle);
     });
+    document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+      el.placeholder = this.t(el.dataset.i18nPlaceholder);
+    });
     document.documentElement.lang = this.lang;
     document.getElementById('langSelect').value = this.lang;
     document.getElementById('splitToggle')?.querySelectorAll('.toggle-btn').forEach((btn, i) => {
@@ -1732,6 +1830,17 @@ class App {
       if (area && this.instr.buildSettings) {
         area.innerHTML = '';
         this.instr.buildSettings(area);
+      }
+      // 연결 전이면 표시부 상태 텍스트도 재번역 (연결 후에는 각 계측기가 관리하는 상태이므로 건드리지 않음)
+      if (!this.serial.isConnected) {
+        this._setDisplay('— — —', '', 'off', this.t('disconnected'));
+      }
+      // 우측 패널(그래프 제목/힌트/빈 상태) 및 데이터 테이블 헤더 재번역 — 기존 기록 데이터는 masterData/vl50Data에서 복원
+      if (this.panels?.length) {
+        this._savePanelData();
+        const modes = this.instr.useVL50Modes ? this.vl50Modes : this.testModes;
+        const data  = this.instr.useVL50Modes ? this.vl50Data  : this.masterData;
+        this._buildPanels(this.splitCount, modes, data);
       }
     }
   }
@@ -2360,7 +2469,7 @@ class App {
         <div class="disp-value"><span id="liveValue">— — —</span><span class="disp-unit" id="liveUnit"></span></div>
         <div class="disp-meta">
           <span id="liveStatus" class="disp-status off">${this.t('disconnected')}</span>
-          <span class="meas-count">${this.t('meas_count_lbl')} <b id="measCount">0</b></span>
+          <span class="meas-count"><span data-i18n="meas_count_lbl">${this.t('meas_count_lbl')}</span> <b id="measCount">0</b></span>
         </div>
       </div>
       <div class="panel datalog-head-bar">
@@ -2757,7 +2866,7 @@ class App {
           <div class="graph-hint" style="font-size:11px; margin-bottom:4px;">${hintText}</div>
           <div class="graph-area" style="flex:1; min-height:0; position:relative;">
             <canvas id="mainChart_${i}" style="width:100%; height:100%; display:block;"></canvas>
-            <div class="graph-empty" id="chartEmpty_${i}" style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center;">측정 데이터가 없습니다</div>
+            <div class="graph-empty" id="chartEmpty_${i}" style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center;">${this.t('chart_empty')}</div>
           </div>
           <div id="statsPanel_${i}" class="stats-area" style="margin-top:6px;"></div>
         `;

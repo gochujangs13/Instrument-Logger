@@ -52,7 +52,7 @@ function _attachYOverlay(graphAreaEl, redrawFn) {
   graphAreaEl.appendChild(overlay);
   const make = cls => {
     const inp = document.createElement('input');
-    inp.type = 'number'; inp.step = 'any'; inp.placeholder = '자동';
+    inp.type = 'number'; inp.step = 'any'; inp.placeholder = t('y_axis_auto');
     inp.className = `y-axis-inp ${cls}`;
     overlay.appendChild(inp);
     return inp;
@@ -60,7 +60,7 @@ function _attachYOverlay(graphAreaEl, redrawFn) {
   S._yMaxInp = make('y-axis-max');
   S._yMinInp = make('y-axis-min');
   const resetBtn = document.createElement('button');
-  resetBtn.className = 'y-reset-btn'; resetBtn.title = 'Y축 자동'; resetBtn.textContent = '↺';
+  resetBtn.className = 'y-reset-btn'; resetBtn.title = t('y_axis_auto'); resetBtn.textContent = '↺';
   resetBtn.style.display = 'none';
   overlay.appendChild(resetBtn);
   S._yResetBtn = resetBtn;

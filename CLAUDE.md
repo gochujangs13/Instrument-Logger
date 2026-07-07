@@ -345,6 +345,42 @@ python build/package_exe.py dist/SP2100
 
 ## 7. 직전 작업 / 다음 할 일
 
+### 2026-07-05 완료 작업 — 언어 전환(한/영) 전면 점검
+
+PST-3202 i18n 적용(2026-07-04) 후 "다른 계측기도 언어 전환이 되는지" 전수 점검. 헤드리스
+브라우저로 계측기 10개를 영어 모드로 렌더링해 잔여 한국어를 스캔하는 방식으로 진행.
+
+**실제 버그 6종 발견·수정** (자세한 내용은 `개발_이슈_및_성과_정리.md` §17 참고):
+1. `core.js` BoxPlot — Y축 오토스케일 placeholder/title "자동" 하드코딩 → `t('y_axis_auto')`
+2. `core.js` `_buildPanels` — 스플릿 그래프 빈 상태 문구 하드코딩 → `t('chart_empty')`
+3. `index.html`/`standalone.html` — 계측기 관리 모달 placeholder 미번역 →
+   `_applyLang()`에 `data-i18n-placeholder` 지원 신규 추가
+4. `core.js` `_openCardEdit` — 카드 편집 모달 placeholder 4개 하드코딩 → 키 4개 신설
+5. **그리드 계측기(Hioki·Keithley·VL-50)** — 계측기 화면이 열린 채로 언어 전환 시 중앙
+   상태표시줄·우측 그래프 패널·데이터 그리드 헤더가 전혀 재번역 안 됨. `_rebuildInstrumentSidebar()`의
+   grid 분기가 사이드바만 재생성하고 center/rightpanel은 launchInstrument() 최초 1회만 빌드되던
+   구조적 문제 — `setSplit()`과 동일한 `_savePanelData()` + `_buildPanels()` 재호출을 추가해 해결
+   (기록 데이터는 masterData/vl50Data에서 복원되므로 유실 없음)
+6. `sp2100_logger.js`/`agilent_4339b.js`/`pt2000_probe_tack.js`/`lt1000_loop_tack.js` —
+   각 파일에 복붙되어 있던 `_attachYOverlay`의 동일한 "자동" 하드코딩 (core.js BoxPlot과 별개 구현)
+
+**Photo Editor — 대규모 신규 작업** (읽기 전용 보호 파일, 사용자 명시 승인 후 진행):
+- 번역 시스템이 전혀 적용되어 있지 않았음 (기존 `ai_*` 키 14개는 죽은 코드 — 미참조)
+- `t()`/`tf()` 헬퍼 신설, 하드코딩 문자열 57건 전부 교체 (USB 현미경/크롭/파일목록/회전/촬영/
+  폰연동/Excel·ZIP 내보내기 상태 메시지)
+- `core.js`에 `ai_*` 키 40개 신규 추가 + 기존 3개(`ai_per_row` 등) 값이 실제 UI 문구와
+  안 맞아 최신화
+
+**검증**: 10개 계측기 전부 헤드리스 EN 렌더 재검사 — 잔여 한국어 0건. dist 동기화 +
+`dist/3M_Instrument_Logger.exe` 재빌드 완료.
+
+> ⚠️ **패턴 주의**: `viewType: 'custom'` 계측기는 `_rebuildInstrumentSidebar()`가
+> buildSidebar/buildCenter/buildRightPanel을 전부 재호출하므로 `t()`만 잘 쓰면 언어 전환이
+> 자동으로 해결된다. 반면 `viewType: 'grid'`(Hioki/Keithley/VL-50)는 `dynamicSettings` 영역만
+> 재생성되므로, 계측기 자체가 아니라 **core.js의 grid 뷰 인프라 코드**에 새 하드코딩 텍스트를
+> 추가할 경우 반드시 `data-i18n` 계열 속성을 쓰거나 `_rebuildInstrumentSidebar()`의 grid
+> 분기에서 재번역되도록 확인할 것.
+
 ### 2026-06-23 완료 작업
 
 #### 수염차트 Y축 수동 편집 기능 (`core.js`, `index.css`, `sp2100_logger.js`, `agilent_4339b.js`, `pt2000_probe_tack.js`, `lt1000_loop_tack.js`)
