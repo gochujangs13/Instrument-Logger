@@ -2630,7 +2630,7 @@ function buildCenter(el) {
             <span class="pst-gli" id="pstGliSeriesI" style="display:none;"><span class="pst-gld" style="background:#22b06a;"></span>${t('pst_series_i')}</span>
           </div>
           <div class="pst-gctrls">
-            <span id="pstViewingBadge" style="display:none;font-size:11px;font-weight:700;color:#06121c;background:var(--accent-2);padding:3px 8px;border-radius:5px;">${t('pst_viewing')}</span>
+            <span id="pstViewingBadge" onclick="app.instr.viewLiveGraph()" title="${t('pst_viewing_exit_hint')}" style="display:none;cursor:pointer;font-size:11px;font-weight:700;color:#06121c;background:var(--accent-2);padding:3px 8px;border-radius:5px;">${t('pst_viewing')} ✕</span>
             <span style="font-size:11px;color:var(--text-dim);display:flex;align-items:center;gap:6px;">
               ${t('pst_test_time')} <span id="pstTestElapsed" style="font-family:var(--mono);font-weight:700;color:var(--cyan);">0${t('pst_u_s')}</span>
             </span>

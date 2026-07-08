@@ -610,6 +610,21 @@ this.onByte = null;            // 신규: 매 수신 바이트마다 호출
   시나리오 — 기존 기록이 새 데이터로 정확히 덮어써지고 레코드 개수가 늘지 않음을 확인. 두
   시나리오 모두 실제 `createEvalRecord()`/`closeConfirmModal()` 코드 경로로 재현·검증.
 
+#### 2026-07-09: "기록 보기 중" 배지를 클릭하면 실시간 화면으로 복귀 (`pst3202.js`, `core.js`, `index.css`)
+- **요청**: 과거 평가 기록을 클릭해 그래프를 보고 있을 때(`viewEval()` 호출 후 `#pstViewingBadge`
+  가 "📌 기록 보기 중"으로 표시됨) 그 배지를 눌러서 기록 보기를 끄고 실시간 측정 대기 화면으로
+  돌아가고 싶다는 요청 — 기존엔 이 배지가 단순 상태 표시용 `<span>`이라 클릭해도 아무 반응이
+  없었음.
+- **수정**: 되돌리는 로직(`viewLiveGraph()` — `S.viewingEvalId = null` 설정 후 배지 숨김,
+  범례·그래프 재갱신)은 이미 구현돼 있었고 "선택 삭제" 등 다른 경로에서만 쓰이고 있었음 —
+  배지에 `onclick="app.instr.viewLiveGraph()"`만 연결하면 되는 상황. `cursor:pointer`, 클릭
+  가능함을 알려주는 `title` 툴팁, 배지 텍스트 끝에 `✕` 표시 추가로 클릭 가능하다는 것을
+  시각적으로 명확히 함. `#pstViewingBadge:hover{opacity:.8}` 호버 효과도 추가.
+- **신규 i18n 키**: `pst_viewing_exit_hint` (ko/en, 툴팁 텍스트).
+- **검증**: 헤드리스로 `viewEval(1)` 호출 후 배지 `display`/`onclick`/`cursor`/`title` 속성을
+  전부 확인, 이어서 `badge.click()`으로 실제 클릭을 재현 → `S.viewingEvalId`가 `null`로
+  돌아오고 배지가 다시 숨겨짐을 확인.
+
 ### PST-3202 알려진 제약 / 후속 작업
 - **실기 테스트 미완료**: SCPI 통신, OVP/OCP 동작, 폴링 타이밍 현장 검증 필요
 - **CH3 사용 토글**: CH3 동기화 토글(`syncCh3`)은 통합 앱에만 구현 — 단독 프로그램(`PST-3202/index.html`)에는 없음
