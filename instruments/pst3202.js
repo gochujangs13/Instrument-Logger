@@ -1782,22 +1782,21 @@ function renderEvalTable() {
     return;
   }
 
-  const numbers = evalNumbering();
   tbody.innerHTML = '';
   filtered.forEach(rec => {
     const tr = document.createElement('tr');
     if (rec.id === S.viewingEvalId) tr.className = 'pst-viewing';
     tr.innerHTML = `
       <td onclick="event.stopPropagation()"><input type="checkbox" ${rec.checked ? 'checked' : ''} onchange="app.instr.toggleEvalCheck(${rec.id},this.checked)"></td>
-      <td class="pst-eval-date">${evalDateStr(rec)}<br><span class="pst-eval-time">⏱ ${evalDurationStr(rec)}</span></td>
+      <td class="pst-eval-date">${evalDateStr(rec)}</td>
       <td onclick="event.stopPropagation()"><input type="text" class="pst-eval-name-inp" value="${esc(rec.name)}" onchange="app.instr.renameEval(${rec.id},this.value)"></td>
-      <td class="pst-eval-num">${numbers[rec.id]}</td>
       <td>${t('pst_track' + rec.trackMode)}</td>
       <td>${evalModeOf(rec) === 'cycle' ? t('pst_mode_cycle') : t('pst_mode_fixed')}</td>
       <td onclick="event.stopPropagation()"><input type="text" class="pst-eval-name-inp" list="stressConditionOptions" value="${esc(rec.stressCondition || '')}" onchange="app.instr.setEvalStressCondition(${rec.id},this.value)"></td>
       <td onclick="event.stopPropagation()"><input type="text" class="pst-eval-name-inp" list="agingTimeOptions" value="${esc(rec.agingTime || '')}" onchange="app.instr.setEvalAgingTime(${rec.id},this.value)"></td>
       <td class="pst-eval-cond">${esc(evalConditionText(rec))}</td>
-      <td class="pst-eval-imax">${rec.maxCurrent.toFixed(3)} A</td>`;
+      <td class="pst-eval-imax">${rec.maxCurrent.toFixed(3)} A</td>
+      <td class="pst-eval-duration">${evalDurationStr(rec)}</td>`;
     tr.onclick = () => viewEval(rec.id);
     tbody.appendChild(tr);
   });
@@ -2671,13 +2670,13 @@ function buildCenter(el) {
                     <div id="pstNameFilterList" class="pst-namefilter-list"></div>
                   </div>
                 </th>
-                <th style="width:40px;">${t('pst_th_num')}</th>
                 <th style="width:100px;"><span class="pst-th-label">${t('pst_th_track')}</span><select class="pst-th-filter" id="pstEvalFilterTrack" onchange="app.instr.setEvalFilter()"><option value="all">${t('pst_all')}</option><option value="0">${t('pst_track0')}</option><option value="1">${t('pst_track1')}</option><option value="2">${t('pst_track2')}</option></select></th>
                 <th style="width:80px;"><span class="pst-th-label">${t('pst_th_mode')}</span><select class="pst-th-filter" id="pstEvalFilterMode" onchange="app.instr.setEvalFilter()"><option value="all">${t('pst_all')}</option><option value="fixed">${t('pst_mode_fixed')}</option><option value="cycle">${t('pst_mode_cycle')}</option></select></th>
                 <th style="width:110px;"><span class="pst-th-label">${t('pst_th_stress')}</span><select class="pst-th-filter" id="pstEvalFilterStress" onchange="app.instr.setEvalFilter()"><option value="all">${t('pst_all')}</option></select></th>
                 <th style="width:90px;"><span class="pst-th-label">${t('pst_th_aging')}</span><select class="pst-th-filter" id="pstEvalFilterAging" onchange="app.instr.setEvalFilter()"><option value="all">${t('pst_all')}</option></select></th>
                 <th>${t('pst_th_cond')}</th>
                 <th style="width:100px;">${t('pst_th_imax')}</th>
+                <th style="width:90px;">${t('pst_th_duration')}</th>
               </tr>
             </thead>
             <tbody id="pstEvalTbody">
