@@ -1215,6 +1215,7 @@ canvas#pstChart{width:100%;height:100%;display:block;}
 .pst-eval-imax{font-family:var(--mono);font-weight:700;color:var(--green-2);font-size:13px;}
 .pst-eval-num{font-family:var(--mono);font-weight:700;color:var(--text-mut);text-align:center;}
 .pst-eval-date{font-family:var(--mono);font-size:11px;color:var(--text-dim);}
+.pst-eval-time{font-family:var(--mono);font-size:10px;color:var(--text-mut);opacity:.75;}
 
 /* ── Protection trip modal ── */
 .pst-modal-overlay{position:fixed;inset:0;background:rgba(2,8,16,.72);display:flex;

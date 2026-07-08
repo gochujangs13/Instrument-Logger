@@ -534,13 +534,69 @@ this.onByte = null;            // 신규: 매 수신 바이트마다 호출
   `index.css`)에만 반영되고 **dist 동기화 및 EXE 재빌드는 보류**됨. 다음 EXE 요청 시 반드시
   `dist/3M_Instrument_Logger/instruments/pst3202.js`·`core.js`·`index.css` 동기화 먼저 할 것.
 
+#### 2026-07-08: 🔴 독립 모드에서 CH2/CH3 "사용" 토글 시 그래프가 갱신되지 않는 버그 수정 (`pst3202.js`)
+- **사용자 신고**: "독립으로 2채널 3채널 켜고 껐을 때 1채널이 그래프가 안보이는 버그가 있어"
+- **원인**: CH1/CH2/CH3 채널 카드의 "사용" 체크박스 `onchange`는 `syncTrackingSettings()`를
+  호출하는데, 이 함수는 끝에서 `updateGraphLegend()`(범례 텍스트만 갱신)만 호출하고
+  **`drawGraph()`(실제 캔버스 다시 그리기)는 전혀 호출하지 않았음**. 그 결과 출력이 꺼져 있는
+  상태(폴링이 돌지 않아 `recordGraphData()`가 캔버스를 재갱신할 기회가 없는 상태)에서 채널
+  "사용" 토글을 바꾸면, 범례는 새 채널 구성을 반영해 즉시 바뀌지만 **캔버스에는 토글 이전
+  채널 구성으로 그려진 옛 그림이 그대로 남아있어** 범례-실제 그림이 서로 어긋나는 상태가 됨 —
+  예: CH2·CH3를 껐는데도 캔버스에는 CH2·CH3 라인이 남아있는 옛 그래프가 그대로 보이고, 그
+  틈에서 CH1 라인이 상대적으로 묻혀 "안 보이는" 것처럼 인식됨.
+  - `activeGraphChannels()`/`graphSource()`/`isChUsed()`의 채널 판정 로직 자체는 정상이었음
+    (헤드리스로 직접 검증 — CH1은 모든 단계에서 `chIdxs`에 항상 포함됨). 문제는 순수하게
+    "판정은 맞는데 화면 갱신 트리거가 빠짐"이었음.
+- **진단**: `CanvasRenderingContext2D.prototype.stroke`를 몽키패치해 호출 횟수를 계측 —
+  출력 OFF 상태에서 CH2/CH3 사용 토글을 끈 직후 `stroke()` 호출 0회로 캔버스가 전혀
+  재갱신되지 않음을 확인. 수정 후 동일 테스트에서 호출 발생(정상)으로 재검증.
+- **수정**: `syncTrackingSettings()` 끝의 `updateGraphLegend();` 바로 다음 줄에 `drawGraph();`
+  한 줄 추가 — `drawGraph()`는 데이터가 부족하거나(`n<2`) 캔버스 크기가 0이면 안전하게
+  조기 반환하므로 부작용 없음.
+- **검증**: 헤드리스로 CH1 단독 → CH2+CH3 켜짐 → CH2+CH3 꺼짐(재현 시나리오) 3단계를 실제
+  `recordGraphData()`/체크박스 `change` 이벤트로 재현, 각 단계 캔버스를 `toDataURL()`로
+  캡처해 육안 확인 — 수정 후 모든 단계에서 CH1 라인(파란 실선/초록 점선)이 정상 표시됨.
+
+#### 2026-07-08: Data Table에 측정 완료 시각 표시 추가 (`pst3202.js`, `index.css`)
+- **요청**: "데이터 테이블에 샘플의 측정 시간도 표시하면 좋겠어, 즉 한 샘플의 측정 완료 시간"
+- `rec.timestamp`는 이미 `_stopOutputSeq()` → `createEvalRecord()` 호출 시점(= 출력 OFF =
+  측정 완료 시점)에 `Date.now()`로 기록되고 있었음 — 별도의 시각 캡처 로직 추가 없이 기존
+  값을 표시만 하면 되는 상황이었음.
+- `evalTimeStr(rec)` 헬퍼 신설(`evalDateStr` 바로 아래) — `HH:MM:SS` 포맷.
+- 날짜 셀에 `${evalDateStr(rec)}<br><span class="pst-eval-time">${evalTimeStr(rec)}</span>`로
+  날짜 아래 시각을 작고 흐린 글씨로 표시 (`.pst-eval-time` CSS 신규 추가).
+
+#### 2026-07-08: 🔴 체크된 샘플 재측정 시 확인 없이 덮어쓰던 문제 — 확인/취소 팝업 추가 (`pst3202.js`, `core.js`)
+- **사용자 신고**: "데이터테이블 샘플 체크하고 재측정할경우 덮어씌우시겠습니까? 팝업창 띄워서
+  확인 OR 취소 가능하게 해줘야할꺼같아"
+- **기존 동작 확인**: `createEvalRecord()`(측정 완료 시 자동 호출)에 이미 "체크된 기록이
+  정확히 1개면 그 기록에 덮어쓴다"는 로직이 있었는데(샘플 재측정 워크플로용으로 의도된 기능),
+  **확인 절차 없이 무조건 덮어써서** 실수로 체크박스를 켜둔 채 새 측정을 하면 이전 데이터가
+  조용히 사라지는 위험이 있었음.
+- **수정**: 이미 삭제 확인에 쓰이던 범용 Promise 기반 `showConfirm(msg)` 모달을 재사용하되,
+  OK 버튼 라벨과 제목도 상황에 맞게 바꿀 수 있도록 `showConfirm(msg, okLabel, title)`로 확장
+  (기존 삭제 확인 호출부는 인자를 안 주므로 그대로 `'삭제'`/`'평가 기록 삭제'` 기본값 사용,
+  호환성 문제 없음). `pstConfirmModalTitle` id를 제목 요소에 추가해 JS로 갱신 가능하게 함.
+  `createEvalRecord()`를 `async`로 바꾸고, 체크된 기록이 1개일 때
+  `await showConfirm(tf('pst_overwrite_confirm',{name}), t('pst_overwrite_ok'), t('pst_overwrite_title'))`
+  로 확인을 받은 뒤에만 덮어쓰기 진행. **취소 시 기존 체크된 기록은 전혀 건드리지 않고, 방금
+  측정한 데이터는 안전하게 새 기록으로 별도 저장**(데이터 유실 없음 — "취소했는데 방금 측정
+  데이터가 사라진다"는 최악의 UX를 피하기 위한 설계 판단).
+- **신규 i18n 키**: `pst_overwrite_title`, `pst_overwrite_confirm`(`{name}` 플레이스홀더),
+  `pst_overwrite_ok`, `pst_log_overwrite_cancel` (ko/en).
+- **검증**: 헤드리스로 체크된 기존 기록 1개 + 새 측정 데이터를 준비한 뒤 (1) 취소 클릭 시나리오
+  — 기존 기록 원본 데이터 불변 확인 + 새 기록이 별도로 생성됨을 확인, (2) 확인(덮어쓰기) 클릭
+  시나리오 — 기존 기록이 새 데이터로 정확히 덮어써지고 레코드 개수가 늘지 않음을 확인. 두
+  시나리오 모두 실제 `createEvalRecord()`/`closeConfirmModal()` 코드 경로로 재현·검증.
+
 ### PST-3202 알려진 제약 / 후속 작업
 - **실기 테스트 미완료**: SCPI 통신, OVP/OCP 동작, 폴링 타이밍 현장 검증 필요
 - **CH3 사용 토글**: CH3 동기화 토글(`syncCh3`)은 통합 앱에만 구현 — 단독 프로그램(`PST-3202/index.html`)에는 없음
 - **EXE 패키징**: PST3202 항목 `build/build_standalone.py` INSTRUMENT_MAP에 등록 완료 — 재패키징 전 dist 동기화 필요
-- **dist 스탤 (2026-07-08 기준)**: 제품명 다중 필터 + 가져오기 버튼 복구가 소스에만 반영되고
-  dist는 사용자 요청으로 미동기화 상태. 다음 EXE 빌드 전 `instruments/pst3202.js`, `core.js`,
-  `index.css` 3개 파일을 `dist/3M_Instrument_Logger/`에 반드시 재동기화할 것.
+- **dist 스탤 (2026-07-08 기준)**: 제품명 다중 필터, 가져오기 버튼 복구, CH2/CH3 사용 토글 시
+  그래프 미갱신 버그 수정, Data Table 측정 완료 시각 표시, 재측정 덮어쓰기 확인 팝업까지
+  총 5건이 소스에만 반영되고 dist는 미동기화 상태. 다음 EXE 빌드 전 `instruments/pst3202.js`,
+  `core.js`, `index.css` 3개 파일을 `dist/3M_Instrument_Logger/`에 반드시 재동기화할 것.
 - **그래프 테마 전환 즉시 반영**: 현재 데이터가 있을 때만 `drawGraph()`가 배경을 채움. 데이터 없을 땐 캔버스 투명 → 컨테이너 배경색으로 표시 (`.pst-graph-section`의 `background:var(--panel)`). 실사용 시 문제 없음.
 
 ## 5. 파형(WAVE) 표시 현황 및 미해결 과제

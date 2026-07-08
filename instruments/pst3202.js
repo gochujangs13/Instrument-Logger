@@ -489,6 +489,7 @@ function syncTrackingSettings() {
   });
 
   updateGraphLegend();
+  drawGraph(); // 채널 사용 토글 변경 시 그래프가 즉시 갱신되지 않고 이전 채널 구성으로 정체되던 문제 방지
 }
 
 // ── Cycle Editor ──────────────────────────────────────────────────────────────
@@ -1561,7 +1562,7 @@ function buildChData() {
   return chData;
 }
 
-function createEvalRecord() {
+async function createEvalRecord() {
   if (!S.gData.ts.length) {
     const now = Date.now();
     S.gData.ts.push(now);
@@ -1577,12 +1578,17 @@ function createEvalRecord() {
   const checked = S.evalRecords.filter(r => r.checked);
   if (checked.length === 1) {
     const rec = checked[0];
-    Object.assign(rec, { trackMode: S.trackMode, chData, raw, timestamp: Date.now(), checked: false });
-    rec.maxCurrent = computeMaxCurrent(rec);
-    pstLog(tf('pst_log_eval_over', { name: rec.name, i: rec.maxCurrent.toFixed(3) }), 'ok');
-    renderEvalTable();
-    saveEvalRecords();
-    return;
+    const overwrite = await showConfirm(tf('pst_overwrite_confirm', { name: rec.name }), t('pst_overwrite_ok'), t('pst_overwrite_title'));
+    if (overwrite) {
+      Object.assign(rec, { trackMode: S.trackMode, chData, raw, timestamp: Date.now(), checked: false });
+      rec.maxCurrent = computeMaxCurrent(rec);
+      pstLog(tf('pst_log_eval_over', { name: rec.name, i: rec.maxCurrent.toFixed(3) }), 'ok');
+      renderEvalTable();
+      saveEvalRecords();
+      return;
+    }
+    pstLog(t('pst_log_overwrite_cancel'), 'info');
+    // 취소 시 기존 기록은 그대로 두고 새 기록으로 저장 (데이터 유실 방지)
   }
 
   const id = S.nextEvalId++;
@@ -1635,6 +1641,12 @@ function evalModeOf(rec) {
 function evalDateStr(rec) {
   const d = new Date(rec.timestamp);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// rec.timestamp는 측정 완료(출력 OFF) 시점에 기록되므로, 시:분:초는 곧 측정 완료 시간
+function evalTimeStr(rec) {
+  const d = new Date(rec.timestamp);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
 }
 
 function evalNumbering() {
@@ -1770,7 +1782,7 @@ function renderEvalTable() {
     if (rec.id === S.viewingEvalId) tr.className = 'pst-viewing';
     tr.innerHTML = `
       <td onclick="event.stopPropagation()"><input type="checkbox" ${rec.checked ? 'checked' : ''} onchange="app.instr.toggleEvalCheck(${rec.id},this.checked)"></td>
-      <td class="pst-eval-date">${evalDateStr(rec)}</td>
+      <td class="pst-eval-date">${evalDateStr(rec)}<br><span class="pst-eval-time">${evalTimeStr(rec)}</span></td>
       <td onclick="event.stopPropagation()"><input type="text" class="pst-eval-name-inp" value="${esc(rec.name)}" onchange="app.instr.renameEval(${rec.id},this.value)"></td>
       <td class="pst-eval-num">${numbers[rec.id]}</td>
       <td>${t('pst_track' + rec.trackMode)}</td>
@@ -1816,9 +1828,11 @@ function toggleAllEvals(checked) {
 }
 
 let confirmResolver = null;
-function showConfirm(msg) {
+function showConfirm(msg, okLabel, title) {
   const modal = $('pstConfirmModal'); if (!modal) return Promise.resolve(false);
   const msgEl = $('pstConfirmModalMsg'); if (msgEl) msgEl.textContent = msg;
+  const okBtn = $('pstBtnConfirmOk'); if (okBtn) okBtn.textContent = okLabel || t('pst_del');
+  const titleEl = $('pstConfirmModalTitle'); if (titleEl) titleEl.textContent = title || t('pst_confirm_title');
   modal.style.display = 'flex';
   return new Promise(resolve => {
     confirmResolver = resolve;
@@ -2684,7 +2698,7 @@ function buildCenter(el) {
       <div id="pstConfirmModal" class="pst-modal-overlay" style="display:none;z-index:10000;">
         <div class="pst-modal-box" style="border-color:var(--accent);">
           <div class="pst-modal-icon">❓</div>
-          <div class="pst-modal-title" style="color:var(--accent-2);">${t('pst_confirm_title')}</div>
+          <div class="pst-modal-title" id="pstConfirmModalTitle" style="color:var(--accent-2);">${t('pst_confirm_title')}</div>
           <div class="pst-modal-msg" id="pstConfirmModalMsg">${t('pst_confirm_msg')}</div>
           <div style="display:flex;gap:12px;margin-top:20px;">
             <button class="big-btn" id="pstBtnConfirmCancel" style="flex:1;background:var(--panel-3);border:1px solid var(--border-2);color:var(--text);" onclick="app.instr.closeConfirmModal(false)">${t('pst_cancel')}</button>
