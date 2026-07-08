@@ -1886,7 +1886,7 @@ function drawOffscreenGraph(rec, width, height) {
   canvas.width = width;
   canvas.height = height;
   const ctx = canvas.getContext('2d');
-  const P = { t: 25, r: 48, b: 28, l: 52 };
+  const P = { t: 44, r: 48, b: 28, l: 52 }; // t: 상단 범례(legend) 표시 공간 확보를 위해 확대
   const cw = width - P.l - P.r, ch = height - P.t - P.b;
 
   // Background (always use light mode for print/Excel friendliness)
@@ -1921,8 +1921,37 @@ function drawOffscreenGraph(rec, width, height) {
   const yMaxV = Math.max(...vVals.filter(val => isFinite(val)), 0.5) * 1.15 || 1;
   const yMaxI = Math.max(...iVals.filter(val => isFinite(val)), 0.05) * 1.15 || 1;
 
-  const colorsV = ['#2b8fff', '#10b981', '#a855f7'];
-  const colorsI = ['#ef4444', '#f59e0b', '#06b6d4'];
+  // 실시간 화면 그래프(GV/GI)와 동일한 채널별 색상 팔레트 사용 — 색상 일관성 유지
+  const colorsV = GV, colorsI = GI;
+
+  // ── 범례 (전압/전류 채널별 색상 + 라벨) ─────────────────────────────
+  const isSeries = rec.trackMode === 2;
+  const legendItems = isSeries
+    ? [{ label: t('pst_series_v'), color: colorsV[0], dash: false }, { label: t('pst_series_i'), color: colorsI[0], dash: true }]
+    : chIdxs.flatMap(idx => [
+        { label: `CH${idx + 1} V`, color: colorsV[idx], dash: false },
+        { label: `CH${idx + 1} I`, color: colorsI[idx], dash: true },
+      ]);
+  ctx.font = 'bold 11px Inter';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  let lx = P.l;
+  const ly = 18, swatchW = 18, gapAfterSwatch = 5, gapAfterLabel = 16;
+  legendItems.forEach(item => {
+    ctx.strokeStyle = item.color;
+    ctx.lineWidth = item.dash ? 2 : 2.5;
+    ctx.setLineDash(item.dash ? [5, 3] : []);
+    ctx.beginPath();
+    ctx.moveTo(lx, ly);
+    ctx.lineTo(lx + swatchW, ly);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    lx += swatchW + gapAfterSwatch;
+    ctx.fillStyle = '#1f2937';
+    ctx.fillText(item.label, lx, ly);
+    lx += ctx.measureText(item.label).width + gapAfterLabel;
+  });
+  ctx.textBaseline = 'alphabetic';
 
   // Grid & Y-Axis Labels
   ctx.strokeStyle = 'rgba(0,0,0,0.07)';
@@ -1930,9 +1959,9 @@ function drawOffscreenGraph(rec, width, height) {
   for (let g = 0; g <= 5; g++) {
     const y = P.t + ch * (1 - g / 5);
     ctx.beginPath(); ctx.moveTo(P.l, y); ctx.lineTo(P.l + cw, y); ctx.stroke();
-    ctx.fillStyle = '#2b8fff'; ctx.font = '10px Inter'; ctx.textAlign = 'right';
+    ctx.fillStyle = colorsV[0]; ctx.font = '10px Inter'; ctx.textAlign = 'right';
     ctx.fillText((yMaxV * g / 5).toFixed(1), P.l - 4, y + 4);
-    ctx.fillStyle = '#ef4444'; ctx.textAlign = 'left';
+    ctx.fillStyle = colorsI[0]; ctx.textAlign = 'left';
     ctx.fillText((yMaxI * g / 5).toFixed(3), P.l + cw + 6, y + 4);
   }
 
@@ -1974,8 +2003,6 @@ function drawOffscreenGraph(rec, width, height) {
   // Border outline
   ctx.strokeStyle = 'rgba(80,110,140,.4)'; ctx.lineWidth = 1;
   ctx.strokeRect(P.l, P.t, cw, ch);
-  ctx.fillStyle = '#2b8fff'; ctx.font = '9px Inter'; ctx.textAlign = 'left'; ctx.fillText('V', P.l - 4, P.t - 5);
-  ctx.fillStyle = '#ef4444'; ctx.fillText('A', P.l + cw + 6, P.t - 5);
 
   return canvas.toDataURL('image/png');
 }
@@ -2064,46 +2091,48 @@ async function exportSelectedRawData() {
       ws1.getColumn(col).width = 14;
     }
 
-    // ── Sheet 2: Graph (Chart Images) ─────────────────────────────────────────
+    // ── Sheet 2: Graph (Chart Images) — Sheet 1과 동일하게 제목/그래프를 우측으로 이어붙임 ──
     const ws2 = wb.addWorksheet('Graph');
 
-    let graphRow = 1;
+    const imgWidth = 600, imgHeight = 350;
+    const GRAPH_COL_WIDTH = 9;                  // 각 컬럼 폭 (엑셀 문자 단위)
+    const GRAPH_COL_PX = GRAPH_COL_WIDTH * 7;   // width(문자) → 픽셀 보수적 변환(여유 확보를 위해 +5 생략)
+    const GRAPH_GAP_COLS = 2;                   // 블록 사이 여백 컬럼 수 (이미지가 절대 겹치지 않도록 넉넉히)
+    const imgCols = Math.ceil(imgWidth / GRAPH_COL_PX); // 이미지 폭을 담는 데 필요한 컬럼 수
+    const colsPerBlock = imgCols + GRAPH_GAP_COLS;
+    const TITLE_ROW = 1, IMAGE_ROW = 2;
+
     selected.forEach((rec, idx) => {
       const number = numbers[rec.id];
       const titleText = `${rec.name} #${number}`;
+      const startCol = idx * colsPerBlock; // 0-indexed (ExcelJS addImage 좌표 기준)
 
-      // Row n: Title
-      const titleCell = ws2.getCell(graphRow, 2);
+      // 제목 행 (모든 레코드가 같은 행, 컬럼만 우측으로 이동) — 블록 폭만큼 병합해 다음 블록과 겹치지 않게 표시
+      const titleCell = ws2.getCell(TITLE_ROW, startCol + 1); // getCell은 1-indexed
       titleCell.value = titleText;
       titleCell.font = { name: 'Inter', size: 14, bold: true };
-      graphRow++;
+      ws2.mergeCells(TITLE_ROW, startCol + 1, TITLE_ROW, startCol + imgCols);
 
-      // Row n+1: Graph image
-      const imgWidth = 600, imgHeight = 350;
+      // 그래프 이미지 (제목 바로 아래, 같은 시작 컬럼)
       const base64Png = drawOffscreenGraph(rec, imgWidth, imgHeight);
-      
-      const imageId = wb.addImage({
-        base64: base64Png,
-        extension: 'png',
-      });
-
+      const imageId = wb.addImage({ base64: base64Png, extension: 'png' });
       ws2.addImage(imageId, {
-        tl: { col: 1, row: graphRow }, // Column B, Row graphRow (0-indexed offset handled by library, exceljs is 0-indexed for positioning)
-        ext: { width: imgWidth, height: imgHeight }
+        tl: { col: startCol, row: IMAGE_ROW },
+        ext: { width: imgWidth, height: imgHeight },
       });
-
-      // Increase row heights of cells under the image to prevent overlap with the next title
-      const rowsNeeded = Math.ceil(imgHeight / 20); // standard row height approx 20px
-      for (let r = 0; r < rowsNeeded; r++) {
-        ws2.getRow(graphRow + r + 1).height = 20;
-      }
-
-      graphRow += rowsNeeded + 2; // Add spacer row before next sample
     });
 
-    // Adjust Column Width for spacing
-    ws2.getColumn(1).width = 5;
-    ws2.getColumn(2).width = 18;
+    // 이미지 높이만큼 아래쪽 행들에 높이를 확보 (겹침 방지)
+    const rowsNeeded = Math.ceil(imgHeight / 20); // 기본 행 높이 약 20px
+    for (let r = 0; r < rowsNeeded; r++) {
+      ws2.getRow(IMAGE_ROW + r).height = 20;
+    }
+
+    // 모든 블록 컬럼에 동일한 폭 적용
+    const totalGraphCols = selected.length * colsPerBlock;
+    for (let col = 1; col <= totalGraphCols; col++) {
+      ws2.getColumn(col).width = GRAPH_COL_WIDTH;
+    }
 
     // ── File Write & Save ────────────────────────────────────────────────────
     const arrBuf = await wb.xlsx.writeBuffer();
