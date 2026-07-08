@@ -485,10 +485,62 @@ this.onByte = null;            // 신규: 매 수신 바이트마다 호출
   CH2=[0.8,1.0,1.2]A 합성 데이터에서 그래프 소스는 `[0.9,1.1,1.3]`(평균), 엑셀 행은
   `["20.000","0.900"]` 형태로 전압 합계·전류 평균이 정확히 계산됨을 확인.
 
+#### 2026-07-08: Data Table "제품명" 엑셀 스타일 다중 선택 필터 추가 (`pst3202.js`, `core.js`, `index.css`)
+- **요청 배경**: 사용자가 Data Table 스크린샷을 보여주며 제품명(이름) 컬럼도 필터링하고 싶다고
+  요청 — 단, 기존 트래킹모드/모드 등의 단일 `<select>` 방식이 아니라 "엑셀 필터링처럼 여러 개
+  선택"하고 싶다고 명시 (예: `샘플1`, `샘플1-개선품`, `샘플1-NEW개선품`을 동시에 선택해서 3개
+  다 보이게). 체크박스 형태로 만들어달라는 구체적 UI 요청까지 포함.
+- **상태 모델** (`S.evalFilters.names`): `null`(필터 미사용=전체표시) 또는 문자열 배열(체크된
+  이름 목록). 패널을 처음 열 때 `null`이면 현재 존재하는 모든 이름으로 초기화(=전부 체크된 채로
+  시작, 엑셀과 동일한 기본 동작). 이후 체크 해제/재체크할 때마다 배열을 갱신. **배열이 빈
+  배열(`[]`)이면 "전부 해제" 상태로 간주해 0건 표시** — `null`(필터 없음)과 `[]`(전부 해제)를
+  구분해야 "전체 해제" 버튼이 의미를 가짐 (구분 안 하면 빈 배열도 "필터 없음=전체표시"로
+  해석되어 버튼이 무의미해지는 함정이 있었음).
+- **UI**: `제품명` 헤더 셀에 `position:relative` 부여 후, 현재 선택 요약(`전체`/`표시 안 함`/
+  `N개 선택`)을 보여주는 버튼 + 그 아래 절대위치 드롭다운 패널(`#pstNameFilterPanel`) 추가.
+  패널 안에 `전체 선택`/`전체 해제` 버튼과 체크박스 목록(`#pstNameFilterList`, 스크롤 가능).
+  패널 바깥 클릭 시 자동으로 닫히도록 `document`에 클릭 리스너를 추가하되, **`toggleNameFilterPanel()`
+  최초 1회 호출 시에만 등록**(`S._nameFilterDocListenerAdded` 플래그)하여 테마 전환 등으로
+  `buildCenter()`가 재호출돼도 리스너가 중복 누적되지 않도록 함 — 리스너 내부는 매번 `$(id)`로
+  DOM을 새로 조회하므로 재빌드된 DOM에도 항상 올바르게 동작.
+- **신규 함수**: `distinctEvalNames()`, `toggleNameFilterPanel()`, `updateNameFilterList()`,
+  `updateNameFilterSummary()`, `toggleNameFilterValue(name, checked)`, `setAllNameFilters(all)`.
+  `renderEvalTable()`에 `(filters.names === null || filters.names.includes(rec.name))` 조건 추가,
+  `updateNameFilterList()` 호출도 추가(다른 dynamic filter들과 동일 패턴).
+- **XSS 방지**: 체크박스 `onchange`에 이름 문자열을 직접 JS 인자로 삽입하지 않고
+  `data-name="${escAttr(n)}"` 속성 + `this.dataset.name`으로 읽는 방식 사용 — 기존 `esc()`
+  헬퍼는 따옴표를 이스케이프하지 않아(코드베이스 전반의 기존 한계) 속성값에 그대로 못 씀,
+  로컬 `escAttr`(esc + 따옴표 이스케이프 추가)로 이 필터 UI에서만 안전하게 처리.
+- **신규 i18n 키**: `pst_none`, `pst_n_selected`(`{N}` 플레이스홀더), `pst_select_all`,
+  `pst_select_none` (ko/en).
+- **CSS**: `.pst-namefilter-btn/panel/actions/list/item/empty/caret` 신규 추가 (`index.css`).
+
+#### 2026-07-08: 평가 목록 내보내기/가져오기 버튼 복구 (`pst3202.js`)
+- **문제 발견**: 사용자가 "데이터 테이블에 불러오기 버튼도 넣어줘"라고 요청했는데, 확인해보니
+  `exportEvalListFile`/`importEvalListFile`/`handleImportFile` 함수와 관련 i18n 키
+  (`pst_list_export_btn`/`pst_list_import_btn`)는 이미 존재하고 export 리스트에도 등록돼
+  있었음 — **그런데 정작 Data Table 패널의 버튼 HTML과 숨김 `<input type=file id="pstImportFileInp">`
+  가 없어서 실제로는 이 기능에 접근할 방법이 전혀 없었음**. CLAUDE.md(2026-07-05 항목)에는 이미
+  구현 완료로 기록돼 있었으나 실제 코드와 문서가 어긋나 있던 사례 — 다른 세션의 리팩터링(예:
+  `exportSelectedRawData()` ExcelJS 전면 재작성) 과정에서 버튼 마크업만 유실된 것으로 추정.
+- **수정**: Data Table 패널의 `pst-gctrls` 버튼 줄에 `📤 목록 내보내기`/`📂 목록 가져오기` 버튼과
+  숨김 파일 입력을 `📥 Raw Data (xlsx)`와 `저장` 버튼 사이에 복구.
+- **검증**: 헤드리스로 `handleImportFile()`을 실제 코드 경로로 2회 연속 호출(동일 4건 데이터) —
+  1차 호출 후 4건 정상 표시, 2차(동일 timestamp) 재호출 후에도 여전히 4건(중복 0건 추가)으로
+  기존 타임스탬프 기반 중복 제거 로직이 정상 동작함을 재확인. 사용자가 요청한 "동일한 시간대
+  동일한 결과 파일 중복일 경우 깔끔하게 하나만 표시" 요구사항을 기존 로직이 이미 충족.
+- **⚠️ EXE 미빌드**: 사용자가 "아직 EXE 파일 만들지 말고 이번 내용 수정부터 해줘"라고 명시적으로
+  요청 — 이번 두 항목(이름 필터, 가져오기 버튼 복구)은 소스(`instruments/pst3202.js`, `core.js`,
+  `index.css`)에만 반영되고 **dist 동기화 및 EXE 재빌드는 보류**됨. 다음 EXE 요청 시 반드시
+  `dist/3M_Instrument_Logger/instruments/pst3202.js`·`core.js`·`index.css` 동기화 먼저 할 것.
+
 ### PST-3202 알려진 제약 / 후속 작업
 - **실기 테스트 미완료**: SCPI 통신, OVP/OCP 동작, 폴링 타이밍 현장 검증 필요
 - **CH3 사용 토글**: CH3 동기화 토글(`syncCh3`)은 통합 앱에만 구현 — 단독 프로그램(`PST-3202/index.html`)에는 없음
 - **EXE 패키징**: PST3202 항목 `build/build_standalone.py` INSTRUMENT_MAP에 등록 완료 — 재패키징 전 dist 동기화 필요
+- **dist 스탤 (2026-07-08 기준)**: 제품명 다중 필터 + 가져오기 버튼 복구가 소스에만 반영되고
+  dist는 사용자 요청으로 미동기화 상태. 다음 EXE 빌드 전 `instruments/pst3202.js`, `core.js`,
+  `index.css` 3개 파일을 `dist/3M_Instrument_Logger/`에 반드시 재동기화할 것.
 - **그래프 테마 전환 즉시 반영**: 현재 데이터가 있을 때만 `drawGraph()`가 배경을 채움. 데이터 없을 땐 캔버스 투명 → 컨테이너 배경색으로 표시 (`.pst-graph-section`의 `background:var(--panel)`). 실사용 시 문제 없음.
 
 ## 5. 파형(WAVE) 표시 현황 및 미해결 과제

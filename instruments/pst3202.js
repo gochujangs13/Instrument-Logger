@@ -172,7 +172,7 @@ function init() {
     evalRecords: [],
     nextEvalId: 1,
     viewingEvalId: null,
-    evalFilters: { track: 'all', mode: 'all', date: 'all', stress: 'all', aging: 'all' },
+    evalFilters: { track: 'all', mode: 'all', date: 'all', stress: 'all', aging: 'all', names: null },
     gData: { ts: [], v: [[], [], []], i: [[], [], []] },
     syncCh1Ch2: false,
     syncCh3: false,
@@ -1677,11 +1677,72 @@ function updateEvalOptionLists() {
   updateDynFilter('pstEvalFilterAging', agingVals);
 }
 
+// ── 제품명 다중 선택 필터 (엑셀 스타일 체크박스) ────────────────────────────
+function distinctEvalNames() {
+  return [...new Set(S.evalRecords.map(r => r.name))].sort();
+}
+
+function toggleNameFilterPanel() {
+  const panel = $('pstNameFilterPanel');
+  if (!panel) return;
+  const opening = panel.style.display === 'none';
+  if (!opening) { panel.style.display = 'none'; return; }
+  if (S.evalFilters.names === null) S.evalFilters.names = distinctEvalNames();
+  updateNameFilterList();
+  panel.style.display = 'block';
+  if (!S._nameFilterDocListenerAdded) {
+    document.addEventListener('click', e => {
+      const p = $('pstNameFilterPanel'), b = $('pstNameFilterBtn');
+      if (!p || p.style.display === 'none') return;
+      if (p.contains(e.target) || (b && b.contains(e.target))) return;
+      p.style.display = 'none';
+    });
+    S._nameFilterDocListenerAdded = true;
+  }
+}
+
+function updateNameFilterList() {
+  const list = $('pstNameFilterList'); if (!list) return;
+  const escAttr = s => esc(s).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  const names = distinctEvalNames();
+  const checked = S.evalFilters.names; // null(필터 없음=전체표시) 또는 선택된 이름 배열
+  list.innerHTML = names.length
+    ? names.map(n => {
+        const isChecked = checked === null || checked.includes(n);
+        return `<label class="pst-namefilter-item"><input type="checkbox" ${isChecked ? 'checked' : ''} data-name="${escAttr(n)}" onchange="app.instr.toggleNameFilterValue(this.dataset.name,this.checked)"><span>${esc(n)}</span></label>`;
+      }).join('')
+    : `<div class="pst-namefilter-empty">${t('pst_empty_evals')}</div>`;
+  updateNameFilterSummary();
+}
+
+function updateNameFilterSummary() {
+  const el = $('pstNameFilterSummary'); if (!el) return;
+  const names = distinctEvalNames();
+  const sel = S.evalFilters.names;
+  if (sel === null || sel.length === names.length) el.textContent = t('pst_all');
+  else if (sel.length === 0) el.textContent = t('pst_none');
+  else el.textContent = tf('pst_n_selected', { N: sel.length });
+}
+
+function toggleNameFilterValue(name, checked) {
+  if (S.evalFilters.names === null) S.evalFilters.names = distinctEvalNames();
+  const set = new Set(S.evalFilters.names);
+  if (checked) set.add(name); else set.delete(name);
+  S.evalFilters.names = [...set];
+  renderEvalTable();
+}
+
+function setAllNameFilters(all) {
+  S.evalFilters.names = all ? distinctEvalNames() : [];
+  renderEvalTable();
+}
+
 function renderEvalTable() {
   const tbody = $('pstEvalTbody'); if (!tbody) return;
   const dates = [...new Set(S.evalRecords.map(evalDateStr))].sort();
   updateDynFilter('pstEvalFilterDate', dates);
   updateEvalOptionLists();
+  updateNameFilterList();
 
   const filters = S.evalFilters;
   const filtered = S.evalRecords.filter(rec =>
@@ -1689,7 +1750,8 @@ function renderEvalTable() {
     (filters.mode === 'all' || evalModeOf(rec) === filters.mode) &&
     (filters.date === 'all' || evalDateStr(rec) === filters.date) &&
     (filters.stress === 'all' || (rec.stressCondition || '') === filters.stress) &&
-    (filters.aging === 'all' || (rec.agingTime || '') === filters.aging)
+    (filters.aging === 'all' || (rec.agingTime || '') === filters.aging) &&
+    (filters.names === null || filters.names.includes(rec.name))
   );
 
   if (!S.evalRecords.length) {
@@ -2564,6 +2626,9 @@ function buildCenter(el) {
           <span class="pst-gtitle">📋 Data Table</span>
           <div class="pst-gctrls">
             <button class="sbtn" id="pstBtnExport" onclick="app.instr.exportSelectedRawData()" style="font-size:11px;">📥 Raw Data (xlsx)</button>
+            <button class="sbtn" onclick="app.instr.exportEvalListFile()" style="font-size:11px;">${t('pst_list_export_btn')}</button>
+            <button class="sbtn" onclick="app.instr.importEvalListFile()" style="font-size:11px;">${t('pst_list_import_btn')}</button>
+            <input type="file" id="pstImportFileInp" accept=".json" style="display:none;" onchange="app.instr.handleImportFile(this)">
             <button class="sbtn" onclick="app.instr.manualSaveRecords()" style="font-size:11px;color:var(--cyan);border-color:var(--cyan);">${t('pst_dt_save')}</button>
             <button class="sbtn" onclick="app.instr.deleteSelectedEvals()" style="font-size:11px;color:var(--red);border-color:var(--red);">${t('pst_dt_delsel')}</button>
           </div>
@@ -2574,7 +2639,17 @@ function buildCenter(el) {
               <tr>
                 <th style="width:34px;"><input type="checkbox" onchange="app.instr.toggleAllEvals(this.checked)"></th>
                 <th style="width:90px;"><span class="pst-th-label">${t('pst_th_date')}</span><select class="pst-th-filter" id="pstEvalFilterDate" onchange="app.instr.setEvalFilter()"><option value="all">${t('pst_all')}</option></select></th>
-                <th style="width:200px;">${t('pst_th_name')}</th>
+                <th style="width:200px;position:relative;">
+                  <span class="pst-th-label">${t('pst_th_name')}</span>
+                  <button type="button" class="pst-th-filter pst-namefilter-btn" id="pstNameFilterBtn" onclick="event.stopPropagation();app.instr.toggleNameFilterPanel()"><span id="pstNameFilterSummary">${t('pst_all')}</span><span class="pst-namefilter-caret">▾</span></button>
+                  <div id="pstNameFilterPanel" class="pst-namefilter-panel" style="display:none;" onclick="event.stopPropagation()">
+                    <div class="pst-namefilter-actions">
+                      <button type="button" onclick="app.instr.setAllNameFilters(true)">${t('pst_select_all')}</button>
+                      <button type="button" onclick="app.instr.setAllNameFilters(false)">${t('pst_select_none')}</button>
+                    </div>
+                    <div id="pstNameFilterList" class="pst-namefilter-list"></div>
+                  </div>
+                </th>
                 <th style="width:40px;">${t('pst_th_num')}</th>
                 <th style="width:100px;"><span class="pst-th-label">${t('pst_th_track')}</span><select class="pst-th-filter" id="pstEvalFilterTrack" onchange="app.instr.setEvalFilter()"><option value="all">${t('pst_all')}</option><option value="0">${t('pst_track0')}</option><option value="1">${t('pst_track1')}</option><option value="2">${t('pst_track2')}</option></select></th>
                 <th style="width:80px;"><span class="pst-th-label">${t('pst_th_mode')}</span><select class="pst-th-filter" id="pstEvalFilterMode" onchange="app.instr.setEvalFilter()"><option value="all">${t('pst_all')}</option><option value="fixed">${t('pst_mode_fixed')}</option><option value="cycle">${t('pst_mode_cycle')}</option></select></th>
@@ -2799,6 +2874,7 @@ export default {
   toggleEvalCheck, toggleAllEvals, deleteSelectedEvals,
   exportSelectedRawData, manualSaveRecords, exportEvalListFile, importEvalListFile, handleImportFile,
   setEvalFilter, clearProtectionFromModal, closeConfirmModal, hideTrackImageModal,
+  toggleNameFilterPanel, toggleNameFilterValue, setAllNameFilters,
   showWarningModal, closeWarningModal, showInfoModal, closeInfoModal,
   applyOvp, closeOvpModal,
 };
