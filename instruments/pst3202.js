@@ -1410,13 +1410,13 @@ function recordGraphData() {
   drawGraph();
 }
 
-// 직렬 트래킹: CH1+CH2 전압은 합산, 전류는 두 채널이 동일(공유)하므로 CH1 값을 그대로 사용
+// 직렬 트래킹: CH1+CH2 전압은 합산, 전류는 두 채널이 전기적으로 공유되므로 두 채널 측정값의 평균 사용
 function _seriesCombinedSource(ts, v, i) {
   const n = ts.length;
   const vC = new Array(n), iC = new Array(n);
   for (let j = 0; j < n; j++) {
     vC[j] = (v[0]?.[j] || 0) + (v[1]?.[j] || 0);
-    iC[j] = v[0]?.[j] !== undefined ? (i[0]?.[j] || 0) : 0;
+    iC[j] = ((i[0]?.[j] || 0) + (i[1]?.[j] || 0)) / 2;
   }
   return { ts, v: [vC, [], []], i: [iC, [], []], chIdxs: [0] };
 }
@@ -1818,16 +1818,17 @@ function evalRecordBlocks(rec, number) {
     `${t('pst_th_cond2')}: ${evalConditionText(rec)}`,
   ];
 
-  // 직렬 트래킹: 개별 채널 값은 의미가 없으므로 합산(전압 합계·전류 공유값) 컬럼 하나만 사용
+  // 직렬 트래킹: 개별 채널 값은 의미가 없으므로 합산(전압 합계)·평균(전류) 컬럼 하나만 사용
   if (rec.trackMode === 2) {
     const headers = [t('pst_x_time'), t('pst_x_vsum'), t('pst_x_isum')];
     const rows = ts.map((tt, j) => {
       const valV0 = (v[0]?.[j]) || 0;
       const valV1 = (v[1]?.[j]) || 0;
       const valI0 = (i[0]?.[j]) || 0;
+      const valI1 = (i[1]?.[j]) || 0;
       const vsum = valV0 + valV1;
-      const isum = valI0;
-      return [((tt - t0) / 1000).toFixed(1), vsum.toFixed(3), isum.toFixed(3)];
+      const iavg = (valI0 + valI1) / 2;
+      return [((tt - t0) / 1000).toFixed(1), vsum.toFixed(3), iavg.toFixed(3)];
     });
     return { block: { name: nameLabel, meta, headers, rows } };
   }
