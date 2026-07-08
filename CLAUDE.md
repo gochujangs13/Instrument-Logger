@@ -665,6 +665,43 @@ this.onByte = null;            // 신규: 매 수신 바이트마다 호출
   아님을) 확인, (4) `setTM(2)`(직렬)로 전환 시에는 CH3 카드가 여전히 정상적으로 잠기는지
   (회귀 없음) 확인 — 4개 시나리오 모두 통과.
 
+#### 2026-07-09: 트래킹 모드 선택 시 클릭 팝업 → 마우스오버 팝오버(이미지+설명)로 변경 (`pst3202.js`, `index.css`)
+- **요청**: "트래킹 모드 마우스로 올리면 설명이 나오고 클릭하면 각 이미지 팝업창이 나오는데,
+  이걸 마우스로 올리면 팝업에 나오던 이미지와 이미지 밑에 설명이 나오게 해줘. 클릭하면 해당
+  모드 적용이 되고. 즉 팝업이 없어지고 기존 설명이 나오던 것에 이미지도 추가해달라는거야"
+  — 기존엔 라디오 레이블에 브라우저 기본 `title` 툴팁(텍스트만)이 있었고, 클릭(선택)하면
+  `setTM()` 끝에서 `showTrackImageModal()`이 화면 전체를 덮는 이미지 팝업을 띄웠음. 이 둘을
+  하나로 합쳐 "마우스오버 시 이미지+설명을 함께 보여주는 팝오버"로 교체하고, 클릭은 순수하게
+  모드 적용만 하도록 요청.
+- **구현**:
+  - `showTrackImageModal(mode)`/`hideTrackImageModal()`(클릭 팝업용) 삭제 → `showTmPopover(mode,
+    el)`/`hideTmPopover()`(호버 팝오버용) 신설. `setTM()` 끝의 `showTrackImageModal(S.trackMode);`
+    호출도 제거 — 이제 클릭은 모드 적용만 함.
+  - 라디오 `<label>`의 `title="${t('pst_tmN_tip')}")`를 제거하고 `onmouseenter="app.instr.
+    showTmPopover(N,this)"`/`onmouseleave="app.instr.hideTmPopover()"`로 교체.
+  - 공용 팝오버 엘리먼트 `#pstTmPopover`(이미지 `#pstTmPopoverImg` + 설명 `#pstTmPopoverDesc`)를
+    트래킹 모드 라디오 그룹 바로 아래에 신설, `position:fixed`로 배치.
+  - **사이드바가 `#sidebar{overflow:hidden}` + `.sidebar-top{overflow-y:auto}`로 잘리는 좁은
+    영역**이라 `position:absolute`로는 팝오버가 옆으로 넘칠 때 잘려 보이는 문제가 있어
+    `position:fixed`를 채택 — `showTmPopover()`에서 `el.getBoundingClientRect()`로 라디오
+    레이블의 화면 좌표를 구해 오른쪽에 배치하되, 뷰포트 오른쪽 경계를 넘으면 자동으로 왼쪽에
+    배치하도록 계산(고정폭 260px 기준 동기 계산, `requestAnimationFrame` 없이 처리 — 헤드리스
+    테스트 환경에서 rAF가 `--virtual-time-budget`과 함께 쓰이면 콜백이 영영 발화하지 않고 멈추는
+    현상을 이전 세션에서 이미 겪어봐서 회피).
+  - 팝오버 자체는 `pointer-events:none`으로 설정 — 팝오버가 시각적으로 다른 라디오 레이블
+    위에 겹쳐도 그 아래 요소의 마우스 이벤트(호버/클릭)를 가로채지 않도록 함.
+  - `TRACK_IMAGE`(이미지 경로 맵)는 그대로 재사용, `pst_tm0_tip`/`pst_tm1_tip`/`pst_tm2_tip`
+    (기존 `\n` 포함 설명 텍스트)도 그대로 재사용 — `.pst-tm-popover-desc{white-space:pre-line}`
+    으로 줄바꿈 보존.
+  - `#pstTrackImageModal` 모달 HTML과 `hideTrackImageModal` export 참조도 함께 삭제(죽은 코드
+    방지).
+- **검증**: 헤드리스로 (1) 팝오버 엘리먼트 존재 + 초기 숨김 상태, 기존 모달 엘리먼트 완전
+  제거, 레이블에 `title` 속성 없고 `onmouseenter` 핸들러 있음을 확인, (2) `showTmPopover(1,
+  el)` 호출 → 팝오버가 보이며 이미지 src에 `Parallel.png` 포함, 설명 텍스트(줄바꿈 포함)
+  정상 표시 확인, (3) `hideTmPopover()` → 다시 숨겨짐 확인, (4) `setTM(1)` 호출 시 더 이상
+  어떤 에러도 발생하지 않고(구 모달 함수 참조가 완전히 제거됐다는 뜻) `S.trackMode`만
+  정상 갱신됨을 확인 — 4개 항목 모두 통과.
+
 ### PST-3202 알려진 제약 / 후속 작업
 - **실기 테스트 미완료**: SCPI 통신, OVP/OCP 동작, 폴링 타이밍 현장 검증 필요
 - **CH3 사용 토글**: CH3 동기화 토글(`syncCh3`)은 통합 앱에만 구현 — 단독 프로그램(`PST-3202/index.html`)에는 없음

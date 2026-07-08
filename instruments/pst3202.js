@@ -122,14 +122,21 @@ function clearProtectionFromModal() {
   hideProtectionModal();
 }
 
-function showTrackImageModal(mode) {
-  const modal = $('pstTrackImageModal'); if (!modal) return;
-  const img = $('pstTrackImageModalImg'); if (img) img.src = TRACK_IMAGE[mode];
-  modal.style.display = 'flex';
+function showTmPopover(mode, el) {
+  const pop = $('pstTmPopover'); if (!pop || !el) return;
+  const img = $('pstTmPopoverImg'); if (img) img.src = TRACK_IMAGE[mode];
+  const desc = $('pstTmPopoverDesc'); if (desc) desc.textContent = t('pst_tm' + mode + '_tip');
+  const rect = el.getBoundingClientRect();
+  const popW = 260;
+  let left = rect.right + 10;
+  if (left + popW > window.innerWidth) left = Math.max(8, rect.left - popW - 10);
+  pop.style.left = `${left}px`;
+  pop.style.top = `${Math.max(8, rect.top)}px`;
+  pop.style.display = 'block';
 }
 
-function hideTrackImageModal() {
-  const modal = $('pstTrackImageModal'); if (modal) modal.style.display = 'none';
+function hideTmPopover() {
+  const pop = $('pstTmPopover'); if (pop) pop.style.display = 'none';
 }
 
 function showWarningModal(msg, title = t('pst_warn_title')) {
@@ -1020,7 +1027,6 @@ function setTM(mode) {
   updateTrackModeUI();
   updateGraphLegend();
   drawGraph();
-  showTrackImageModal(S.trackMode);
 }
 
 function setOCP(ch, on) {
@@ -2474,9 +2480,13 @@ function buildSidebar(el) {
       <div class="panel">
         <div class="panel-title">${t('pst_track_title')}</div>
         <div class="pst-radio-col">
-          <label class="pst-radio-lbl" title="${t('pst_tm0_tip')}"><input type="radio" id="pstTm0" name="pstTm" value="0" checked onchange="app.instr.setTM(0)"><span>${t('pst_tm0')}</span></label>
-          <label class="pst-radio-lbl" title="${t('pst_tm1_tip')}"><input type="radio" id="pstTm1" name="pstTm" value="1" onchange="app.instr.setTM(1)"><span>${t('pst_tm1')}</span></label>
-          <label class="pst-radio-lbl" title="${t('pst_tm2_tip')}"><input type="radio" id="pstTm2" name="pstTm" value="2" onchange="app.instr.setTM(2)"><span>${t('pst_tm2')}</span></label>
+          <label class="pst-radio-lbl" onmouseenter="app.instr.showTmPopover(0,this)" onmouseleave="app.instr.hideTmPopover()"><input type="radio" id="pstTm0" name="pstTm" value="0" checked onchange="app.instr.setTM(0)"><span>${t('pst_tm0')}</span></label>
+          <label class="pst-radio-lbl" onmouseenter="app.instr.showTmPopover(1,this)" onmouseleave="app.instr.hideTmPopover()"><input type="radio" id="pstTm1" name="pstTm" value="1" onchange="app.instr.setTM(1)"><span>${t('pst_tm1')}</span></label>
+          <label class="pst-radio-lbl" onmouseenter="app.instr.showTmPopover(2,this)" onmouseleave="app.instr.hideTmPopover()"><input type="radio" id="pstTm2" name="pstTm" value="2" onchange="app.instr.setTM(2)"><span>${t('pst_tm2')}</span></label>
+        </div>
+        <div id="pstTmPopover" class="pst-tm-popover" style="display:none;">
+          <img id="pstTmPopoverImg" src="" alt="${t('pst_track_img_alt')}">
+          <div id="pstTmPopoverDesc" class="pst-tm-popover-desc"></div>
         </div>
       </div>
     </div>
@@ -2728,11 +2738,6 @@ function buildCenter(el) {
         </div>
       </div>
 
-      <!-- Track image modal -->
-      <div id="pstTrackImageModal" class="pst-modal-overlay" style="display:none;z-index:30000;cursor:pointer;" onclick="app.instr.hideTrackImageModal()">
-        <img id="pstTrackImageModalImg" src="" alt="${t('pst_track_img_alt')}" style="max-width:60vw;max-height:60vh;border-radius:10px;box-shadow:0 24px 70px rgba(0,0,0,.55);">
-      </div>
-
       <!-- Warning modal for input limits -->
       <div id="pstWarningModal" class="pst-modal-overlay" style="display:none;z-index:31000;" onclick="app.instr.closeWarningModal()">
         <div class="pst-modal-box" style="border-color:var(--warn);" onclick="event.stopPropagation()">
@@ -2898,7 +2903,7 @@ export default {
   renameEval, setEvalStressCondition, setEvalAgingTime,
   toggleEvalCheck, toggleAllEvals, deleteSelectedEvals,
   exportSelectedRawData, manualSaveRecords, exportEvalListFile, importEvalListFile, handleImportFile,
-  setEvalFilter, clearProtectionFromModal, closeConfirmModal, hideTrackImageModal,
+  setEvalFilter, clearProtectionFromModal, closeConfirmModal, showTmPopover, hideTmPopover,
   toggleNameFilterPanel, toggleNameFilterValue, setAllNameFilters,
   showWarningModal, closeWarningModal, showInfoModal, closeInfoModal,
   applyOvp, closeOvpModal,
