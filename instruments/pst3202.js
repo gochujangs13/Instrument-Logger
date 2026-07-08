@@ -292,7 +292,8 @@ function updateTrackModeUI() {
   }
   const ch3Card = $('pstCh3');
   if (ch3Card) {
-    const isTracking = S.trackMode !== 0;
+    // 직렬(Series) 트래킹에서만 CH3가 참여 불가 — 병렬(Parallel)에서는 CH3가 독립 3번째 채널로 계속 사용 가능해야 함
+    const isTracking = S.trackMode === 2;
     ch3Card.classList.toggle('pst-ch-disabled', isTracking);
     ch3Card.querySelectorAll('input, button, select').forEach(el => { el.disabled = isTracking; });
     if (isTracking && S.selectedCh === 3) selCh(1);
@@ -1005,12 +1006,14 @@ function handleCurrentMeas(c) {
 
 // ── Tracking / Protection ─────────────────────────────────────────────────────
 function setTM(mode) {
+  const prevMode = S.trackMode;
   S.trackMode = +mode;
   if (app?.serial?.isConnected) {
     _runSeq([[`:OUTPut:COUPle:TRACking ${S.trackMode}`]]);
     pstLog(`TX: :OUTPut:COUPle:TRACking ${S.trackMode} (${t('pst_track' + S.trackMode)})`, 'tx');
   }
-  if (S.trackMode === 0) {
+  if (prevMode !== S.trackMode) {
+    // 모드 전환 시 이전 모드에서 켜둔 채널 사용 상태를 초기화 — 새 모드에서 다시 명시적으로 켜야 함
     const toggle2 = $('pstCh2Use'); if (toggle2) toggle2.checked = false;
     const toggle3 = $('pstCh3Use'); if (toggle3) toggle3.checked = false;
   }
@@ -1321,7 +1324,8 @@ function setV(ch) {
   }
   const steps = [[`:CHANnel${ch}:VOLTage ${val.toFixed(3)}`]];
   const syncNote = [];
-  if (ch === 1 && S.syncCh1Ch2 && S.trackMode === 0) {
+  // 독립 모드의 CH1↔CH2 동기화 토글 ON 상태이거나, 병렬(Parallel) 트래킹 모드일 때 CH1 전압을 CH2에도 반영
+  if (ch === 1 && ((S.syncCh1Ch2 && S.trackMode === 0) || S.trackMode === 1)) {
     const el = $('pstVset2'); if (el) el.value = val.toFixed(2);
     steps.push([`:CHANnel2:VOLTage ${val.toFixed(3)}`]);
     syncNote.push('CH2');
@@ -1348,7 +1352,8 @@ function setI(ch) {
   const wElI = $(`pstFixWarnI${ch}`); if (wElI) { wElI.textContent = ''; wElI.style.color = ''; }
   const steps = [[`:CHANnel${ch}:CURRent ${val.toFixed(3)}`]];
   const syncNote = [];
-  if (ch === 1 && S.syncCh1Ch2 && S.trackMode === 0) {
+  // 독립 모드의 CH1↔CH2 동기화 토글 ON 상태이거나, 병렬(Parallel) 트래킹 모드일 때 CH1 전류를 CH2에도 반영
+  if (ch === 1 && ((S.syncCh1Ch2 && S.trackMode === 0) || S.trackMode === 1)) {
     const el = $('pstIset2'); if (el) el.value = val.toFixed(3);
     steps.push([`:CHANnel2:CURRent ${val.toFixed(3)}`]);
     syncNote.push('CH2');
