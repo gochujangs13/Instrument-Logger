@@ -1643,10 +1643,17 @@ function evalDateStr(rec) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-// rec.timestamp는 측정 완료(출력 OFF) 시점에 기록되므로, 시:분:초는 곧 측정 완료 시간
-function evalTimeStr(rec) {
-  const d = new Date(rec.timestamp);
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
+// 측정에 걸린 시간 — raw.ts 배열의 첫/마지막 타임스탬프 차이로 계산 (실제 기록된 구간 길이)
+function evalDurationStr(rec) {
+  const ts = rec.raw?.ts;
+  if (!ts || ts.length < 2) return '-';
+  const elapsedSec = (ts[ts.length - 1] - ts[0]) / 1000;
+  const h = Math.floor(elapsedSec / 3600);
+  const m = Math.floor((elapsedSec % 3600) / 60);
+  const s = Math.floor(elapsedSec % 60);
+  if (h > 0) return `${h}${t('pst_u_h')} ${m}${t('pst_u_m')}`;
+  if (m > 0) return `${m}${t('pst_u_m')} ${s}${t('pst_u_s')}`;
+  return `${s}${t('pst_u_s')}`;
 }
 
 function evalNumbering() {
@@ -1782,7 +1789,7 @@ function renderEvalTable() {
     if (rec.id === S.viewingEvalId) tr.className = 'pst-viewing';
     tr.innerHTML = `
       <td onclick="event.stopPropagation()"><input type="checkbox" ${rec.checked ? 'checked' : ''} onchange="app.instr.toggleEvalCheck(${rec.id},this.checked)"></td>
-      <td class="pst-eval-date">${evalDateStr(rec)}<br><span class="pst-eval-time">${evalTimeStr(rec)}</span></td>
+      <td class="pst-eval-date">${evalDateStr(rec)}<br><span class="pst-eval-time">⏱ ${evalDurationStr(rec)}</span></td>
       <td onclick="event.stopPropagation()"><input type="text" class="pst-eval-name-inp" value="${esc(rec.name)}" onchange="app.instr.renameEval(${rec.id},this.value)"></td>
       <td class="pst-eval-num">${numbers[rec.id]}</td>
       <td>${t('pst_track' + rec.trackMode)}</td>

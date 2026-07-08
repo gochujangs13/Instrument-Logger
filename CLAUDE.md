@@ -557,14 +557,19 @@ this.onByte = null;            // 신규: 매 수신 바이트마다 호출
   `recordGraphData()`/체크박스 `change` 이벤트로 재현, 각 단계 캔버스를 `toDataURL()`로
   캡처해 육안 확인 — 수정 후 모든 단계에서 CH1 라인(파란 실선/초록 점선)이 정상 표시됨.
 
-#### 2026-07-08: Data Table에 측정 완료 시각 표시 추가 (`pst3202.js`, `index.css`)
+#### 2026-07-08~09: Data Table에 측정 소요 시간 표시 추가 (`pst3202.js`, `index.css`)
 - **요청**: "데이터 테이블에 샘플의 측정 시간도 표시하면 좋겠어, 즉 한 샘플의 측정 완료 시간"
-- `rec.timestamp`는 이미 `_stopOutputSeq()` → `createEvalRecord()` 호출 시점(= 출력 OFF =
-  측정 완료 시점)에 `Date.now()`로 기록되고 있었음 — 별도의 시각 캡처 로직 추가 없이 기존
-  값을 표시만 하면 되는 상황이었음.
-- `evalTimeStr(rec)` 헬퍼 신설(`evalDateStr` 바로 아래) — `HH:MM:SS` 포맷.
-- 날짜 셀에 `${evalDateStr(rec)}<br><span class="pst-eval-time">${evalTimeStr(rec)}</span>`로
-  날짜 아래 시각을 작고 흐린 글씨로 표시 (`.pst-eval-time` CSS 신규 추가).
+  → 1차로 완료 시각(`HH:MM:SS`, `evalTimeStr`)을 만들었으나 사용자가 의도를 정정: "종료시간이
+  아니라 측정 시간(몇 초/몇 분 걸렸는지)을 알고 싶다" — **완료 시각이 아니라 소요 시간(duration)**
+  이 맞는 요구사항이었음.
+- **최종 구현**: `evalTimeStr` 대신 `evalDurationStr(rec)` 헬퍼로 교체 — `rec.raw.ts`(측정 중
+  기록된 타임스탬프 배열)의 첫 값과 마지막 값의 차이로 실제 소요 시간을 계산. 1시간 미만이면
+  `3m 24s`, 1시간 이상이면 `1h 5m` 형식(`pst_u_h`/`pst_u_m`/`pst_u_s` 기존 단위 키 재사용,
+  라이브 그래프의 `pstTestElapsed` 표시와 동일한 포맷 규칙). 데이터 포인트가 1개 이하면 `-` 표시.
+- 날짜 셀에 `${evalDateStr(rec)}<br><span class="pst-eval-time">⏱ ${evalDurationStr(rec)}</span>`로
+  날짜 아래 소요 시간을 작고 흐린 글씨로 표시 (`.pst-eval-time` CSS).
+- **검증**: 헤드리스로 `evalDurationStr()`을 직접 호출 — 45초→`45s`, 204초→`3m 24s`,
+  3900초→`1h 5m`, 데이터 1포인트 이하→`-` 전부 정상 확인.
 
 #### 2026-07-08: 🔴 체크된 샘플 재측정 시 확인 없이 덮어쓰던 문제 — 확인/취소 팝업 추가 (`pst3202.js`, `core.js`)
 - **사용자 신고**: "데이터테이블 샘플 체크하고 재측정할경우 덮어씌우시겠습니까? 팝업창 띄워서
