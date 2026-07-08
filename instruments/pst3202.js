@@ -1083,7 +1083,7 @@ function setOvpDirect(ch, val) {
     val = curVset;
     const wEl = $(`pstFixWarnV${ch}`);
     if (wEl) {
-      wEl.textContent = `⚠ OVP는 설정 전압(${curVset.toFixed(2)}V) 이상이어야 하므로 동일하게 조정됨`;
+      wEl.textContent = tf('pst_ovp_below_vset', { V: curVset.toFixed(2) });
       wEl.style.color = '#f87171';
     }
   } else {
@@ -1307,7 +1307,7 @@ function setV(ch) {
     val = ovpLimit;
     const el = $(`pstVset${ch}`); if (el) el.value = val.toFixed(2);
     const wEl = $(`pstFixWarnV${ch}`);
-    if (wEl) { wEl.textContent = `⚠ OVP 한계치(${ovpLimit.toFixed(2)}V)로 전압이 제한되었습니다`; wEl.style.color = '#f87171'; }
+    if (wEl) { wEl.textContent = tf('pst_v_ovp_limited', { V: ovpLimit.toFixed(2) }); wEl.style.color = '#f87171'; }
   } else {
     const wEl = $(`pstFixWarnV${ch}`); if (wEl) { wEl.textContent = ''; wEl.style.color = ''; }
   }
@@ -1908,14 +1908,13 @@ function drawOffscreenGraph(rec, width, height) {
 
   const tMin = ts[0], tMax = ts[n - 1];
   let src;
-  let chIdxs = [];
   if (rec.trackMode === 2) {
     src = _seriesCombinedSource(ts, v, i);
-    chIdxs = src.chIdxs;
   } else {
     const activeChs = activeChannelsOfRecord(rec);
     src = { ts, v, i, chIdxs: activeChs.map(c => c - 1) };
   }
+  const chIdxs = src.chIdxs;
 
   let vVals = [], iVals = [];
   chIdxs.forEach(idx => { vVals.push(...src.v[idx]); iVals.push(...src.i[idx]); });
@@ -2707,6 +2706,14 @@ function buildCenter(el) {
   syncTrackingSettings();
   initTabLock();
   renderEvalTable();
+
+  // 숫자 입력칸에서 ↑↓ 화살표 키로 값이 증감되는 것 방지 (스피너 버튼은 CSS로 숨김,
+  // 키보드 화살표는 브라우저 기본 동작이라 JS로 별도 차단 필요) — 키패드/직접 타이핑만 허용
+  el.addEventListener('keydown', e => {
+    if (e.target.matches('input[type="number"]') && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+      e.preventDefault();
+    }
+  });
 }
 
 function buildRightPanel(el) {

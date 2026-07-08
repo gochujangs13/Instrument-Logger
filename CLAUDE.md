@@ -362,6 +362,41 @@ this.onByte = null;            // 신규: 매 수신 바이트마다 호출
   `/api/save-file`은 이미 두 서버 모두에 구현돼 있어 이런 문제가 없었음 — evaldata/export만
   이식이 누락됐던 것.)
 
+#### 🔴 엑셀 내보내기 그래프가 빈 화면으로 나오는 버그 (`pst3202.js` — `drawOffscreenGraph`, 2026-07-08)
+- **증상**: PST-3202 "📥 Raw Data (xlsx)"로 내보낸 엑셀의 "Graph" 시트에 축·격자선은 정상
+  표시되지만 실제 전압/전류 곡선이 전혀 안 그려짐(빈 차트). Y축이 우연히 그럴듯한 값(예:
+  0.6V/0.057A)으로 스케일되어 있어 "데이터는 있는데 렌더링만 안 되는" 것처럼 보였음.
+- **근본 원인**: `drawOffscreenGraph(rec, width, height)` 함수에서
+  ```js
+  let chIdxs = [];
+  if (rec.trackMode === 2) {
+    src = _seriesCombinedSource(ts, v, i);
+    chIdxs = src.chIdxs;           // 직렬 분기에서만 바깥 변수 갱신
+  } else {
+    const activeChs = activeChannelsOfRecord(rec);
+    src = { ts, v, i, chIdxs: activeChs.map(c => c - 1) };  // src.chIdxs만 설정, 바깥 chIdxs 안 건드림
+  }
+  ```
+  독립/병렬(`trackMode !== 2`) 레코드는 `src.chIdxs`만 채워지고 바깥 스코프의 `chIdxs` 변수는
+  초기값 빈 배열로 남음 → Y축 자동스케일용 `vVals`/`iVals`도 빈 배열이 되어 fallback 기본값
+  (0.5V×1.15, 0.05A×1.15)으로 계산됨(우연히 사용자 데이터와 비슷한 범위라 정상처럼 보였음) →
+  실제 라인 그리기 루프 `chIdxs.forEach(...)`가 0번 실행되어 아무것도 안 그려짐.
+- **수정**: `chIdxs`를 별도 `let`으로 미리 선언하지 않고, if/else 양쪽에서 `src`를 확정한 뒤
+  `const chIdxs = src.chIdxs;`로 한 번만 파생하도록 변경 — 분기별로 별도 갱신할 필요가 없어짐.
+- **진단 방법**: `CanvasRenderingContext2D.prototype`의 `moveTo`/`lineTo`/`stroke`/`beginPath`를
+  헤드리스 브라우저에서 몽키패치해 실제 호출 횟수를 계측 → 격자선 그리기(6회)만 호출되고 데이터
+  라인 그리기 호출이 0회임을 확인해 `chIdxs`가 비어있음을 특정. 수정 후 재계측으로 라인 호출이
+  정상적으로 늘어남을 확인, 최종적으로 `<img>` 태그 렌더링 + 헤드리스 스크린샷으로 실제 곡선이
+  그려지는 것까지 육안 검증.
+- **참고**: 이 함수는 `pst3202.js`의 다른 세션(작업 시각상 "안티그래비티")에 의해 ExcelJS 기반
+  엑셀 생성 로직(Sheet1 데이터 + Sheet2 그래프 이미지)과 함께 새로 추가된 코드였음 — 기존
+  `evalRecordBlocks()`(직렬 합산 로직 포함)는 그대로 재사용하고 있어 호환성 문제는 없었음.
+
+#### 부수적으로 발견한 i18n 누락 2건 수정 (`pst3202.js` — `setOvpDirect`, `setV`)
+- OVP가 설정 전압보다 낮을 때 자동 조정 경고, 전압이 OVP 한계로 클램핑될 때 경고 — 둘 다
+  최근 추가된 기능인데 `t()` 없이 한글이 하드코딩돼 있어 영어 모드에서도 한글로 표시되던 문제.
+  `pst_ovp_below_vset`/`pst_v_ovp_limited` 키 신설, `tf(...)`로 교체.
+
 ### PST-3202 알려진 제약 / 후속 작업
 - **실기 테스트 미완료**: SCPI 통신, OVP/OCP 동작, 폴링 타이밍 현장 검증 필요
 - **CH3 사용 토글**: CH3 동기화 토글(`syncCh3`)은 통합 앱에만 구현 — 단독 프로그램(`PST-3202/index.html`)에는 없음
