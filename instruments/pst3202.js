@@ -156,8 +156,8 @@ function closeInfoModal() {
 
 function init() {
   S = {
-    ch: [1, 2, 3].map(() => ({
-      measV: 0, measI: 0, ctrlMode: 'CV', mode: 'fixed', ocpOn: false, ovpVal: null,
+    ch: [1, 2, 3].map(ch => ({
+      measV: 0, measI: 0, ctrlMode: 'CV', mode: 'fixed', ocpOn: false, ovpVal: CH_MAX_V[ch],
     })),
     trackMode: 0,
     outputActive: false,
@@ -322,18 +322,54 @@ function setMode(ch, mode) {
   if (fix) fix.style.display = mode === 'fixed' ? '' : 'none';
   $(`pstTf${ch}`)?.classList.toggle('active', mode === 'fixed');
   $(`pstTc${ch}`)?.classList.toggle('active', mode === 'cycle');
-  // 동기화 ON + 독립 모드 + CH1 변경 시 → CH2/CH3도 동일 모드로 전환
+
+  // 사이클 모드 전환 시 OVP를 각 채널 최대 전압으로 강제 자동 변경
+  if (mode === 'cycle') {
+    const maxV = CH_MAX_V[ch];
+    S.ch[ch - 1].ovpVal = maxV;
+    const el = $(`pstOvpInp${ch}`); if (el) el.value = maxV.toFixed(2);
+    
+    // 고정값 전압 경고 초기화
+    const wEl = $(`pstFixWarnV${ch}`);
+    if (wEl) wEl.textContent = '';
+
+    if (app?.serial?.isConnected) {
+      send(`:CHANnel${ch}:PROTection:VOLTage ${maxV.toFixed(3)}`);
+    }
+  }
+
+  // 동기화 ON + 독립 모드 + CH1 변경 시 → CH2/CH3도 동일 모드로 전환 및 OVP 강제 동기화
   if (S.syncCh1Ch2 && S.trackMode === 0 && ch === 1) {
     S.ch[1].mode = mode;
     const fix2 = $('pstFix2'); if (fix2) fix2.style.display = mode === 'fixed' ? '' : 'none';
     $('pstTf2')?.classList.toggle('active', mode === 'fixed');
     $('pstTc2')?.classList.toggle('active', mode === 'cycle');
+    
+    if (mode === 'cycle') {
+      const maxV2 = CH_MAX_V[2];
+      S.ch[1].ovpVal = maxV2;
+      const el2 = $('pstOvpInp2'); if (el2) el2.value = maxV2.toFixed(2);
+      const wEl2 = $('pstFixWarnV2'); if (wEl2) wEl2.textContent = '';
+      if (app?.serial?.isConnected) {
+        send(`:CHANnel2:PROTection:VOLTage ${maxV2.toFixed(3)}`);
+      }
+    }
   }
   if (S.syncCh3 && S.trackMode === 0 && ch === 1) {
     S.ch[2].mode = mode;
     const fix3 = $('pstFix3'); if (fix3) fix3.style.display = mode === 'fixed' ? '' : 'none';
     $('pstTf3')?.classList.toggle('active', mode === 'fixed');
     $('pstTc3')?.classList.toggle('active', mode === 'cycle');
+
+    if (mode === 'cycle') {
+      const maxV3 = CH_MAX_V[3]; // CH3 최댓값은 6V
+      S.ch[2].ovpVal = maxV3;
+      const el3 = $('pstOvpInp3'); if (el3) el3.value = maxV3.toFixed(2);
+      const wEl3 = $('pstFixWarnV3'); if (wEl3) wEl3.textContent = '';
+      if (app?.serial?.isConnected) {
+        send(`:CHANnel3:PROTection:VOLTage ${maxV3.toFixed(3)}`);
+      }
+    }
   }
   updateCycleEditor();
   updateGraphLegend();
@@ -394,9 +430,9 @@ function syncTrackingSettings() {
   const i2 = $('pstIset2')?.value || '0.000';
 
   function lockCh(ch, lock, vVal, iVal) {
-    const ve = $(`pstVset${ch}`), ie = $(`pstIset${ch}`);
+    const ve = $(`pstVset${ch}`), ie = $(`pstIset${ch}`), oe = $(`pstOvpInp${ch}`);
     if (!ve || !ie) return;
-    ve.disabled = lock; ie.disabled = lock;
+    ve.disabled = lock; ie.disabled = lock; if (oe) oe.disabled = lock;
     if (lock && vVal !== undefined) ve.value = vVal;
     if (lock && iVal !== undefined) ie.value = iVal;
   }
@@ -410,6 +446,12 @@ function syncTrackingSettings() {
       ocp1.disabled = true;
     }
     S.ch[0].ocpOn = S.ch[1].ocpOn;
+    const oe1 = $('pstOvpInp1'), oe2 = $('pstOvpInp2');
+    if (oe1 && oe2) {
+      oe1.value = oe2.value;
+      oe1.disabled = true;
+      S.ch[0].ovpVal = S.ch[1].ovpVal;
+    }
   }
   else {
     const ocp1 = $('pstOcp1'); if (ocp1) ocp1.disabled = false;
@@ -425,6 +467,12 @@ function syncTrackingSettings() {
       ocp2.disabled = true;
     }
     S.ch[1].ocpOn = S.ch[0].ocpOn;
+    const oe1 = $('pstOvpInp1'), oe2 = $('pstOvpInp2');
+    if (oe1 && oe2) {
+      oe2.value = oe1.value;
+      oe2.disabled = true;
+      S.ch[1].ovpVal = S.ch[0].ovpVal;
+    }
   }
   else {
     const ocp2 = $('pstOcp2'); if (ocp2) ocp2.disabled = false;
@@ -498,6 +546,24 @@ function renderEditor() {
   const chLbl = $('pstCeChLabel');
   if (chLbl) chLbl.textContent = tf('pst_ce_editing', { n: ch });
   if ($('pstCeLiveCh')) $('pstCeLiveCh').textContent = ch;
+
+  // Sync OCP/OVP controls in cycle editor header
+  const ceOcp = $('pstCeOcp');
+  if (ceOcp) {
+    ceOcp.checked = S.ch[ch - 1].ocpOn;
+    ceOcp.disabled = !app?.serial?.isConnected;
+    // Sync disabled state from channel card (e.g. if tracking locks it)
+    const cardOcp = $(`pstOcp${ch}`);
+    if (cardOcp) ceOcp.disabled = cardOcp.disabled;
+  }
+  const ceOvpInp = $('pstCeOvpInp');
+  if (ceOvpInp) {
+    ceOvpInp.value = S.ch[ch - 1].ovpVal !== null ? S.ch[ch - 1].ovpVal.toFixed(2) : CH_MAX_V[ch].toFixed(2);
+    ceOvpInp.disabled = !app?.serial?.isConnected;
+    const cardOvpInp = $(`pstOvpInp${ch}`);
+    if (cardOvpInp) ceOvpInp.disabled = cardOvpInp.disabled;
+  }
+
   refreshCtrlModeUI(ch);
   renderStepTable();
   updateEditorControls();
@@ -631,6 +697,7 @@ function validateFixedField(ch, field) {
   if (field === 'v') {
     const physMax = CH_MAX_V[ch];
     const syncMax = (ch === 1 && S?.syncCh3 && S.trackMode === 0) ? CH_MAX_V[3] : physMax;
+
     if (val > physMax) {
       // 채널 물리 최대값 초과 → 즉시 자동 교정 + 안내
       inputEl.value = physMax.toFixed(2);
@@ -981,7 +1048,8 @@ function setOCP(ch, on) {
 let _ovpCh = 1;
 function setOVP(ch) {
   _ovpCh = ch;
-  const cur = S.ch[ch - 1].measV || 0;
+  // Load the previously set OVP value (ovpVal) if it exists, otherwise default to current measured voltage or 0
+  const cur = S.ch[ch - 1].ovpVal !== null ? S.ch[ch - 1].ovpVal : (S.ch[ch - 1].measV || 0);
   const modal = $('pstOvpModal'); if (!modal) return;
   const title = $('pstOvpModalTitle'); if (title) title.textContent = `CH${ch} ${t('pst_ovp_btn')}`;
   const maxV = CH_MAX_V[ch];
@@ -1001,22 +1069,72 @@ function applyOvp() {
     return;
   }
   closeOvpModal();
-  S.ch[_ovpCh - 1].ovpVal = val;
-  const cmdSteps = [[`:CHANnel${_ovpCh}:PROTection:VOLTage ${val.toFixed(3)}`]];
-  if (_ovpCh === 1 && S.trackMode === 1) cmdSteps.push([`:CHANnel2:PROTection:VOLTage ${val.toFixed(3)}`]);
-  else if (_ovpCh === 2 && S.trackMode === 2) cmdSteps.push([`:CHANnel1:PROTection:VOLTage ${val.toFixed(3)}`]);
-  else if (_ovpCh === 1 && S.syncCh1Ch2 && S.trackMode === 0) {
-    S.ch[1].ovpVal = val;
-    cmdSteps.push([`:CHANnel2:PROTection:VOLTage ${val.toFixed(3)}`]);
+  setOvpDirect(_ovpCh, val);
+}
+
+function setOvpDirect(ch, val) {
+  const maxV = CH_MAX_V[ch];
+  if (isNaN(val) || val < 0) return;
+  if (val > maxV) val = maxV;
+
+  // OVP가 현재 설정 전압보다 작으면 전압과 동일하게 강제 조정
+  const curVset = parseFloat($(`pstVset${ch}`)?.value || 0);
+  if (val < curVset) {
+    val = curVset;
+    const wEl = $(`pstFixWarnV${ch}`);
+    if (wEl) {
+      wEl.textContent = `⚠ OVP는 설정 전압(${curVset.toFixed(2)}V) 이상이어야 하므로 동일하게 조정됨`;
+      wEl.style.color = '#f87171';
+    }
+  } else {
+    // 경고가 만약 OVP 관련이었다면 제거
+    const wEl = $(`pstFixWarnV${ch}`);
+    if (wEl && wEl.textContent.includes('OVP')) {
+      wEl.textContent = '';
+    }
   }
-  if (_ovpCh === 1 && S.syncCh3 && S.trackMode === 0) {
+
+  S.ch[ch - 1].ovpVal = val;
+  const el = $(`pstOvpInp${ch}`); if (el) el.value = val.toFixed(2);
+  
+  // Sync cycle editor header OVP input box if it matches currently edited channel
+  if (ch === S.editorCh) {
+    const ceOvpInp = $('pstCeOvpInp');
+    if (ceOvpInp) ceOvpInp.value = val.toFixed(2);
+  }
+
+  const cmdSteps = [[`:CHANnel${ch}:PROTection:VOLTage ${val.toFixed(3)}`]];
+  const syncNote = [];
+
+  if (ch === 1 && S.trackMode === 1) {
+    cmdSteps.push([`:CHANnel2:PROTection:VOLTage ${val.toFixed(3)}`]);
+  } else if (ch === 2 && S.trackMode === 2) {
+    cmdSteps.push([`:CHANnel1:PROTection:VOLTage ${val.toFixed(3)}`]);
+  } else if (ch === 1 && S.syncCh1Ch2 && S.trackMode === 0) {
+    S.ch[1].ovpVal = val;
+    const el2 = $('pstOvpInp2'); if (el2) el2.value = val.toFixed(2);
+    if (S.editorCh === 2) {
+      const ceOvpInp = $('pstCeOvpInp');
+      if (ceOvpInp) ceOvpInp.value = val.toFixed(2);
+    }
+    cmdSteps.push([`:CHANnel2:PROTection:VOLTage ${val.toFixed(3)}`]);
+    syncNote.push('CH2');
+  }
+
+  if (ch === 1 && S.syncCh3 && S.trackMode === 0) {
     const ovp3 = Math.min(val, CH_MAX_V[3]);
     S.ch[2].ovpVal = ovp3;
+    const el3 = $('pstOvpInp3'); if (el3) el3.value = ovp3.toFixed(2);
+    if (S.editorCh === 3) {
+      const ceOvpInp = $('pstCeOvpInp');
+      if (ceOvpInp) ceOvpInp.value = ovp3.toFixed(2);
+    }
     cmdSteps.push([`:CHANnel3:PROTection:VOLTage ${ovp3.toFixed(3)}`]);
+    syncNote.push('CH3');
   }
+
   _runSeq(cmdSteps);
-  const syncNote = [_ovpCh===1&&S.syncCh1Ch2&&S.trackMode===0?'CH2':null, _ovpCh===1&&S.syncCh3&&S.trackMode===0?'CH3':null].filter(Boolean);
-  pstLog(`TX: CH${_ovpCh} OVP = ${val.toFixed(3)} V${syncNote.length?' → '+syncNote.join('/')+' '+t('pst_log_synced'):''}`, 'tx');
+  pstLog(`TX: CH${ch} OVP = ${val.toFixed(3)} V${syncNote.length?' → '+syncNote.join('/')+' '+t('pst_log_synced'):''}`, 'tx');
 }
 
 function closeOvpModal() {
@@ -1060,10 +1178,20 @@ function setSyncCh1Ch2(on) {
     // OVP 동기화 (CH1에 설정값이 있을 때만)
     if (S.ch[0].ovpVal != null) {
       S.ch[1].ovpVal = S.ch[0].ovpVal;
+      const el2 = $('pstOvpInp2'); if (el2) el2.value = S.ch[0].ovpVal.toFixed(2);
       cmdSteps.push([`:CHANnel2:PROTection:VOLTage ${S.ch[0].ovpVal.toFixed(3)}`]);
     }
+    // 모드(고정값/사이클) 및 사이클 스텝 동기화
+    const m = S.ch[0].mode;
+    S.ch[1].mode = m;
+    const fix2 = $('pstFix2'); if (fix2) fix2.style.display = m === 'fixed' ? '' : 'none';
+    $('pstTf2')?.classList.toggle('active', m === 'fixed');
+    $('pstTc2')?.classList.toggle('active', m === 'cycle');
+    S.cySteps[1] = S.cySteps[0].map(s => ({ ...s }));
+
     if (cmdSteps.length) _runSeq(cmdSteps);
     pstLog(t('pst_log_sync12_on'), 'info');
+    updateCycleEditor();
   } else {
     if (S.syncCh3) setSyncCh3(false);
     pstLog(t('pst_log_sync12_off'), 'info');
@@ -1074,7 +1202,7 @@ function setSyncCh1Ch2(on) {
   // CH2 입력 잠금/해제 (사용 토글은 제외)
   const ch2Card = $('pstCh2');
   if (ch2Card) ch2Card.classList.toggle('pst-sync-lock', on);
-  ['pstVset2', 'pstIset2'].forEach(id => { const el = $(id); if (el) el.disabled = on; });
+  ['pstVset2', 'pstIset2', 'pstOvpInp2'].forEach(id => { const el = $(id); if (el) el.disabled = on; });
   // 사이클 편집기 열려 있으면 라벨 갱신
   if ($('pstCycleEditor')?.style.display !== 'none') renderEditor();
 }
@@ -1130,6 +1258,7 @@ function setSyncCh3(on) {
     if (S.ch[0].ovpVal != null) {
       const ovp3 = Math.min(S.ch[0].ovpVal, CH_MAX_V[3]);
       S.ch[2].ovpVal = ovp3;
+      const el3 = $('pstOvpInp3'); if (el3) el3.value = ovp3.toFixed(2);
       cmdSteps.push([`:CHANnel3:PROTection:VOLTage ${ovp3.toFixed(3)}`]);
     }
     // 제어 모드 동기화
@@ -1156,7 +1285,7 @@ function setSyncCh3(on) {
   // CH3 입력 잠금/해제 (사용 토글은 제외)
   const ch3Card = $('pstCh3');
   if (ch3Card) ch3Card.classList.toggle('pst-sync-lock', on);
-  ['pstVset3', 'pstIset3'].forEach(id => { const el = $(id); if (el) el.disabled = on; });
+  ['pstVset3', 'pstIset3', 'pstOvpInp3'].forEach(id => { const el = $(id); if (el) el.disabled = on; });
   // CH3 스팩 라벨 업데이트
   const spec3 = $('pstCh3Spec');
   if (spec3) spec3.textContent = on ? `0–6V / 0–2A (${t('pst_sync_txt')})` : '0–6V / 0–5A';
@@ -1172,14 +1301,22 @@ function setV(ch) {
     val = CH_MAX_V[ch];
     const el = $(`pstVset${ch}`); if (el) el.value = val.toFixed(2);
   }
+  // OVP 범위 초과 시 자동 클램핑 (OVP 초과할 경우에만 OVP와 동일값으로 맞춤)
+  const ovpLimit = S.ch[ch - 1].ovpVal;
+  if (ovpLimit !== null && val > ovpLimit) {
+    val = ovpLimit;
+    const el = $(`pstVset${ch}`); if (el) el.value = val.toFixed(2);
+    const wEl = $(`pstFixWarnV${ch}`);
+    if (wEl) { wEl.textContent = `⚠ OVP 한계치(${ovpLimit.toFixed(2)}V)로 전압이 제한되었습니다`; wEl.style.color = '#f87171'; }
+  } else {
+    const wEl = $(`pstFixWarnV${ch}`); if (wEl) { wEl.textContent = ''; wEl.style.color = ''; }
+  }
   // CH3 동기화 ON 시 CH1 전압도 CH3 최대값(6V)으로 클램핑 후 전체 적용
   if (ch === 1 && S.syncCh3 && S.trackMode === 0 && val > CH_MAX_V[3]) {
     val = CH_MAX_V[3];
     const el = $(`pstVset${ch}`); if (el) el.value = val.toFixed(2);
     const wEl = $(`pstFixWarnV${ch}`);
     if (wEl) { wEl.textContent = tf('pst_v3_adj', { V: CH_MAX_V[3] }); wEl.style.color = '#f87171'; }
-  } else {
-    const wEl = $(`pstFixWarnV${ch}`); if (wEl) { wEl.textContent = ''; wEl.style.color = ''; }
   }
   const steps = [[`:CHANnel${ch}:VOLTage ${val.toFixed(3)}`]];
   const syncNote = [];
@@ -1240,10 +1377,14 @@ function activeGraphChannels() {
 }
 
 function updateGraphLegend() {
+  const seriesMode = _isSeriesGraphMode();
   const active = new Set(activeGraphChannels());
-  document.querySelectorAll('.pst-gli').forEach(el => {
-    el.style.display = active.has(parseInt(el.dataset.ch)) ? '' : 'none';
+  document.querySelectorAll('.pst-gli[data-ch]').forEach(el => {
+    el.style.display = seriesMode ? 'none' : (active.has(parseInt(el.dataset.ch)) ? '' : 'none');
   });
+  const sv = $('pstGliSeriesV'), si = $('pstGliSeriesI');
+  if (sv) sv.style.display = seriesMode ? '' : 'none';
+  if (si) si.style.display = seriesMode ? '' : 'none';
 }
 
 function clearGraph() {
@@ -1269,6 +1410,25 @@ function recordGraphData() {
   drawGraph();
 }
 
+// 직렬 트래킹: CH1+CH2 전압은 합산, 전류는 두 채널이 동일(공유)하므로 CH1 값을 그대로 사용
+function _seriesCombinedSource(ts, v, i) {
+  const n = ts.length;
+  const vC = new Array(n), iC = new Array(n);
+  for (let j = 0; j < n; j++) {
+    vC[j] = (v[0]?.[j] || 0) + (v[1]?.[j] || 0);
+    iC[j] = v[0]?.[j] !== undefined ? (i[0]?.[j] || 0) : 0;
+  }
+  return { ts, v: [vC, [], []], i: [iC, [], []], chIdxs: [0] };
+}
+
+function _isSeriesGraphMode() {
+  if (S.viewingEvalId !== null) {
+    const rec = S.evalRecords.find(r => r.id === S.viewingEvalId);
+    return rec?.trackMode === 2;
+  }
+  return S.trackMode === 2;
+}
+
 function graphSource() {
   if (S.viewingEvalId !== null) {
     const rec = S.evalRecords.find(r => r.id === S.viewingEvalId);
@@ -1276,10 +1436,12 @@ function graphSource() {
       const v = rec.raw?.v || [[], [], []];
       const i = rec.raw?.i || [[], [], []];
       const ts = rec.raw?.ts || [];
+      if (rec.trackMode === 2) return _seriesCombinedSource(ts, v, i);
       const activeChs = activeChannelsOfRecord(rec);
       return { ts, v, i, chIdxs: activeChs.map(c => c - 1) };
     }
   }
+  if (S.trackMode === 2) return _seriesCombinedSource(S.gData.ts, S.gData.v, S.gData.i);
   return { ts: S.gData.ts, v: S.gData.v, i: S.gData.i, chIdxs: activeGraphChannels().map(c => c - 1) };
 }
 
@@ -1352,6 +1514,7 @@ function viewEval(id) {
   S.viewingEvalId = id;
   const badge = $('pstViewingBadge'); if (badge) badge.style.display = '';
   renderEvalTable();
+  updateGraphLegend();
   drawGraph();
 }
 
@@ -1359,6 +1522,7 @@ function viewLiveGraph() {
   S.viewingEvalId = null;
   const badge = $('pstViewingBadge'); if (badge) badge.style.display = 'none';
   renderEvalTable();
+  updateGraphLegend();
   drawGraph();
 }
 
@@ -1654,10 +1818,24 @@ function evalRecordBlocks(rec, number) {
     `${t('pst_th_cond2')}: ${evalConditionText(rec)}`,
   ];
 
-  const headers1 = [t('pst_x_time')];
-  idxs.forEach(chIdx => headers1.push(`CH${chIdx + 1}_${t('pst_x_v')}`, `CH${chIdx + 1}_${t('pst_x_i')}`));
-  const rows1 = ts.map((t, j) => {
-    const row = [((t - t0) / 1000).toFixed(1)];
+  // 직렬 트래킹: 개별 채널 값은 의미가 없으므로 합산(전압 합계·전류 공유값) 컬럼 하나만 사용
+  if (rec.trackMode === 2) {
+    const headers = [t('pst_x_time'), t('pst_x_vsum'), t('pst_x_isum')];
+    const rows = ts.map((tt, j) => {
+      const valV0 = (v[0]?.[j]) || 0;
+      const valV1 = (v[1]?.[j]) || 0;
+      const valI0 = (i[0]?.[j]) || 0;
+      const vsum = valV0 + valV1;
+      const isum = valI0;
+      return [((tt - t0) / 1000).toFixed(1), vsum.toFixed(3), isum.toFixed(3)];
+    });
+    return { block: { name: nameLabel, meta, headers, rows } };
+  }
+
+  const headers = [t('pst_x_time')];
+  idxs.forEach(chIdx => headers.push(`CH${chIdx + 1}_${t('pst_x_v')}`, `CH${chIdx + 1}_${t('pst_x_i')}`));
+  const rows = ts.map((tt, j) => {
+    const row = [((tt - t0) / 1000).toFixed(1)];
     idxs.forEach(chIdx => {
       const valV = (v[chIdx]?.[j]) || 0;
       const valI = (i[chIdx]?.[j]) || 0;
@@ -1666,33 +1844,7 @@ function evalRecordBlocks(rec, number) {
     return row;
   });
 
-  const headers2 = [t('pst_x_time'), t('pst_x_vsum'), t('pst_x_isum')];
-  const rows2 = ts.map((t, j) => {
-    let vsum, isum;
-    const valV0 = (v[0]?.[j]) || 0;
-    const valV1 = (v[1]?.[j]) || 0;
-    const valI0 = (i[0]?.[j]) || 0;
-    const valI1 = (i[1]?.[j]) || 0;
-    if (rec.trackMode === 1) { // Parallel
-      vsum = valV0;
-      isum = valI0 + valI1;
-    } else if (rec.trackMode === 2) { // Series
-      vsum = valV0 + valV1;
-      isum = valI0;
-    } else {
-      vsum = 0; isum = 0;
-      idxs.forEach(chIdx => {
-        vsum += (v[chIdx]?.[j]) || 0;
-        isum += (i[chIdx]?.[j]) || 0;
-      });
-    }
-    return [((t - t0) / 1000).toFixed(1), vsum.toFixed(3), isum.toFixed(3)];
-  });
-
-  return {
-    perCh: { name: nameLabel, meta, headers: headers1, rows: rows1 },
-    combined: { name: nameLabel, meta, headers: headers2, rows: rows2 },
-  };
+  return { block: { name: nameLabel, meta, headers, rows } };
 }
 
 function blocksToAOA(blocks) {
@@ -1728,6 +1880,107 @@ function blocksToAOA(blocks) {
   return aoa;
 }
 
+// Offscreen canvas drawer to capture PNG image for a given record's raw timeline data
+function drawOffscreenGraph(rec, width, height) {
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  const P = { t: 25, r: 48, b: 28, l: 52 };
+  const cw = width - P.l - P.r, ch = height - P.t - P.b;
+
+  // Background (always use light mode for print/Excel friendliness)
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, width, height);
+
+  let v = rec.raw?.v || [[], [], []];
+  let i = rec.raw?.i || [[], [], []];
+  let ts = rec.raw?.ts || [];
+
+  // Robustly handle nested array mapping fallback
+  const parseArr = arr => Array.isArray(arr) ? arr.slice() : [];
+  v = [parseArr(v[0]), parseArr(v[1]), parseArr(v[2])];
+  i = [parseArr(i[0]), parseArr(i[1]), parseArr(i[2])];
+  ts = Array.isArray(ts) ? ts.slice() : [];
+
+  const n = ts.length;
+  if (n < 2) return canvas.toDataURL('image/png');
+
+  const tMin = ts[0], tMax = ts[n - 1];
+  let src;
+  let chIdxs = [];
+  if (rec.trackMode === 2) {
+    src = _seriesCombinedSource(ts, v, i);
+    chIdxs = src.chIdxs;
+  } else {
+    const activeChs = activeChannelsOfRecord(rec);
+    src = { ts, v, i, chIdxs: activeChs.map(c => c - 1) };
+  }
+
+  let vVals = [], iVals = [];
+  chIdxs.forEach(idx => { vVals.push(...src.v[idx]); iVals.push(...src.i[idx]); });
+  const yMaxV = Math.max(...vVals.filter(val => isFinite(val)), 0.5) * 1.15 || 1;
+  const yMaxI = Math.max(...iVals.filter(val => isFinite(val)), 0.05) * 1.15 || 1;
+
+  const colorsV = ['#2b8fff', '#10b981', '#a855f7'];
+  const colorsI = ['#ef4444', '#f59e0b', '#06b6d4'];
+
+  // Grid & Y-Axis Labels
+  ctx.strokeStyle = 'rgba(0,0,0,0.07)';
+  ctx.lineWidth = 1;
+  for (let g = 0; g <= 5; g++) {
+    const y = P.t + ch * (1 - g / 5);
+    ctx.beginPath(); ctx.moveTo(P.l, y); ctx.lineTo(P.l + cw, y); ctx.stroke();
+    ctx.fillStyle = '#2b8fff'; ctx.font = '10px Inter'; ctx.textAlign = 'right';
+    ctx.fillText((yMaxV * g / 5).toFixed(1), P.l - 4, y + 4);
+    ctx.fillStyle = '#ef4444'; ctx.textAlign = 'left';
+    ctx.fillText((yMaxI * g / 5).toFixed(3), P.l + cw + 6, y + 4);
+  }
+
+  // X-Axis Labels
+  ctx.fillStyle = 'rgba(60,90,120,0.6)';
+  ctx.font = '10px Inter';
+  ctx.textAlign = 'center';
+  for (let g = 0; g <= 4; g++) {
+    const x = P.l + cw * g / 4;
+    ctx.fillText(`${((tMax - tMin) / 1000 * (g / 4)).toFixed(0)}s`, x, height - P.b + 14);
+  }
+
+  // Draw lines
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(P.l, P.t, cw, ch);
+  ctx.clip();
+  const toX = t => P.l + cw * (t - tMin) / (tMax - tMin);
+  const toYv = valV => P.t + ch * (1 - valV / yMaxV);
+  const toYi = valI => P.t + ch * (1 - valI / yMaxI);
+
+  chIdxs.forEach(idx => {
+    ctx.strokeStyle = colorsV[idx]; ctx.lineWidth = 2; ctx.setLineDash([]);
+    ctx.beginPath(); let started = false;
+    src.ts.forEach((t, j) => {
+      if (t < tMin) return; const x = toX(t), y = toYv(src.v[idx][j] || 0);
+      if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
+    }); ctx.stroke();
+
+    ctx.strokeStyle = colorsI[idx]; ctx.lineWidth = 1.5; ctx.setLineDash([5, 3]);
+    ctx.beginPath(); started = false;
+    src.ts.forEach((t, j) => {
+      if (t < tMin) return; const x = toX(t), y = toYi(src.i[idx][j] || 0);
+      if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
+    }); ctx.stroke();
+  });
+  ctx.restore();
+
+  // Border outline
+  ctx.strokeStyle = 'rgba(80,110,140,.4)'; ctx.lineWidth = 1;
+  ctx.strokeRect(P.l, P.t, cw, ch);
+  ctx.fillStyle = '#2b8fff'; ctx.font = '9px Inter'; ctx.textAlign = 'left'; ctx.fillText('V', P.l - 4, P.t - 5);
+  ctx.fillStyle = '#ef4444'; ctx.fillText('A', P.l + cw + 6, P.t - 5);
+
+  return canvas.toDataURL('image/png');
+}
+
 async function exportSelectedRawData() {
   const selected = S.evalRecords.filter(r => r.checked);
   if (!selected.length) { alert(t('pst_export_select')); return; }
@@ -1738,28 +1991,123 @@ async function exportSelectedRawData() {
   const filename = `PST3202_rawdata_${stamp}.xlsx`;
 
   const numbers = evalNumbering();
-  const perChBlocks = [], combinedBlocks = [];
-  selected.forEach(rec => {
-    const b = evalRecordBlocks(rec, numbers[rec.id]);
-    perChBlocks.push(b.perCh);
-    combinedBlocks.push(b.combined);
-  });
+  const blocks = selected.map(rec => evalRecordBlocks(rec, numbers[rec.id]).block);
 
   try {
-    const XLSX = await import('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/+esm');
-    const wb = XLSX.utils.book_new();
-    const ws1 = XLSX.utils.aoa_to_sheet(blocksToAOA(perChBlocks));
-    addNameMerges(ws1, perChBlocks);
-    XLSX.utils.book_append_sheet(wb, ws1, t('pst_x_sheet_ch'));
+    const mod = await import('https://esm.sh/exceljs@4.3.0');
+    const ExcelJS = mod.default || mod || window.ExcelJS;
+    if (!ExcelJS || typeof ExcelJS.Workbook !== 'function') {
+      throw new Error('Failed to resolve ExcelJS from ESM CDN.');
+    }
+    const wb = new ExcelJS.Workbook();
 
-    const hasSeries = selected.some(rec => rec.trackMode === 2);
-    if (hasSeries) {
-      const ws2 = XLSX.utils.aoa_to_sheet(blocksToAOA(combinedBlocks));
-      addNameMerges(ws2, combinedBlocks);
-      XLSX.utils.book_append_sheet(wb, ws2, t('pst_x_sheet_sum'));
+    // ── Sheet 1: Per Channel (Data) ──────────────────────────────────────────
+    const ws1 = wb.addWorksheet(t('pst_x_sheet_ch'));
+
+    // Layout configuration: side-by-side positioning
+    const GAP = 1;
+    let colOffset = 0;
+    blocks.forEach(b => {
+      b.startCol = colOffset;
+      colOffset += b.headers.length + GAP;
+    });
+
+    const totalCols = blocks.length ? blocks[blocks.length - 1].startCol + blocks[blocks.length - 1].headers.length : 0;
+    const maxMeta = Math.max(0, ...blocks.map(b => (b.meta || []).length));
+    const maxRows = Math.max(0, ...blocks.map(b => b.rows.length));
+
+    // Fill Sheet 1 Cells
+    // Row 1: Title (Sample Name + #Number)
+    blocks.forEach(b => {
+      const cell = ws1.getCell(1, b.startCol + 1);
+      cell.value = b.name;
+      cell.font = { name: 'Inter', size: 12, bold: true };
+      ws1.mergeCells(1, b.startCol + 1, 1, b.startCol + b.headers.length);
+    });
+
+    // Row 2: Combined Config Settings
+    blocks.forEach(b => {
+      const cell = ws1.getCell(2, b.startCol + 1);
+      cell.value = b.meta.join('  |  ');
+      cell.font = { name: 'Inter', size: 10, color: { argb: 'FF555555' } };
+      cell.alignment = { wrapText: true, vertical: 'middle' };
+      ws1.mergeCells(2, b.startCol + 1, 2, b.startCol + b.headers.length);
+    });
+    ws1.getRow(2).height = 24;
+
+    // Row 3: Table Headers
+    blocks.forEach(b => {
+      b.headers.forEach((h, k) => {
+        const cell = ws1.getCell(3, b.startCol + k + 1);
+        cell.value = h;
+        cell.font = { name: 'Inter', size: 10, bold: true };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F4F8' } };
+      });
+    });
+
+    // Rows 4+: Raw Measurement Logs
+    for (let r = 0; r < maxRows; r++) {
+      blocks.forEach(b => {
+        if (r < b.rows.length) {
+          b.rows[r].forEach((val, k) => {
+            const cell = ws1.getCell(4 + r, b.startCol + k + 1);
+            // Parse numeric strings to actual float values for Excel calculation friendliness
+            const num = parseFloat(val);
+            cell.value = isNaN(num) ? val : num;
+            cell.font = { name: 'Inter', size: 9 };
+          });
+        }
+      });
     }
 
-    const arrBuf = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
+    // Adjust Sheet 1 Column Widths
+    for (let col = 1; col <= totalCols; col++) {
+      ws1.getColumn(col).width = 14;
+    }
+
+    // ── Sheet 2: Graph (Chart Images) ─────────────────────────────────────────
+    const ws2 = wb.addWorksheet('Graph');
+
+    let graphRow = 1;
+    selected.forEach((rec, idx) => {
+      const number = numbers[rec.id];
+      const titleText = `${rec.name} #${number}`;
+
+      // Row n: Title
+      const titleCell = ws2.getCell(graphRow, 2);
+      titleCell.value = titleText;
+      titleCell.font = { name: 'Inter', size: 14, bold: true };
+      graphRow++;
+
+      // Row n+1: Graph image
+      const imgWidth = 600, imgHeight = 350;
+      const base64Png = drawOffscreenGraph(rec, imgWidth, imgHeight);
+      
+      const imageId = wb.addImage({
+        base64: base64Png,
+        extension: 'png',
+      });
+
+      ws2.addImage(imageId, {
+        tl: { col: 1, row: graphRow }, // Column B, Row graphRow (0-indexed offset handled by library, exceljs is 0-indexed for positioning)
+        ext: { width: imgWidth, height: imgHeight }
+      });
+
+      // Increase row heights of cells under the image to prevent overlap with the next title
+      const rowsNeeded = Math.ceil(imgHeight / 20); // standard row height approx 20px
+      for (let r = 0; r < rowsNeeded; r++) {
+        ws2.getRow(graphRow + r + 1).height = 20;
+      }
+
+      graphRow += rowsNeeded + 2; // Add spacer row before next sample
+    });
+
+    // Adjust Column Width for spacing
+    ws2.getColumn(1).width = 5;
+    ws2.getColumn(2).width = 18;
+
+    // ── File Write & Save ────────────────────────────────────────────────────
+    const arrBuf = await wb.xlsx.writeBuffer();
     try {
       const res = await fetch('/api/export', {
         method: 'POST',
@@ -1772,7 +2120,15 @@ async function exportSelectedRawData() {
       showInfoModal(tf('pst_excel_saved', { f: filename }), t('pst_excel_title'));
     } catch (e) {
       pstLog(t('pst_log_srv_fb') + e.message, 'err');
-      XLSX.writeFile(wb, filename);
+      
+      // Browser fallback download
+      const blob = new Blob([arrBuf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      setTimeout(() => window.URL.revokeObjectURL(url), 1000);
     }
   } catch (err) {
     pstLog(t('pst_log_excel_fail') + err.message, 'err');
@@ -1887,10 +2243,22 @@ function onConnect() {
     }],
     [':CHANnel1:VOLTage?', r => { const el = $('pstVset1'); if (el) el.value = parseFloat(r).toFixed(2); }],
     [':CHANnel1:CURRent?', r => { const el = $('pstIset1'); if (el) el.value = parseFloat(r).toFixed(3); }],
+    [':CHANnel1:PROTection:VOLTage?', r => {
+      const val = parseFloat(r);
+      if (!isNaN(val)) { S.ch[0].ovpVal = val; const el = $('pstOvpInp1'); if (el) el.value = val.toFixed(2); }
+    }],
     [':CHANnel2:VOLTage?', r => { const el = $('pstVset2'); if (el) el.value = parseFloat(r).toFixed(2); }],
     [':CHANnel2:CURRent?', r => { const el = $('pstIset2'); if (el) el.value = parseFloat(r).toFixed(3); }],
+    [':CHANnel2:PROTection:VOLTage?', r => {
+      const val = parseFloat(r);
+      if (!isNaN(val)) { S.ch[1].ovpVal = val; const el = $('pstOvpInp2'); if (el) el.value = val.toFixed(2); }
+    }],
     [':CHANnel3:VOLTage?', r => { const el = $('pstVset3'); if (el) el.value = parseFloat(r).toFixed(2); }],
     [':CHANnel3:CURRent?', r => { const el = $('pstIset3'); if (el) el.value = parseFloat(r).toFixed(3); }],
+    [':CHANnel3:PROTection:VOLTage?', r => {
+      const val = parseFloat(r);
+      if (!isNaN(val)) { S.ch[2].ovpVal = val; const el = $('pstOvpInp3'); if (el) el.value = val.toFixed(2); }
+    }],
   ], () => {
     S.trackMode = 0;
     updateTrackModeUI();
@@ -1954,9 +2322,13 @@ function chCardHTML(ch) {
         <div class="flabel" id="pstILabel${ch}" style="margin-top:4px;">${t('pst_ilimit_label')}</div>
         <div class="pst-sp-row"><input type="number" id="pstIset${ch}" class="inp" placeholder="0.000" min="0" max="${maxI}" step="0.001" onkeydown="if(event.key==='Enter')app.instr.setI(${ch})" oninput="app.instr.validateFixedField(${ch},'i')"></div>
         <span class="pst-fix-warn" id="pstFixWarnI${ch}"></span>
-        <div class="pst-prot-row">
-          <label class="pst-switch-lbl" title="${t('pst_ocp_tip')}"><input type="checkbox" id="pstOcp${ch}" class="pst-needs-conn" disabled onchange="app.instr.setOCP(${ch},this.checked)"><span>${t('pst_ocp_label')}</span></label>
-          <button id="pstOvp${ch}btn" class="pst-aply pst-needs-conn" disabled onclick="app.instr.setOVP(${ch})" title="${t('pst_ovp_tip')}">${t('pst_ovp_btn')}</button>
+        <div class="pst-prot-row" style="gap:8px;">
+          <label class="pst-switch-lbl" style="color:var(--warn);font-weight:700;" title="${t('pst_ocp_tip')}"><input type="checkbox" id="pstOcp${ch}" class="pst-needs-conn" disabled onchange="app.instr.setOCP(${ch},this.checked)"><span style="margin-left:4px;">${t('pst_ocp_label')}</span></label>
+          <div style="display:flex;align-items:center;gap:4px;" title="${t('pst_ovp_tip')}">
+            <span style="font-size:11px;color:var(--warn);font-weight:700;">OVP:</span>
+            <input type="number" id="pstOvpInp${ch}" class="inp pst-needs-conn" disabled placeholder="0.00" min="0" max="${maxV}" step="0.1" style="width:58px;padding:3px 5px;font-size:11.5px;text-align:center;font-weight:700;color:var(--text);border-color:var(--border-2);" onkeydown="if(event.key==='Enter')app.instr.setOvpDirect(${ch},parseFloat(this.value))" oninput="app.instr.setOvpDirect(${ch},parseFloat(this.value))">
+            <span style="font-size:11px;color:var(--warn);font-weight:700;">V</span>
+          </div>
         </div>
       </div>
       <div class="pst-mode-tabs" onclick="event.stopPropagation()">
@@ -2043,7 +2415,23 @@ function buildCenter(el) {
       <!-- Cycle Editor -->
       <div id="pstCycleEditor" class="pst-cycle-editor" style="display:none;">
         <div class="pst-ce-header">
-          <span class="pst-ce-title">${t('pst_ce_title')} <span id="pstCeChLabel" style="color:var(--accent-2);margin-left:4px;font-size:12px;"></span></span>
+          <div style="display:flex;align-items:center;gap:12px;">
+            <span class="pst-ce-title">${t('pst_ce_title')} <span id="pstCeChLabel" style="color:var(--accent-2);margin-left:4px;font-size:12px;"></span></span>
+            <div style="display:flex;align-items:center;gap:12px;margin-left:16px;padding-left:16px;border-left:1px solid var(--border);">
+              <label class="pst-switch-lbl" style="font-size:11.5px;color:var(--warn);font-weight:700;" title="${t('pst_ocp_tip')}">
+                <span class="pst-toggle-sw" style="width:28px;height:16px;margin-right:4px;">
+                  <input type="checkbox" id="pstCeOcp" onchange="app.instr.setOCP(S.editorCh, this.checked)">
+                  <span class="pst-toggle-sl"></span>
+                </span>
+                <span>${t('pst_ocp_label')}</span>
+              </label>
+              <div style="display:flex;align-items:center;gap:4px;" title="${t('pst_ovp_tip')}">
+                <span style="font-size:11.5px;color:var(--warn);font-weight:700;">OVP:</span>
+                <input type="number" id="pstCeOvpInp" class="inp" placeholder="0.00" min="0" step="0.1" style="width:58px;padding:3px 5px;font-size:11.5px;text-align:center;font-weight:700;color:var(--text);border-color:var(--border-2);" onkeydown="if(event.key==='Enter')app.instr.setOvpDirect(S.editorCh,parseFloat(this.value))" oninput="app.instr.setOvpDirect(S.editorCh,parseFloat(this.value))">
+                <span style="font-size:11.5px;color:var(--warn);font-weight:700;">V</span>
+              </div>
+            </div>
+          </div>
           <div style="display:flex;align-items:center;gap:10px;">
             <div class="pst-ce-tabs" id="pstCeTabs"></div>
             <button class="sbtn" id="pstBtnStartAll" onclick="app.instr.toggleStartAllCycles()" style="padding:7px 16px;font-size:12px;" disabled>${t('pst_ce_all_start')}</button>
@@ -2127,6 +2515,8 @@ function buildCenter(el) {
             <span class="pst-gli" data-ch="2" style="display:none;"><span class="pst-gld" style="background:#9b7fe8;"></span>CH2 I</span>
             <span class="pst-gli" data-ch="3" style="display:none;"><span class="pst-gld" style="background:#e8554e;"></span>CH3 V</span>
             <span class="pst-gli" data-ch="3" style="display:none;"><span class="pst-gld" style="background:#4da3ff;"></span>CH3 I</span>
+            <span class="pst-gli" id="pstGliSeriesV" style="display:none;"><span class="pst-gld" style="background:#3fb6e8;"></span>${t('pst_series_v')}</span>
+            <span class="pst-gli" id="pstGliSeriesI" style="display:none;"><span class="pst-gld" style="background:#22b06a;"></span>${t('pst_series_i')}</span>
           </div>
           <div class="pst-gctrls">
             <span id="pstViewingBadge" style="display:none;font-size:11px;font-weight:700;color:#06121c;background:var(--accent-2);padding:3px 8px;border-radius:5px;">${t('pst_viewing')}</span>
@@ -2146,9 +2536,6 @@ function buildCenter(el) {
           <div class="pst-gctrls">
             <button class="sbtn" id="pstBtnExport" onclick="app.instr.exportSelectedRawData()" style="font-size:11px;">📥 Raw Data (xlsx)</button>
             <button class="sbtn" onclick="app.instr.manualSaveRecords()" style="font-size:11px;color:var(--cyan);border-color:var(--cyan);">${t('pst_dt_save')}</button>
-            <button class="sbtn" onclick="app.instr.exportEvalListFile()" style="font-size:11px;">${t('pst_list_export_btn')}</button>
-            <button class="sbtn" onclick="app.instr.importEvalListFile()" style="font-size:11px;">${t('pst_list_import_btn')}</button>
-            <input type="file" id="pstImportFileInp" accept=".json,application/json" style="display:none;" onchange="app.instr.handleImportFile(this)">
             <button class="sbtn" onclick="app.instr.deleteSelectedEvals()" style="font-size:11px;color:var(--red);border-color:var(--red);">${t('pst_dt_delsel')}</button>
           </div>
         </div>
@@ -2256,25 +2643,70 @@ function buildCenter(el) {
   ['pstVset1', 'pstIset1', 'pstVset2', 'pstIset2', 'pstVset3', 'pstIset3'].forEach(id => {
     $(id)?.addEventListener('input', syncTrackingSettings);
   });
-  ['pstVset1', 'pstIset1'].forEach(id => {
+  ['pstVset1', 'pstIset1', 'pstOvpInp1'].forEach(id => {
     $(id)?.addEventListener('input', () => {
       const val = parseFloat($(id)?.value);
       if (S?.syncCh1Ch2 && S.trackMode === 0) {
-        const target = $(id.replace('set1', 'set2'));
-        if (target) target.value = $(id).value;
+        const isOvp = id.includes('Ovp');
+        const targetId = isOvp ? 'pstOvpInp2' : id.replace('set1', 'set2');
+        const target = $(targetId);
+        if (target) {
+          target.value = $(id).value;
+          if (isOvp && !isNaN(val)) {
+            S.ch[1].ovpVal = val;
+          }
+        }
       }
       if (S?.syncCh3 && S.trackMode === 0) {
         const isV = id.includes('Vset');
-        const el3 = $(isV ? 'pstVset3' : 'pstIset3');
-        if (el3 && !isNaN(val)) {
-          const max3 = isV ? CH_MAX_V[3] : CH3_SYNC_MAX_I;
-          el3.value = Math.min(val, max3).toFixed(isV ? 2 : 3);
+        const isOvp = id.includes('Ovp');
+        if (isOvp) {
+          const el3 = $('pstOvpInp3');
+          if (el3 && !isNaN(val)) {
+            const ovpVal3 = Math.min(val, CH_MAX_V[3]);
+            el3.value = ovpVal3.toFixed(2);
+            S.ch[2].ovpVal = ovpVal3;
+          }
+        } else {
+          const el3 = $(isV ? 'pstVset3' : 'pstIset3');
+          if (el3 && !isNaN(val)) {
+            const max3 = isV ? CH_MAX_V[3] : CH3_SYNC_MAX_I;
+            el3.value = Math.min(val, max3).toFixed(isV ? 2 : 3);
+          }
         }
       }
     });
   });
+
+  // OVP input field event listeners to handle direct typing changes and sync
+  [1, 2, 3].forEach(ch => {
+    $(`pstOvpInp${ch}`)?.addEventListener('input', (e) => {
+      const val = parseFloat(e.target.value);
+      if (!isNaN(val)) {
+        app.instr.setOvpDirect(ch, val);
+      }
+    });
+  });
+
+  // Cycle editor header OVP input event listener
+  $('pstCeOvpInp')?.addEventListener('input', (e) => {
+    const val = parseFloat(e.target.value);
+    if (!isNaN(val)) {
+      app.instr.setOvpDirect(S.editorCh, val);
+    }
+  });
+
+  // Pre-populate HTML OVP fields with state
+  [1, 2, 3].forEach(ch => {
+    const el = $(`pstOvpInp${ch}`);
+    if (el && S.ch[ch - 1].ovpVal !== null) {
+      el.value = S.ch[ch - 1].ovpVal.toFixed(2);
+    }
+  });
+
   syncTrackingSettings();
   initTabLock();
+  renderEvalTable();
 }
 
 function buildRightPanel(el) {
@@ -2287,6 +2719,10 @@ function buildRightPanel(el) {
 function setCycleCtrlMode(mode) {
   S.ch[S.editorCh - 1].ctrlMode = mode;
   refreshCtrlModeUI(S.editorCh);
+}
+
+function getEditorCh() {
+  return S ? S.editorCh : 1;
 }
 
 function onRebuild() {
@@ -2316,11 +2752,11 @@ export default {
 
   buildSidebar, buildCenter, buildRightPanel, onRebuild,
 
-  selCh, setMode, setCtrlMode, setCycleCtrlMode,
+  selCh, setMode, setCtrlMode, setCycleCtrlMode, getEditorCh,
   syncTrackingSettings, setAutoStopToggle,
   validateCeField, validateFixedField, addStep, delStep, editStep, updateTotalDuration,
   toggleCycle, toggleStartAllCycles,
-  toggleOutput, setTM, clearProtection, setOCP, setOVP, setV, setI, setSyncCh1Ch2, setSyncCh3,
+  toggleOutput, setTM, clearProtection, setOCP, setOVP, setOvpDirect, setV, setI, setSyncCh1Ch2, setSyncCh3,
   drawGraph, resetGraph, viewEval, viewLiveGraph,
   renameEval, setEvalStressCondition, setEvalAgingTime,
   toggleEvalCheck, toggleAllEvals, deleteSelectedEvals,

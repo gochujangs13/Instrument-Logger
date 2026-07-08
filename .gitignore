@@ -3,8 +3,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-# PyInstaller / Build outputs
-build/
+# PyInstaller / Build outputs (주의: build/ 는 build_standalone.py·package_exe.py 등
+# 실제 빌드 "스크립트"가 있는 소스 폴더이므로 무시하면 안 됨 — PyInstaller 임시 산출물은 build_tmp/)
+build_tmp/
 dist/
 *.spec
 

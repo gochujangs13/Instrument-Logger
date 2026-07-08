@@ -307,6 +307,61 @@ this.onByte = null;            // 신규: 매 수신 바이트마다 호출
   명시할 것. 완성 후 PyMuPDF(`fitz`)로 PDF를 PNG 렌더링해 페이지별로 육안 검증하는 절차를
   거칠 것 — 브라우저 화면 미리보기와 실제 인쇄 렌더링 결과가 다를 수 있음.
 
+#### 직렬(Series) 트래킹 — 그래프·엑셀을 CH1/CH2 합산 단일 값으로 표시 (`pst3202.js`, `core.js`, 2026-07-08)
+- **배경**: 사용자가 직렬 트래킹 측정 시 CH1/CH2가 각자 값을 따로 보여주는 게 맞는지 질문 →
+  전기적으로는 직렬이므로 전압은 합산(V1+V2), 전류는 공유(I1=I2, 더하지 않음)가 맞고, Excel
+  내보내기 쪽엔 이미 이 계산 로직이 있었는데 그래프·시트 구조가 개별 표시와 혼재돼 있던 상태.
+  확인 결과 "개별값은 의미 없다, 직렬 트래킹시에만 합산값만" 요청으로 확정.
+- **그래프 (`graphSource`)**: `_seriesCombinedSource(ts, v, i)` 헬퍼 신설 — CH1(index 0)·CH2(index 1)
+  raw 배열을 `vC[j] = v0[j]+v1[j]`, `iC[j] = i0[j]`로 합성해 **가짜 단일 채널(index 0)** 형태로
+  반환. `drawGraph()`의 기존 채널별 순회 로직은 그대로 두고 `chIdxs:[0]`만 넘겨 자연스럽게 합산
+  라인 하나만 그려지도록 함(예: 두 채널 30V 설정 시 그래프에 60V로 표시). Y축 자동 스케일도
+  합산값 기준으로 자동 계산됨.
+  - 라이브 상태(`S.trackMode===2`)와 과거 기록 보기(`rec.trackMode===2`, `S.viewingEvalId`) 양쪽
+    모두 `_isSeriesGraphMode()`로 분기 처리.
+- **그래프 범례**: 신설 `pstGliSeriesV`/`pstGliSeriesI` 항목("직렬 합산 V"/"직렬 합산 I") 추가.
+  직렬 모드일 때 기존 CH1/CH2/CH3 범례는 전부 숨기고 이 둘만 표시(`updateGraphLegend()`).
+  `viewEval()`/`viewLiveGraph()`에도 `updateGraphLegend()` 호출 추가(기존엔 `drawGraph()`만
+  호출해 기록 전환 시 범례가 안 바뀌던 잠재 버그도 같이 해결).
+- **Excel 내보내기 (`evalRecordBlocks`, `exportSelectedRawData`)**: 레코드별로 블록을 **하나만**
+  반환하도록 구조 변경 — `trackMode===2`면 합산 컬럼(`시간, 전압(합계,V), 전류(합계,A)`) 블록,
+  그 외(독립·병렬)는 기존 채널별 컬럼 블록. 기존에 있던 "채널별"+"합산"(직렬 레코드가 있을 때만
+  추가) 2-시트 구조를 **시트 하나**로 통합 — 레코드마다 자기 트랙모드에 맞는 블록이 나란히 배치됨.
+  `pst_x_sheet_sum` 키는 더 이상 안 쓰이지만 하위 호환 위해 T 테이블엔 유지.
+- **검증**: 헤드리스 브라우저에서 `handleImportFile`로 직렬(CH1=CH2=30V/1A)·독립(12V/0.5A)
+  레코드를 주입 → `exportSelectedRawData()` 실행 → 생성된 xlsx를 다시 xlsx 라이브러리로 파싱해
+  셀 값 직접 확인: 직렬 레코드는 `60.000V / 1.000A` 단일 컬럼, 독립 레코드는 기존 `CH1_전압(V)`
+  컬럼 유지, 시트 1개로 통합 확인. 범례 토글도 헤드리스로 실제 `setTM(2)`/`setTM(0)` 호출해
+  표시/숨김 전환 검증.
+- **신규 i18n 키**: `pst_series_v`/`pst_series_i` (ko/en).
+
+#### 🔴 EXE에서 평가 기록이 저장 후 사라지는 버그 — `/api/evaldata` API가 EXE 서버에 없었음 (`build/package_exe.py`, 2026-07-08)
+- **증상**: PST-3202에서 측정 후 "저장" 눌러도(성공 모달까지 뜸) EXE를 재시작하면 Data Table이
+  비어 있음.
+- **근본 원인**: `pst3202.js`의 `saveEvalRecords()`/`loadEvalRecords()`는 `/api/evaldata`
+  GET/POST를 호출하도록 작성돼 있고, **`server.py`(브라우저 개발 모드)에는 이 라우트가 정상
+  구현돼 있었지만, `build/package_exe.py`가 생성하는 EXE 내장 서버(launcher 템플릿)에는
+  `/api/evaldata`·`/api/export` 라우트가 통째로 누락돼 있었음** — `/api/storage/*`(localStorage
+  폴리필용), `/api/visa/*`, `/api/save-file`만 존재. EXE에서 POST하면 매칭 라우트가 없어
+  `do_POST()`의 `else: super().do_POST()`로 떨어져 404 → `saveEvalRecords()`가 `catch(e)`에서
+  **에러를 로그만 남기고 삼켜버려** `manualSaveRecords()`는 항상 "저장 완료" 모달을 보여줌
+  (실패를 사용자가 알 수 없었음). 재시작 시 `loadEvalRecords()`도 404 → `if (!res.ok) return;`로
+  조용히 실패.
+- **수정**: `build/package_exe.py`의 launcher 템플릿에 `server.py`와 동일한 로직 이식 —
+  `do_GET`에 `/api/evaldata`(EXE 폴더의 `PST3202_eval_data.json` 읽기, 없으면 `[]`), `do_POST`에
+  `/api/evaldata`(임시파일→`os.replace`로 원자적 쓰기) 및 `/api/export`(Raw Data xlsx를 EXE
+  옆에 저장) 추가. 경로는 `os.path.dirname(sys.executable)` 사용(EXE 실제 위치 기준).
+- **검증 방법**: PyInstaller 빌드 없이 검증하기 위해, launcher 템플릿을 실제 렌더링한 뒤
+  `webview` 임포트/창 실행 부분만 잘라내고 순수 `HTTPServer`만 별도 포트로 격리 실행 →
+  `curl`로 GET(빈 배열)→POST(레코드 저장)→GET(방금 저장한 레코드가 그대로 반환)을 직접 확인해
+  "재시작 후에도 유지" 시나리오를 실제로 재현·검증. `/api/export`도 별도로 파일 생성 확인.
+- **⚠️ 향후 주의사항**: `server.py`(개발 서버)와 `build/package_exe.py`(EXE 내장 서버)는
+  **완전히 별도로 관리되는 두 개의 HTTP 서버 구현**이다. 새 `/api/*` 엔드포인트를 `server.py`에
+  추가할 때는 반드시 `package_exe.py`의 launcher 템플릿에도 동일하게 이식할 것 — 그렇지 않으면
+  브라우저 모드에서는 되는데 EXE에서만 조용히 실패하는 버그가 재발한다. (참고:
+  `/api/save-file`은 이미 두 서버 모두에 구현돼 있어 이런 문제가 없었음 — evaldata/export만
+  이식이 누락됐던 것.)
+
 ### PST-3202 알려진 제약 / 후속 작업
 - **실기 테스트 미완료**: SCPI 통신, OVP/OCP 동작, 폴링 타이밍 현장 검증 필요
 - **CH3 사용 토글**: CH3 동기화 토글(`syncCh3`)은 통합 앱에만 구현 — 단독 프로그램(`PST-3202/index.html`)에는 없음
