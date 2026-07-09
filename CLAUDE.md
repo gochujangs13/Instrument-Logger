@@ -770,10 +770,11 @@ this.onByte = null;            // 신규: 매 수신 바이트마다 호출
 - **실기 테스트 미완료**: SCPI 통신, OVP/OCP 동작, 폴링 타이밍 현장 검증 필요
 - **CH3 사용 토글**: CH3 동기화 토글(`syncCh3`)은 통합 앱에만 구현 — 단독 프로그램(`PST-3202/index.html`)에는 없음
 - **EXE 패키징**: PST3202 항목 `build/build_standalone.py` INSTRUMENT_MAP에 등록 완료 — 재패키징 전 dist 동기화 필요
-- **dist 스탤 (2026-07-08 기준)**: 제품명 다중 필터, 가져오기 버튼 복구, CH2/CH3 사용 토글 시
-  그래프 미갱신 버그 수정, Data Table 측정 완료 시각 표시, 재측정 덮어쓰기 확인 팝업까지
-  총 5건이 소스에만 반영되고 dist는 미동기화 상태. 다음 EXE 빌드 전 `instruments/pst3202.js`,
-  `core.js`, `index.css` 3개 파일을 `dist/3M_Instrument_Logger/`에 반드시 재동기화할 것.
+- **dist 동기화 완료 (2026-07-09)**: 2026-07-08~09 세션의 모든 변경사항(제품명 다중 필터,
+  가져오기 버튼 복구, CH2/CH3 사용 토글 그래프 버그, 측정 소요 시간 열, 재측정 덮어쓰기
+  확인(시작 시점으로 이동), 트래킹 모드 팝오버, 이름 필터 패널 position:fixed 전환, 코드
+  재검토 발견 4건 등)를 `instruments/pst3202.js`·`core.js`·`index.css` 동기화 후
+  `dist/3M_Instrument_Logger.exe` 재빌드 완료.
 - **그래프 테마 전환 즉시 반영**: 현재 데이터가 있을 때만 `drawGraph()`가 배경을 채움. 데이터 없을 땐 캔버스 투명 → 컨테이너 배경색으로 표시 (`.pst-graph-section`의 `background:var(--panel)`). 실사용 시 문제 없음.
 
 ## 5. 파형(WAVE) 표시 현황 및 미해결 과제
