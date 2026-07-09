@@ -127,7 +127,7 @@ function showTmPopover(mode, el) {
   const img = $('pstTmPopoverImg'); if (img) img.src = TRACK_IMAGE[mode];
   const desc = $('pstTmPopoverDesc'); if (desc) desc.textContent = t('pst_tm' + mode + '_tip');
   const rect = el.getBoundingClientRect();
-  const popW = 260, popH = 190;
+  const popW = 260, popH = 260; // 이미지가 260px 폭의 66%(약 172px)로 커져서 예상 높이도 함께 확대
   let left = rect.right + 10;
   if (left + popW > window.innerWidth) left = Math.max(8, rect.left - popW - 10);
   let top = rect.top;
