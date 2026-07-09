@@ -1604,6 +1604,7 @@ function createEvalRecord() {
     Object.assign(rec, { trackMode: S.trackMode, chData, raw, timestamp: Date.now(), checked: false });
     rec.maxCurrent = computeMaxCurrent(rec);
     pstLog(tf('pst_log_eval_over', { name: rec.name, i: rec.maxCurrent.toFixed(3) }), 'ok');
+    ensureNameVisible(rec.name);
     renderEvalTable();
     saveEvalRecords();
     return;
@@ -1616,6 +1617,7 @@ function createEvalRecord() {
   };
   rec.maxCurrent = computeMaxCurrent(rec);
   S.evalRecords.push(rec);
+  ensureNameVisible(rec.name);
   renderEvalTable();
   pstLog(tf('pst_log_eval_saved', { name: rec.name, i: rec.maxCurrent.toFixed(3) }), 'ok');
   saveEvalRecords();
@@ -1724,7 +1726,10 @@ function toggleNameFilterPanel() {
   if (!panel) return;
   const opening = panel.style.display === 'none';
   if (!opening) { panel.style.display = 'none'; return; }
-  if (S.evalFilters.names === null) S.evalFilters.names = distinctEvalNames();
+  // 주의: 여기서 names를 배열로 확정(materialize)하면 안 됨 — 테이블이 비어있을 때 패널을
+  // 열면 빈 배열([])로 굳어져, 이후 가져오기/측정으로 추가되는 기록이 전부 숨겨지는 버그가
+  // 있었음. null(필터 없음)은 체크박스 렌더링과 필터 판정 양쪽에서 "전체 선택"으로 처리되므로
+  // 사용자가 실제로 체크를 바꾸는 시점(toggleNameFilterValue)에만 배열로 전환한다.
   updateNameFilterList();
   panel.style.display = 'block';
   // position:fixed로 배치 — 이 패널은 position:sticky 헤더 안에 있어서, position:absolute로는
@@ -1791,8 +1796,18 @@ function toggleNameFilterValue(name, checked) {
 }
 
 function setAllNameFilters(all) {
-  S.evalFilters.names = all ? distinctEvalNames() : [];
+  // "전체 선택"은 배열로 확정하지 않고 null(필터 없음)로 되돌림 — 이후 새로 추가되는
+  // 이름도 자동으로 포함되도록 함
+  S.evalFilters.names = all ? null : [];
   renderEvalTable();
+}
+
+// 새 기록이 추가/이름변경될 때 이름 필터가 걸려 있으면 그 이름을 선택 목록에 포함시켜
+// "방금 추가했는데 필터 때문에 안 보이는" 상황을 방지
+function ensureNameVisible(name) {
+  if (S.evalFilters.names !== null && !S.evalFilters.names.includes(name)) {
+    S.evalFilters.names.push(name);
+  }
 }
 
 function renderEvalTable() {
@@ -1843,7 +1858,10 @@ function renderEvalTable() {
 
 function renameEval(id, name) {
   const rec = S.evalRecords.find(r => r.id === id);
-  if (rec) rec.name = name.trim() || rec.name;
+  if (rec) {
+    rec.name = name.trim() || rec.name;
+    ensureNameVisible(rec.name); // 이름 변경 직후 필터에 걸려 행이 사라지지 않도록
+  }
   renderEvalTable();
   saveEvalRecords();
 }
@@ -2350,6 +2368,7 @@ function handleImportFile(fileInput) {
       if (existingTimestamps.has(rec.timestamp)) { skipped++; return; }
       const newRec = { ...rec, id: S.nextEvalId++, checked: false };
       S.evalRecords.push(newRec);
+      ensureNameVisible(newRec.name); // 이름 필터가 걸려 있어도 방금 가져온 기록은 바로 보이게
       existingTimestamps.add(rec.timestamp);
       added++;
     });
