@@ -127,11 +127,13 @@ function showTmPopover(mode, el) {
   const img = $('pstTmPopoverImg'); if (img) img.src = TRACK_IMAGE[mode];
   const desc = $('pstTmPopoverDesc'); if (desc) desc.textContent = t('pst_tm' + mode + '_tip');
   const rect = el.getBoundingClientRect();
-  const popW = 260;
+  const popW = 260, popH = 190;
   let left = rect.right + 10;
   if (left + popW > window.innerWidth) left = Math.max(8, rect.left - popW - 10);
+  let top = rect.top;
+  if (top + popH > window.innerHeight) top = Math.max(8, window.innerHeight - popH - 8);
   pop.style.left = `${left}px`;
-  pop.style.top = `${Math.max(8, rect.top)}px`;
+  pop.style.top = `${top}px`;
   pop.style.display = 'block';
 }
 
@@ -958,9 +960,20 @@ function buildApplySteps() {
   return steps;
 }
 
-function toggleOutput() {
+async function toggleOutput() {
   if (!app?.serial?.isConnected) return;
   if (!S.outputActive) {
+    if (S._startConfirmPending) return; // 확인창 응답 대기 중 중복 클릭 방지
+    const checked = S.evalRecords.filter(r => r.checked);
+    if (checked.length === 1) {
+      S._startConfirmPending = true;
+      const ok = await showConfirm(tf('pst_overwrite_confirm', { name: checked[0].name }), t('pst_overwrite_ok'), t('pst_overwrite_title'));
+      S._startConfirmPending = false;
+      if (!ok) {
+        pstLog(t('pst_log_overwrite_cancel'), 'info');
+        return;
+      }
+    }
     const steps = buildApplySteps();
     steps.push([`:OUTPut:STATe 1`, () => {
       S.outputActive = true;
@@ -1024,9 +1037,7 @@ function setTM(mode) {
     const toggle2 = $('pstCh2Use'); if (toggle2) toggle2.checked = false;
     const toggle3 = $('pstCh3Use'); if (toggle3) toggle3.checked = false;
   }
-  updateTrackModeUI();
-  updateGraphLegend();
-  drawGraph();
+  updateTrackModeUI(); // 내부에서 syncTrackingSettings()를 호출하며, 그 안에서 updateGraphLegend()/drawGraph()까지 이미 처리함
 }
 
 function setOCP(ch, on) {
@@ -1573,7 +1584,7 @@ function buildChData() {
   return chData;
 }
 
-async function createEvalRecord() {
+function createEvalRecord() {
   if (!S.gData.ts.length) {
     const now = Date.now();
     S.gData.ts.push(now);
@@ -1586,20 +1597,16 @@ async function createEvalRecord() {
   };
   const chData = buildChData();
 
+  // 덮어쓰기 여부는 이미 toggleOutput()에서 측정 시작 전에 확인받았으므로 여기서는 바로 반영
   const checked = S.evalRecords.filter(r => r.checked);
   if (checked.length === 1) {
     const rec = checked[0];
-    const overwrite = await showConfirm(tf('pst_overwrite_confirm', { name: rec.name }), t('pst_overwrite_ok'), t('pst_overwrite_title'));
-    if (overwrite) {
-      Object.assign(rec, { trackMode: S.trackMode, chData, raw, timestamp: Date.now(), checked: false });
-      rec.maxCurrent = computeMaxCurrent(rec);
-      pstLog(tf('pst_log_eval_over', { name: rec.name, i: rec.maxCurrent.toFixed(3) }), 'ok');
-      renderEvalTable();
-      saveEvalRecords();
-      return;
-    }
-    pstLog(t('pst_log_overwrite_cancel'), 'info');
-    // 취소 시 기존 기록은 그대로 두고 새 기록으로 저장 (데이터 유실 방지)
+    Object.assign(rec, { trackMode: S.trackMode, chData, raw, timestamp: Date.now(), checked: false });
+    rec.maxCurrent = computeMaxCurrent(rec);
+    pstLog(tf('pst_log_eval_over', { name: rec.name, i: rec.maxCurrent.toFixed(3) }), 'ok');
+    renderEvalTable();
+    saveEvalRecords();
+    return;
   }
 
   const id = S.nextEvalId++;
@@ -1720,6 +1727,20 @@ function toggleNameFilterPanel() {
   if (S.evalFilters.names === null) S.evalFilters.names = distinctEvalNames();
   updateNameFilterList();
   panel.style.display = 'block';
+  // position:fixed로 배치 — 이 패널은 position:sticky 헤더 안에 있어서, position:absolute로는
+  // 테이블을 스크롤할 때 헤더의 "고정되지 않은" 원래 흐름 위치를 기준으로 계산되어 화면 밖으로
+  // 어긋나는 문제가 있었음 (트래킹 모드 팝오버와 동일한 원인/해결책)
+  const btn = $('pstNameFilterBtn');
+  if (btn) {
+    const rect = btn.getBoundingClientRect();
+    const panelW = 280, panelH = panel.offsetHeight || 260;
+    let left = rect.left;
+    if (left + panelW > window.innerWidth) left = Math.max(8, window.innerWidth - panelW - 8);
+    let top = rect.bottom + 4;
+    if (top + panelH > window.innerHeight) top = Math.max(8, rect.top - panelH - 4);
+    panel.style.left = `${left}px`;
+    panel.style.top = `${top}px`;
+  }
   if (!S._nameFilterDocListenerAdded) {
     document.addEventListener('click', e => {
       const p = $('pstNameFilterPanel'), b = $('pstNameFilterBtn');
@@ -1727,6 +1748,13 @@ function toggleNameFilterPanel() {
       if (p.contains(e.target) || (b && b.contains(e.target))) return;
       p.style.display = 'none';
     });
+    // 패널 위치는 열 때 한 번만 계산하므로, 테이블을 스크롤하면 버튼과 어긋날 수 있음 —
+    // scroll 이벤트는 버블링되지 않으므로 capture 단계에서 document에 위임해 감지
+    // (buildCenter()가 재실행돼 .pst-eval-table-scroll이 새로 생성돼도 항상 안전하게 동작)
+    document.addEventListener('scroll', () => {
+      const p = $('pstNameFilterPanel');
+      if (p && p.style.display !== 'none') p.style.display = 'none';
+    }, true);
     S._nameFilterDocListenerAdded = true;
   }
 }

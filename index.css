@@ -982,7 +982,7 @@ td.cell-focused { background: rgba(43,143,255,.12) !important; }
 .pst-tm-popover{position:fixed;z-index:5000;width:260px;background:var(--panel);
   border:1px solid var(--border);border-radius:10px;padding:10px;
   box-shadow:0 16px 40px rgba(0,0,0,.5);pointer-events:none;}
-.pst-tm-popover img{width:100%;border-radius:6px;display:block;margin-bottom:8px;}
+.pst-tm-popover img{width:33%;border-radius:6px;display:block;margin:0 auto 8px;}
 .pst-tm-popover-desc{font-size:11.5px;line-height:1.5;color:var(--text-dim);white-space:pre-line;}
 
 /* SCPI Log */
@@ -1196,7 +1196,7 @@ canvas#pstChart{width:100%;height:100%;display:block;}
   text-transform:uppercase;letter-spacing:.4px;border:none;outline:none;cursor:pointer;width:100%;padding:0;}
 .pst-namefilter-btn:hover,.pst-namefilter-btn:focus{color:var(--accent-2);}
 .pst-namefilter-caret{font-size:9px;opacity:.7;}
-.pst-namefilter-panel{position:absolute;top:100%;left:0;z-index:20;margin-top:4px;min-width:220px;
+.pst-namefilter-panel{position:fixed;z-index:5000;min-width:220px;
   max-width:280px;background:var(--panel);border:1px solid var(--border);border-radius:8px;
   box-shadow:0 12px 32px rgba(0,0,0,.4);padding:8px;text-transform:none;letter-spacing:normal;}
 .pst-namefilter-actions{display:flex;gap:6px;margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid var(--border);}
