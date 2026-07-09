@@ -1848,9 +1848,9 @@ function renderEvalTable() {
       <td>${evalModeOf(rec) === 'cycle' ? t('pst_mode_cycle') : t('pst_mode_fixed')}</td>
       <td onclick="event.stopPropagation()"><input type="text" class="pst-eval-name-inp" list="stressConditionOptions" value="${esc(rec.stressCondition || '')}" onchange="app.instr.setEvalStressCondition(${rec.id},this.value)"></td>
       <td onclick="event.stopPropagation()"><input type="text" class="pst-eval-name-inp" list="agingTimeOptions" value="${esc(rec.agingTime || '')}" onchange="app.instr.setEvalAgingTime(${rec.id},this.value)"></td>
-      <td class="pst-eval-cond">${esc(evalConditionText(rec))}</td>
       <td class="pst-eval-imax">${rec.maxCurrent.toFixed(3)} A</td>
-      <td class="pst-eval-duration">${evalDurationStr(rec)}</td>`;
+      <td class="pst-eval-duration">${evalDurationStr(rec)}</td>
+      <td class="pst-eval-cond">${esc(evalConditionText(rec))}</td>`;
     tr.onclick = () => viewEval(rec.id);
     tbody.appendChild(tr);
   });
@@ -2736,9 +2736,9 @@ function buildCenter(el) {
                 <th style="width:80px;"><span class="pst-th-label">${t('pst_th_mode')}</span><select class="pst-th-filter" id="pstEvalFilterMode" onchange="app.instr.setEvalFilter()"><option value="all">${t('pst_all')}</option><option value="fixed">${t('pst_mode_fixed')}</option><option value="cycle">${t('pst_mode_cycle')}</option></select></th>
                 <th style="width:110px;"><span class="pst-th-label">${t('pst_th_stress')}</span><select class="pst-th-filter" id="pstEvalFilterStress" onchange="app.instr.setEvalFilter()"><option value="all">${t('pst_all')}</option></select></th>
                 <th style="width:90px;"><span class="pst-th-label">${t('pst_th_aging')}</span><select class="pst-th-filter" id="pstEvalFilterAging" onchange="app.instr.setEvalFilter()"><option value="all">${t('pst_all')}</option></select></th>
-                <th>${t('pst_th_cond')}</th>
                 <th style="width:100px;">${t('pst_th_imax')}</th>
                 <th style="width:90px;">${t('pst_th_duration')}</th>
+                <th>${t('pst_th_cond')}</th>
               </tr>
             </thead>
             <tbody id="pstEvalTbody">
