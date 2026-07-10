@@ -124,17 +124,28 @@ function clearProtectionFromModal() {
 
 function showTmPopover(mode, el) {
   const pop = $('pstTmPopover'); if (!pop || !el) return;
+  // 사이드바 내부에 두면 조상 요소의 transform/filter/화면 배율 조합에 따라 position:fixed의
+  // 기준이 뷰포트가 아닌 그 조상으로 바뀌어 위치가 크게 어긋나는 환경이 있음 — 표시 시점에
+  // body 직속으로 이동(포털 패턴)해 항상 뷰포트 좌표와 일치시킴. 사이드바가 재빌드되면 새
+  // 팝오버가 생기므로 body에 남은 이전 팝오버는 먼저 제거.
+  if (pop.parentElement !== document.body) {
+    document.querySelectorAll('body > .pst-tm-popover').forEach(p => p.remove());
+    document.body.appendChild(pop);
+  }
   const img = $('pstTmPopoverImg'); if (img) img.src = TRACK_IMAGE[mode];
   const desc = $('pstTmPopoverDesc'); if (desc) desc.textContent = t('pst_tm' + mode + '_tip');
-  const rect = el.getBoundingClientRect();
-  const popW = 260, popH = 260; // 이미지가 260px 폭의 66%(약 172px)로 커져서 예상 높이도 함께 확대
-  let left = rect.right + 10;
-  if (left + popW > window.innerWidth) left = Math.max(8, rect.left - popW - 10);
-  let top = rect.top;
+  // 라벨 전체(사이드바 폭 전체)가 아니라 글씨(span)의 바로 오른쪽에 붙여 표시
+  const anchor = el.querySelector('span') || el;
+  const rect = anchor.getBoundingClientRect();
+  pop.style.display = 'block';
+  const popW = pop.offsetWidth || 260;
+  const popH = pop.offsetHeight || 240;
+  let left = rect.right + 12;
+  if (left + popW > window.innerWidth) left = Math.max(8, rect.left - popW - 12);
+  let top = rect.top - 10;
   if (top + popH > window.innerHeight) top = Math.max(8, window.innerHeight - popH - 8);
   pop.style.left = `${left}px`;
   pop.style.top = `${top}px`;
-  pop.style.display = 'block';
 }
 
 function hideTmPopover() {
@@ -1708,7 +1719,12 @@ function updateEvalOptionLists() {
   const agingVals = [...new Set(S.evalRecords.map(r => r.agingTime).filter(Boolean))].sort();
 
   const dlStress = $('stressConditionOptions');
-  if (dlStress) dlStress.innerHTML = stressVals.map(v => `<option value="${esc(v)}">`).join('');
+  // 강압 조건은 숫자 입력(kg)이라 자동완성도 숫자만 — 예전에 "2kg"처럼 저장된 값이 있어도
+  // 숫자만 추출해 제안 목록에 표시 (중복 제거)
+  if (dlStress) {
+    const stressNums = [...new Set(stressVals.map(v => parseFloat(v)).filter(n => !isNaN(n)))].sort((a, b) => a - b);
+    dlStress.innerHTML = stressNums.map(n => `<option value="${n}">`).join('');
+  }
   const dlAging = $('agingTimeOptions');
   if (dlAging) dlAging.innerHTML = agingVals.map(v => `<option value="${esc(v)}">`).join('');
 
@@ -1846,7 +1862,7 @@ function renderEvalTable() {
       <td onclick="event.stopPropagation()"><input type="text" class="pst-eval-name-inp" value="${esc(rec.name)}" onchange="app.instr.renameEval(${rec.id},this.value)"></td>
       <td>${t('pst_track' + rec.trackMode)}</td>
       <td>${evalModeOf(rec) === 'cycle' ? t('pst_mode_cycle') : t('pst_mode_fixed')}</td>
-      <td onclick="event.stopPropagation()"><input type="text" class="pst-eval-name-inp" list="stressConditionOptions" value="${esc(rec.stressCondition || '')}" onchange="app.instr.setEvalStressCondition(${rec.id},this.value)"></td>
+      <td onclick="event.stopPropagation()"><input type="number" class="pst-eval-name-inp" step="0.1" min="0" list="stressConditionOptions" value="${esc(String(parseFloat(rec.stressCondition) || ''))}" onchange="app.instr.setEvalStressCondition(${rec.id},this.value)"></td>
       <td onclick="event.stopPropagation()"><input type="text" class="pst-eval-name-inp" list="agingTimeOptions" value="${esc(rec.agingTime || '')}" onchange="app.instr.setEvalAgingTime(${rec.id},this.value)"></td>
       <td class="pst-eval-imax">${rec.maxCurrent.toFixed(3)} A</td>
       <td class="pst-eval-duration">${evalDurationStr(rec)}</td>
@@ -2737,7 +2753,7 @@ function buildCenter(el) {
                 <th style="width:110px;"><span class="pst-th-label">${t('pst_th_stress')}</span><select class="pst-th-filter" id="pstEvalFilterStress" onchange="app.instr.setEvalFilter()"><option value="all">${t('pst_all')}</option></select></th>
                 <th style="width:90px;"><span class="pst-th-label">${t('pst_th_aging')}</span><select class="pst-th-filter" id="pstEvalFilterAging" onchange="app.instr.setEvalFilter()"><option value="all">${t('pst_all')}</option></select></th>
                 <th style="width:100px;">${t('pst_th_imax')}</th>
-                <th style="width:90px;">${t('pst_th_duration')}</th>
+                <th style="width:110px;">${t('pst_th_duration')}</th>
                 <th>${t('pst_th_cond')}</th>
               </tr>
             </thead>
