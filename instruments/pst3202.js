@@ -1139,9 +1139,25 @@ function setOvpDirect(ch, val) {
   const syncNote = [];
 
   if (ch === 1 && S.trackMode === 1) {
+    // 병렬 트래킹: CH1 OVP 변경을 CH2에도 반영 (SCPI + 화면 + 내부 상태)
+    S.ch[1].ovpVal = val;
+    const el2 = $('pstOvpInp2'); if (el2) el2.value = val.toFixed(2);
+    if (S.editorCh === 2) {
+      const ceOvpInp = $('pstCeOvpInp');
+      if (ceOvpInp) ceOvpInp.value = val.toFixed(2);
+    }
     cmdSteps.push([`:CHANnel2:PROTection:VOLTage ${val.toFixed(3)}`]);
+    syncNote.push('CH2');
   } else if (ch === 2 && S.trackMode === 2) {
+    // 직렬 트래킹: CH2 OVP 변경을 CH1에도 반영 (SCPI + 화면 + 내부 상태)
+    S.ch[0].ovpVal = val;
+    const el1 = $('pstOvpInp1'); if (el1) el1.value = val.toFixed(2);
+    if (S.editorCh === 1) {
+      const ceOvpInp = $('pstCeOvpInp');
+      if (ceOvpInp) ceOvpInp.value = val.toFixed(2);
+    }
     cmdSteps.push([`:CHANnel1:PROTection:VOLTage ${val.toFixed(3)}`]);
+    syncNote.push('CH1');
   } else if (ch === 1 && S.syncCh1Ch2 && S.trackMode === 0) {
     S.ch[1].ovpVal = val;
     const el2 = $('pstOvpInp2'); if (el2) el2.value = val.toFixed(2);
