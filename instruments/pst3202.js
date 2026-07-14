@@ -392,6 +392,31 @@ function setMode(ch, mode) {
       }
     }
   }
+  // 병렬/직렬 트래킹: CH1↔CH2 모드 상호 미러링 — 한쪽을 사이클로 바꾸면 짝 채널도 동일 모드로,
+  // 스텝은 항상 마스터(직렬=CH2, 병렬=CH1) 기준으로 슬레이브에 복사 (클릭 방향과 무관하게 안전)
+  if ((S.trackMode === 1 || S.trackMode === 2) && (ch === 1 || ch === 2)) {
+    const other = ch === 1 ? 2 : 1;
+    if (S.ch[other - 1].mode !== mode) {
+      S.ch[other - 1].mode = mode;
+      const fixO = $(`pstFix${other}`); if (fixO) fixO.style.display = mode === 'fixed' ? '' : 'none';
+      $(`pstTf${other}`)?.classList.toggle('active', mode === 'fixed');
+      $(`pstTc${other}`)?.classList.toggle('active', mode === 'cycle');
+      if (mode === 'cycle') {
+        const maxVO = CH_MAX_V[other];
+        S.ch[other - 1].ovpVal = maxVO;
+        const elO = $(`pstOvpInp${other}`); if (elO) elO.value = maxVO.toFixed(2);
+        const wElO = $(`pstFixWarnV${other}`); if (wElO) wElO.textContent = '';
+        if (app?.serial?.isConnected) {
+          send(`:CHANnel${other}:PROTection:VOLTage ${maxVO.toFixed(3)}`);
+        }
+      }
+    }
+    if (mode === 'cycle') {
+      const master = S.trackMode === 2 ? 2 : 1;
+      const slave = master === 2 ? 1 : 2;
+      S.cySteps[slave - 1] = S.cySteps[master - 1].map(s => ({ ...s }));
+    }
+  }
   updateCycleEditor();
   updateGraphLegend();
   drawGraph();
@@ -598,7 +623,7 @@ function renderEditor() {
 function renderStepTable() {
   const ch = S.editorCh;
   const steps = S.cySteps[ch - 1];
-  const st = S.cyState[ch - 1];
+  const st = S.cyState[_cycleMasterCh(ch) - 1]; // 슬레이브 탭에서도 마스터 실행 상태(하이라이트/잠금) 반영
   const tbody = $('pstStepTbody');
   if (!tbody) return;
   updateTotalDuration();
@@ -627,7 +652,7 @@ function updateEditorControls() {
 
   const btnStart = $('pstBtnStart');
   const btnStartAll = $('pstBtnStartAll');
-  const st = S.cyState[S.editorCh - 1];
+  const st = S.cyState[_cycleMasterCh(S.editorCh) - 1];
 
   if (btnStart) {
     btnStart.textContent = st.running ? t('pst_ce_ch_stop') : t('pst_ce_ch_start');
@@ -767,6 +792,11 @@ function addStep() {
   S.cySteps[ch - 1].push({ v, i, t });
   if (S.syncCh1Ch2 && S.trackMode === 0 && ch === 1) S.cySteps[1].push({ v, i, t });
   if (S.syncCh3 && S.trackMode === 0 && ch === 1) S.cySteps[2].push({ v: Math.min(v, CH_MAX_V[3]), i: Math.min(i, CH3_SYNC_MAX_I), t });
+  // 병렬/직렬 트래킹: CH1↔CH2 스텝 미러링 (두 채널 사양 동일 32V/2A라 클램핑 불필요)
+  if ((S.trackMode === 1 || S.trackMode === 2) && (ch === 1 || ch === 2)) {
+    const other = ch === 1 ? 2 : 1;
+    if (S.ch[other - 1].mode === 'cycle') S.cySteps[other - 1].push({ v, i, t });
+  }
   const cev = $('pstCeV'), cei = $('pstCeI');
   if (cev) { cev.value = ''; cev.focus(); } if (cei) cei.value = '';
   renderStepTable();
@@ -774,16 +804,20 @@ function addStep() {
 
 function delStep(idx) {
   const ch = S.editorCh;
-  if (S.cyState[ch - 1].running) return;
+  if (S.cyState[_cycleMasterCh(ch) - 1].running) return;
   S.cySteps[ch - 1].splice(idx, 1);
   if (S.syncCh1Ch2 && S.trackMode === 0 && ch === 1) S.cySteps[1].splice(idx, 1);
   if (S.syncCh3 && S.trackMode === 0 && ch === 1) S.cySteps[2].splice(idx, 1);
+  if ((S.trackMode === 1 || S.trackMode === 2) && (ch === 1 || ch === 2)) {
+    const other = ch === 1 ? 2 : 1;
+    if (S.ch[other - 1].mode === 'cycle') S.cySteps[other - 1].splice(idx, 1);
+  }
   renderStepTable();
 }
 
 function editStep(idx, field, val) {
   const ch = S.editorCh;
-  if (S.cyState[ch - 1].running) return;
+  if (S.cyState[_cycleMasterCh(ch) - 1].running) return;
   const s = S.cySteps[ch - 1][idx];
   if (!s) return;
   const num = field === 't' ? parseInt(val) : parseFloat(val);
@@ -808,12 +842,24 @@ function editStep(idx, field, val) {
       else s3[field] = num;
     }
   }
+  if ((S.trackMode === 1 || S.trackMode === 2) && (ch === 1 || ch === 2)) {
+    const other = ch === 1 ? 2 : 1;
+    const sO = S.cySteps[other - 1][idx]; if (sO) sO[field] = num;
+  }
   renderStepTable();
 }
 
 // ── Cycle Execution ───────────────────────────────────────────────────────────
+// 트래킹 모드에서 사이클을 실제로 구동하는 마스터 채널 — 직렬=CH2, 병렬=CH1.
+// 슬레이브 채널의 사이클은 마스터의 _runStep이 SCPI 미러링으로 함께 구동하므로 별도 타이머를 돌리지 않음.
+function _cycleMasterCh(ch) {
+  if (S.trackMode === 2 && ch === 1) return 2;
+  if (S.trackMode === 1 && ch === 2) return 1;
+  return ch;
+}
+
 function toggleCycle() {
-  if (S.cyState[S.editorCh - 1].running) stopCycle(); else startCycle();
+  if (S.cyState[_cycleMasterCh(S.editorCh) - 1].running) stopCycle(); else startCycle();
 }
 
 function toggleStartAllCycles() {
@@ -823,7 +869,7 @@ function toggleStartAllCycles() {
 
 function startCycle() {
   if (!app?.serial?.isConnected) { showWarningModal(t('pst_connect_first'), t('pst_need_conn')); return; }
-  const ch = S.editorCh;
+  const ch = _cycleMasterCh(S.editorCh); // 트래킹 모드에서 슬레이브 탭에서 눌러도 마스터 사이클을 구동
   if (!S.cySteps[ch - 1].length) { showWarningModal(tf('pst_no_steps_ch', { n: ch }), t('pst_no_steps')); return; }
   S.cycleStartType = 'single';
   if (!S.outputActive) { pstLog(tf('pst_log_cy_auto_on_ch', { n: ch }), 'info'); _startOutputThenCh(ch); return; }
@@ -831,13 +877,16 @@ function startCycle() {
 }
 
 function stopCycle() {
-  _stopCh(S.editorCh);
+  _stopCh(_cycleMasterCh(S.editorCh));
   checkAndAutoStopOutput();
 }
 
 function startAllCycles() {
   if (!app?.serial?.isConnected) { showWarningModal(t('pst_connect_first'), t('pst_need_conn')); return; }
-  const cycleChs = [1, 2, 3].filter(c => S.ch[c - 1].mode === 'cycle' && S.cySteps[c - 1].length > 0);
+  const cycleChs = [1, 2, 3].filter(c => S.ch[c - 1].mode === 'cycle' && S.cySteps[c - 1].length > 0)
+    // 트래킹 모드의 슬레이브 채널(직렬=CH1, 병렬=CH2)은 마스터의 _runStep이 SCPI로 함께 구동하므로
+    // 별도 타이머를 돌리지 않음 (중복 명령·타이머 드리프트 방지)
+    .filter(c => c === _cycleMasterCh(c));
   if (!cycleChs.length) { showWarningModal(t('pst_no_steps_any'), t('pst_no_steps')); return; }
   S.cycleStartType = 'all';
   if (!S.outputActive) {
@@ -1047,6 +1096,11 @@ function setTM(mode) {
     // 모드 전환 시 이전 모드에서 켜둔 채널 사용 상태를 초기화 — 새 모드에서 다시 명시적으로 켜야 함
     const toggle2 = $('pstCh2Use'); if (toggle2) toggle2.checked = false;
     const toggle3 = $('pstCh3Use'); if (toggle3) toggle3.checked = false;
+    // 트래킹 모드 진입 시 마스터(직렬=CH2, 병렬=CH1)가 이미 사이클 모드면 슬레이브를 동일하게 정렬
+    if (S.trackMode === 1 || S.trackMode === 2) {
+      const master = S.trackMode === 2 ? 2 : 1;
+      if (S.ch[master - 1].mode === 'cycle') setMode(master, 'cycle'); // 재적용 → 내부 미러링으로 슬레이브 정렬
+    }
   }
   updateTrackModeUI(); // 내부에서 syncTrackingSettings()를 호출하며, 그 안에서 updateGraphLegend()/drawGraph()까지 이미 처리함
 }
