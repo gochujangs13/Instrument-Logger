@@ -1,5 +1,9 @@
 # 3M Instrument Logger — 인수인계 문서 (CLAUDE.md)
 
+> **최신 문서 안내 (2026-09-12)**: 이 파일은 과거 세션의 인수인계 기록이며 일부 카드 수와 기능 상태가 오래됐습니다. 현재 지침은 `AGENTS.md`, 최신 실행 파일/버전은 `docs/RELEASE_STATUS_20260912.md`, 계측기 사용자 절차는 `docs/manuals/README.md`의 최신 링크를 기준으로 확인하세요.
+
+> **상태 안내 (2026-09-12)**: 이 문서는 과거 작업 기록을 보존한 아카이브입니다. 현재 작업 규칙과 최신 계측기/레이아웃/버전 정보는 `AGENTS.md`, 현재 배포 파일 정보는 `docs/RELEASE_STATUS_20260912.md`를 기준으로 하세요. 아래 날짜가 붙은 이전 상태/미구현 항목은 해당 날짜의 기록이며 현재 동작으로 해석하지 마세요.
+
 > 이 문서는 다른 환경/계정에서 이 폴더만 열어도 작업을 이어갈 수 있도록
 > 지금까지의 작업 내용·아키텍처·규칙·미해결 과제를 정리한 것입니다.
 
@@ -165,6 +169,47 @@ this.onByte = null;            // 신규: 매 수신 바이트마다 호출
   필요 시 로컬 vendor 파일로 교체 검토.
 - 아직 실제 브라우저에서 전체 플로우(업로드→크롭→자동맞춤→Step2→엑셀) 실기
   테스트는 미완료.
+
+#### 🔴 2026-07-15: 엑셀/JPEG(zip) 내보내기가 EXE에서 조용히 저장되지 않던 문제 수정 (`instruments/photo_editor.js`)
+- **배경**: 사용자 질문 "photo editor 에서 사진 엑셀로 내보내기 하면 파일 어디에 저장되?"에서 출발해
+  조사한 결과, `exportExcel()`/`exportJpegs()` 둘 다 `Blob` + `<a download>` 클릭이라는 순수
+  브라우저 다운로드 방식만 사용하고 있었음(앱의 자체 `/api/save-file`·`/api/export` 백엔드는
+  전혀 호출하지 않음 — grep으로 확인). pywebview(EXE 런처, `build/package_exe.py`) 6.2.1의
+  다운로드 관련 기본 설정을 직접 확인한 결과 `ALLOW_DOWNLOADS: False`가 기본값 — 즉 **EXE에서는
+  다운로드 자체가 조용히 차단되어 있어, 두 버튼 다 눌러도 아무 파일도 생성되지 않았을 가능성이
+  높았음**. 사용자가 "저번에 이 문제때문에 혹시나해서 jpg 저장도 추가 버튼 만들었었는데"라고
+  언급한 그 버튼(`exportJpegs`)도 실제로는 엑셀 버튼과 동일한 다운로드 메커니즘이라 우회책이
+  되지 못하고 있었음.
+- **해결 방향**: pywebview 설정을 켜는 대신(브라우저 다운로드 설정에 계속 의존하게 되어 근본
+  해결이 아님), PST-3202 Raw Data 내보내기가 이미 쓰고 있는 검증된 서버 저장 경로
+  (`fetch('/api/export', {headers:{'X-Filename':...}, body:...})`)를 그대로 재사용 —
+  `server.py`(개발 서버)·`build/package_exe.py`(EXE 내장 서버) 양쪽에 이미 동일한 `/api/export`
+  라우트가 구현돼 있어(EXE에서는 `os.path.dirname(sys.executable)` 폴더에, 개발 서버에서는
+  스크립트 위치에 저장) 신규 서버 코드 추가 없이 그대로 적용 가능했음.
+- **구현**:
+  - `saveExportFile(filename, data, mimeType)` 공용 헬퍼 신설 — `/api/export`로 먼저 저장을
+    시도하고, 성공 시 저장 경로를 안내하는 alert(`ai_saved_to`) 표시. **실패 시(예: 순수
+    `python -m http.server`처럼 `/api/export` 라우트 자체가 없는 환경)에만** 기존 방식대로
+    `Blob`+`<a download>`로 폴백하고, 이 경우 브라우저 다운로드 폴더에 저장됐음을 명시하는
+    alert(`ai_saved_fallback`)를 표시 — "저장했다고 나오는데 실제로는 어디에도 없다"는
+    상황이 다시는 생기지 않도록 항상 결과를 명확히 알림.
+  - `exportExcel()`/`exportJpegs()`의 기존 `Blob`+`<a download>` 코드를
+    `await saveExportFile(...)` 호출로 교체.
+  - `_exportStamp()` 헬퍼로 파일명에 `YYYYMMDD_HHMMSS` 스탬프 부여(PST-3202 내보내기와 동일
+    형식) — "당일 날짜로" 요청을 만족하면서도, 같은 날 여러 번 내보내도 이전 파일을 덮어쓰지
+    않도록 시각까지 포함(날짜만 쓰면 재내보내기 시 조용히 덮어써지는 데이터 유실 위험이 있어
+    한 단계 더 안전하게 처리).
+  - `core.js`에 `ai_saved_to`(`{path}`)/`ai_saved_fallback`(`{name}`) i18n 키 추가(ko/en).
+- **검증**: 헤드리스 브라우저로 실제 `server.py`(포트 8000)를 띄운 뒤, TEMP-DEBUG로 노출한
+  `saveExportFile`을 직접 호출 — (1) 정상 경로: 실제 `/api/export`에 저장되어 프로젝트 루트에
+  파일이 생성됨을 파일시스템에서 직접 확인(`TEST_EXPORT_20260715_140601.xlsx` 생성 및 내용
+  일치 확인), (2) 폴백 경로: `fetch`를 몽키패치해 `/api/export` 실패를 강제 재현 →
+  `<a download>` 경로로 넘어가 올바른 파일명으로 폴백 다운로드가 트리거됨을 확인(헤드리스
+  환경에서 실제 다운로드 협상이 무한 대기하는 부작용이 있어 `HTMLAnchorElement.prototype.click`을
+  몽키패치해 다운로드 트리거 여부만 검증). 두 시나리오 모두 통과 후 테스트 파일·TEMP-DEBUG
+  export 제거, 파일 읽기 전용 속성 복원.
+- **⚠️ EXE 미빌드**: 소스(`instruments/photo_editor.js`, `core.js`)에만 반영됨 — dist 동기화 및
+  `dist/3M_Instrument_Logger.exe` 재빌드는 사용자 확인 후 진행 예정.
 
 ## 4-2. PST-3202 (GW Instek 3채널 DC 전원공급기)
 

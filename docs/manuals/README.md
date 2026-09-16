@@ -9,6 +9,7 @@
 |---|---|---|---|
 | Hioki 3540 | [Hioki_3540.md](Hioki_3540.md) | 저항 측정 (mΩ) | RS-232C |
 | Keithley 2700 | [Keithley_2700.md](Keithley_2700.md) | 저항 측정 (멀티미터) | RS-232C |
+| **Keithley 2400** | [Keithley_2400.md](Keithley_2400.md) | **정밀 전압·전류 인가 및 V/I/R 특성 평가** | RS-232C |
 | Mitutoyo VL-50 | [Mitutoyo_VL-50.md](Mitutoyo_VL-50.md) | 두께 측정 | RS-232C ⚠ 7E2 |
 | Agilent 4339B | [Agilent_4339B.md](Agilent_4339B.md) | 고저항 측정 | GPIB-USB |
 | DAQ-6510 | [DAQ-6510.md](DAQ-6510.md) | 다채널 저항 로깅 | RS-232C |
@@ -17,6 +18,8 @@
 | LT-1000 | [LT-1000.md](LT-1000.md) | Loop Tack 시험 | RS-232C |
 | **PST-3202** | [PST-3202.md](PST-3202.md) | **DC 전원공급기 (초보자용 상세 매뉴얼)** | RS-232C |
 | Photo Editor | [Photo_Editor.md](Photo_Editor.md) | 사진 편집·엑셀 내보내기 | 비-시리얼 |
+| Epson PRIFIA OK900P | [Epson_OK900P.md](Epson_OK900P.md) | 라벨 편집·360 DPI 인쇄 | Windows Spooler |
+| Etching Design | [Etching_Design.md](Etching_Design.md) | 에칭 패턴 CAD·배치 설계 | 비-시리얼 |
 
 ## 공통: 앱 실행 및 연결 방법
 
@@ -28,12 +31,16 @@
 
 ⚠ 포트 목록에 장치가 없으면 USB-Serial 드라이버(CH340/FTDI/PL2303 등)를 설치하세요.
 
+최신 통합 레이아웃·빌드 상태는 [릴리즈 상태](../RELEASE_STATUS_20260912.md)와
+[통합 레이아웃 계약](../INTEGRATED_LAYOUT_CONTRACT.md)을 참고하세요.
+
 ## 시리얼 설정 빠른 참조표
 
 | 계측기 | Baud | Data | Parity | Stop | 비고 |
 |---|---|---|---|---|---|
 | Hioki 3540 | 9600 | 8 | None | 1 | |
 | Keithley 2700 | 9600 | 8 | None | 1 | |
+| Keithley 2400 | 9600 | 8 | None | 1 | Flow Control NONE, CR 종단, Straight-through DB-9 |
 | Mitutoyo VL-50 | 9600 | **7** | **Even** | **2** | 유일하게 7E2 |
 | SP-2100 | 57600 | 8 | None | 1 | |
 | TL-2200 | 38400 | 8 | None | 1 | |

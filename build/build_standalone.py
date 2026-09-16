@@ -24,6 +24,7 @@ import sys
 import os
 import shutil
 import re
+import stat
 
 # ── 계측기명 → JS 파일 매핑 ──────────────────────────────────────────────────
 # instruments/ 디렉터리에 있는 .js 파일 + 하위 디렉터리 모두 포함할 필요 없이
@@ -32,6 +33,7 @@ import re
 INSTRUMENT_MAP = {
     'Hioki3540':      ('Hioki3540',     'instruments/hioki_3540.js'),
     'Keithley2700':   ('Keithley2700',  'instruments/keithley_2700.js'),
+    'Keithley2400':   ('Keithley2400',  'instruments/keithley_2400.js'),
     'MitutoyoVL50':   ('MitutoyoVL50',  'instruments/mitutoyo_vl50.js'),
     'Agilent4339B':   ('Agilent4339B',  'instruments/agilent_4339b.js'),
     'DAQ6510':        ('DAQ6510',       'instruments/daq_6510.js'),
@@ -41,14 +43,26 @@ INSTRUMENT_MAP = {
     'AIPhotoEditor':  ('AIPhotoEditor', 'instruments/photo_editor.js'),
     'PST3202':        ('PST3202',       'instruments/pst3202.js'),
     'ClubExpense':    ('ClubExpense',   'instruments/club_expense.js'),
+    'EpsonOK900P':    ('EpsonOK900P',   'instruments/epson_ok900p.js'),
+    'EtchingDesign':  ('EtchingDesign', 'instruments/etching_design.js'),
 }
 
 # ── 공통 파일 (항상 복사) ──────────────────────────────────────────────────
 COMMON_FILES = [
     'core.js',
     'index.css',
+    'version.js',
+    'version.json',
+    'updater.js',
     'instruments/_utils.js',
 ]
+
+
+def copy_build_file(src: str, dst: str) -> None:
+    """Copy a build input even when a previous dist copy is read-only."""
+    if os.path.exists(dst):
+        os.chmod(dst, stat.S_IREAD | stat.S_IWRITE)
+    shutil.copy2(src, dst)
 
 
 def collect_instrument_deps(js_path: str, root: str) -> list[str]:
@@ -82,6 +96,7 @@ def make_standalone_entry(names: list[str]) -> str:
         alias, path = INSTRUMENT_MAP[n]
         lines.append(f"import {alias} from './{path}';")
     lines.append("import { App } from './core.js';")
+    lines.append("import { applyAppVersion } from './version.js';")
     lines.append("")
 
     # 2) registry
@@ -91,6 +106,7 @@ def make_standalone_entry(names: list[str]) -> str:
     lines.append("")
 
     # 3) 앱 초기화 — try-catch로 감싸 오류 시 화면에 표시
+    lines.append("applyAppVersion();")
     lines.append("try {")
     if len(names) == 1:
         alias = INSTRUMENT_MAP[names[0]][0]
@@ -105,10 +121,6 @@ def make_standalone_entry(names: list[str]) -> str:
     lines.append("  document.body.innerHTML = '<h2>⚠ 앱 초기화 오류</h2><pre style=\"font-size:12px;color:#ccc;max-width:80%;white-space:pre-wrap\">' + (_initErr.stack || _initErr.message) + '</pre><p style=\"color:#888\">개발자에게 위 오류 내용을 전달해 주세요.</p>';")
     lines.append("  throw _initErr;")
     lines.append("}")
-    lines.append("")
-    lines.append("window.addEventListener('resize', () => {")
-    lines.append("  if (app.instr?.viewType === 'grid') app._redrawChart();")
-    lines.append("});")
     lines.append("")
     lines.append("(function () {")
     lines.append("  const REF_W = 1600, MIN_Z = 0.6, MAX_Z = 1.6;")
@@ -126,6 +138,15 @@ def make_standalone_entry(names: list[str]) -> str:
 def build(names: list[str], root: str):
     dist_name = '_'.join(names)
     dist_dir  = os.path.join(root, 'dist', dist_name)
+    # 이전 빌드에서 더 이상 참조하지 않는 파일이 패키지에 잔류하지 않도록
+    # standalone 출력 폴더는 항상 깨끗하게 다시 생성한다.
+    if os.path.isdir(dist_dir):
+        for dirpath, dirnames, filenames in os.walk(dist_dir):
+            for filename in filenames:
+                os.chmod(os.path.join(dirpath, filename), stat.S_IREAD | stat.S_IWRITE)
+            for dirname in dirnames:
+                os.chmod(os.path.join(dirpath, dirname), stat.S_IREAD | stat.S_IWRITE)
+        shutil.rmtree(dist_dir)
     os.makedirs(dist_dir, exist_ok=True)
     print(f"[build] 출력 폴더: {dist_dir}")
 
@@ -135,7 +156,7 @@ def build(names: list[str], root: str):
         dst = os.path.join(dist_dir, f)
         if os.path.exists(src):
             os.makedirs(os.path.dirname(dst), exist_ok=True)
-            shutil.copy2(src, dst)
+            copy_build_file(src, dst)
             print(f"  복사: {f}")
         else:
             print(f"  [WARN] 없음: {f}")
@@ -149,13 +170,13 @@ def build(names: list[str], root: str):
             src_file = os.path.join(assets_src, filename)
             dst_file = os.path.join(assets_dst, filename)
             if os.path.isfile(src_file):
-                shutil.copy2(src_file, dst_file)
+                copy_build_file(src_file, dst_file)
                 print(f"  복사: assets/{filename}")
 
     # standalone.html → dist/index.html
     src_html = os.path.join(root, 'standalone.html')
     dst_html = os.path.join(dist_dir, 'index.html')
-    shutil.copy2(src_html, dst_html)
+    copy_build_file(src_html, dst_html)
     print("  복사: standalone.html → index.html")
 
     # ── 계측기 파일 + 의존성 복사 ─────────────────────────────────────────
@@ -169,11 +190,21 @@ def build(names: list[str], root: str):
                 dst = os.path.join(dist_dir, dep)
                 if os.path.exists(src):
                     os.makedirs(os.path.dirname(dst), exist_ok=True)
-                    shutil.copy2(src, dst)
+                    copy_build_file(src, dst)
                     print(f"  복사: {dep}")
                 else:
                     print(f"  [WARN] 없음: {dep}")
                 all_deps.add(dep)
+
+    # ── EpsonOK900P 드라이버 및 Python 서브패키지 전체 복사 ─────────────────
+    if 'EpsonOK900P' in names:
+        ok_src = os.path.join(root, 'instruments', 'epson_ok900p')
+        ok_dst = os.path.join(dist_dir, 'instruments', 'epson_ok900p')
+        if os.path.exists(ok_src):
+            if os.path.exists(ok_dst):
+                shutil.rmtree(ok_dst)
+            shutil.copytree(ok_src, ok_dst)
+            print("  복사: instruments/epson_ok900p/ (드라이버 및 패키지 전체)")
 
     # ── standalone_entry.js 생성 ─────────────────────────────────────────
     entry_js = make_standalone_entry(names)

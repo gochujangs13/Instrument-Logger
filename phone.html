@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Photo Capture</title>
+<link rel="manifest" href="/phone.manifest.json">
+<meta name="theme-color" content="#0b0e14">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Photo Capture">
+<link rel="apple-touch-icon" href="/pwa-icon-192.png">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { height:100%; background:#0b0e14; color:#e8eef6; font-family:'Malgun Gothic','Segoe UI',sans-serif; overflow:hidden; }
+  #app { display:flex; flex-direction:column; height:100%; }
+  #top { padding:10px 14px; background:#121620; display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  #top b { color:#60a5fa; font-size:16px; }
+  #status { font-size:13px; color:#9fb0c4; }
+  #stage { flex:1; position:relative; overflow:hidden; background:#000; }
+  #video { width:100%; height:100%; object-fit:contain; display:block; background:#000; }
+  #bottom { padding:14px; background:#121620; display:flex; align-items:center; gap:12px; }
+  .btn { flex:1; border:none; border-radius:12px; padding:16px; font-size:16px; font-weight:700; color:#fff; cursor:pointer; }
+  .btn.shoot { background:#10b981; }
+  .btn.shoot:active { background:#059669; }
+  .btn.sec { background:#2a2f3e; flex:0 0 auto; padding:16px 18px; }
+  #thumb { position:absolute; right:10px; bottom:10px; width:74px; height:74px; border-radius:10px; border:2px solid #4f46e5; object-fit:cover; background:#000; display:none; z-index:5; }
+  #toast { position:absolute; left:50%; top:14px; transform:translateX(-50%); background:#10b981; color:#fff; padding:8px 16px; border-radius:20px; font-size:14px; font-weight:700; opacity:0; transition:.25s; z-index:10; pointer-events:none; white-space:nowrap; }
+  #toast.show { opacity:1; }
+  #err { position:absolute; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center; padding:30px; text-align:center; gap:12px; background:#0b0e14; z-index:20; }
+  #err.show { display:flex; }
+  #err h2 { color:#ff6b6b; }
+  #err p { color:#9fb0c4; font-size:14px; line-height:1.7; }
+  #loading { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; text-align:center; color:#e8eef6; font-size:16px; font-weight:700; z-index:8; pointer-events:none; }
+  #loading.hide { display:none; }
+  /* 가로모드 안내 */
+  #orientOverlay { position:fixed; inset:0; background:#0b0e14; z-index:100; display:none; flex-direction:column; align-items:center; justify-content:center; gap:20px; text-align:center; padding:30px; }
+  #orientOverlay.show { display:flex; }
+  #orientOverlay .big { font-size:64px; animation:rotatePulse 1.5s ease-in-out infinite; }
+  #orientOverlay .msg { font-size:20px; font-weight:700; }
+  #orientOverlay .sub { font-size:14px; color:#9fb0c4; }
+  @keyframes rotatePulse { 0%,100%{transform:rotate(0deg)} 50%{transform:rotate(90deg)} }
+</style>
+</head>
+<body>
+<div id="orientOverlay">
+  <div class="big">📱</div>
+  <div class="msg">가로 모드로 회전하세요</div>
+  <div class="sub">세로 모드에서는 촬영할 수 없습니다</div>
+</div>
+
+<div id="app">
+  <div id="top">
+    <b>📷 Photo Editor</b>
+    <span id="status">연결됨 · 업로드 <b id="cnt">0</b>장</span>
+  </div>
+  <div id="stage">
+    <video id="video" playsinline autoplay muted></video>
+    <img id="thumb" alt="last">
+    <div id="toast">업로드됨!</div>
+    <div id="loading">📷 카메라 시작 중…<br><span style="font-size:12px;color:#9fb0c4">권한 요청이 뜨면 "허용"을 누르세요</span></div>
+    <div id="err">
+      <h2>카메라를 열 수 없습니다</h2>
+      <p id="errmsg"></p>
+    </div>
+  </div>
+  <div id="bottom">
+    <button class="btn sec" id="flip">🔄</button>
+    <button class="btn shoot" id="shoot">● 촬영 → 업로드</button>
+  </div>
+</div>
+
+<script>
+const video    = document.getElementById('video');
+const stage    = document.getElementById('stage');
+const toast    = document.getElementById('toast');
+const cntEl    = document.getElementById('cnt');
+const thumbEl  = document.getElementById('thumb');
+
+let facing = 'environment';
+let stream = null;
+let uploaded = 0;
+
+// ── 가로모드 감지 ─────────────────────────────────────────────────────────────
+function isLandscape() { return window.innerWidth > window.innerHeight; }
+function checkOrient() {
+  document.getElementById('orientOverlay').classList.toggle('show', !isLandscape());
+}
+window.addEventListener('resize', checkOrient);
+checkOrient();
+
+// ── 카메라 시작 ──────────────────────────────────────────────────────────────
+async function startCamera() {
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  try {
+    try { await screen.orientation.lock('landscape-primary'); } catch(_) {}
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: facing }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+      audio: false,
+    });
+    video.srcObject = stream;
+    await video.play().catch(() => {});
+    document.getElementById('err').classList.remove('show');
+    document.getElementById('loading').classList.add('hide');
+  } catch(e) {
+    document.getElementById('err').classList.add('show');
+    let msg = e.message || String(e);
+    if (!window.isSecureContext) msg = 'HTTPS 또는 localhost(USB ADB) 접속 필요\nadb reverse tcp:8000 tcp:8000 후\nhttp://localhost:8000/phone.html';
+    else if (e.name === 'NotAllowedError') msg = '카메라 권한이 거부되었습니다.\n브라우저 설정에서 허용해 주세요.';
+    document.getElementById('errmsg').textContent = msg;
+  }
+}
+
+// ── capture (풀 해상도, 크롭 없음) ───────────────────────────────────────────
+async function capture() {
+  if (!isLandscape()) { showToast('가로 모드로 회전 후 촬영하세요', '#ef4444'); return; }
+  if (!stream || !video.videoWidth) { showToast('카메라 준비 중...', '#ef4444'); return; }
+  showToast('촬영 중...', '#3b82f6');
+
+  let dataUrl;
+  try {
+    const track = stream.getVideoTracks()[0];
+    const ic = new ImageCapture(track);
+    const photoBlob = await ic.takePhoto();  // 카메라 원본 JPEG — 재인코딩 없음
+    dataUrl = await new Promise((res, rej) => {
+      const reader = new FileReader();
+      reader.onload = () => res(reader.result);
+      reader.onerror = rej;
+      reader.readAsDataURL(photoBlob);
+    });
+  } catch(e) {
+    // 폴백: 비디오 프레임 (PNG)
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+    dataUrl = canvas.toDataURL('image/png');
+  }
+
+  const now = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  const name = `phone_${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}.png`;
+
+  thumbEl.src = dataUrl; thumbEl.style.display = 'block';
+  try {
+    const res = await fetch('/api/upload', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, dataUrl }),
+    });
+    const j = await res.json();
+    if (j.ok) { uploaded++; cntEl.textContent = uploaded; showToast('✅ 업로드 완료 #' + j.id); }
+    else showToast('실패: ' + (j.error || ''), '#ef4444');
+  } catch(e) { showToast('업로드 실패 — 서버 연결 확인', '#ef4444'); }
+}
+
+let toastT = null;
+function showToast(msg, color) {
+  toast.textContent = msg;
+  toast.style.background = color || '#10b981';
+  toast.classList.add('show');
+  clearTimeout(toastT);
+  toastT = setTimeout(() => toast.classList.remove('show'), 1800);
+}
+
+document.getElementById('shoot').addEventListener('click', capture);
+document.getElementById('flip').addEventListener('click', () => {
+  facing = facing === 'environment' ? 'user' : 'environment'; startCamera();
+});
+
+// ── 프리뷰 프레임 스트리밍 (PC 라이브뷰용) ────────────────────────────────────
+const _prevCanvas = document.createElement('canvas');
+const _prevCtx = _prevCanvas.getContext('2d');
+let _streaming = false;
+
+function _sendFrame() {
+  if (_streaming || !stream || !video.videoWidth || !isLandscape()) return;
+  _streaming = true;
+  const vw = video.videoWidth, vh = video.videoHeight;
+  _prevCanvas.width = 640;
+  _prevCanvas.height = Math.round(640 * vh / vw) || 360;
+  _prevCtx.drawImage(video, 0, 0, _prevCanvas.width, _prevCanvas.height);
+  _prevCanvas.toBlob(blob => {
+    if (!blob) { _streaming = false; return; }
+    fetch('/api/camera/frame', { method: 'POST', headers: { 'Content-Type': 'image/jpeg' }, body: blob })
+      .catch(() => {}).finally(() => { _streaming = false; });
+  }, 'image/jpeg', 0.8);
+}
+setInterval(_sendFrame, 50);
+
+// ── PC 촬영 트리거 + 초점 명령 대기 ─────────────────────────────────────────
+let _lastFocusTs = 0;
+setInterval(async () => {
+  try {
+    const j = await (await fetch('/api/camera/status')).json();
+    if (j.trigger) capture();
+  } catch(_) {}
+}, 600);
+
+setInterval(async () => {
+  try {
+    const j = await (await fetch('/api/camera/focus')).json();
+    if (j.ts && j.ts !== _lastFocusTs) {
+      _lastFocusTs = j.ts;
+      await applyFocus(j.x, j.y, j.lock);
+    }
+  } catch(_) {}
+}, 250);
+
+async function applyFocus(x, y, lock) {
+  if (!stream) return;
+  const track = stream.getVideoTracks()[0];
+  const caps = track.getCapabilities ? track.getCapabilities() : {};
+  try {
+    const adv = [];
+    if (caps.pointsOfInterest) adv.push({ pointsOfInterest: [{ x, y }] });
+    if (lock) {
+      if (caps.focusMode?.includes('manual')) adv.push({ focusMode: 'manual' });
+      showToast('🔒 초점 고정', '#f59e0b');
+    } else {
+      const fm = caps.focusMode;
+      if (fm?.includes('single-shot')) adv.push({ focusMode: 'single-shot' });
+      else if (fm?.includes('auto'))   adv.push({ focusMode: 'auto' });
+    }
+    if (adv.length) await track.applyConstraints({ advanced: adv });
+    else if (!lock) showToast('🎯 ' + Math.round(x*100) + ',' + Math.round(y*100));
+  } catch(e) { /* 지원하지 않는 기기는 무시 */ }
+}
+
+startCamera();
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/phone-sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>

@@ -15,6 +15,8 @@ let _cropPct = null;   // { x1, y1, x2, y2 } — 0..1 비율
 let _cropDrag = null;
 let _keyBound = false;
 let _liveNatW = 0, _liveNatH = 0; // 마지막으로 로드된 프레임 실제 크기
+let _pendingPhotoAdds = 0;
+let _step2RenderToken = 0;
 
 // USB 크롭
 let _usbCropPct = null;   // { x1, y1, x2, y2 } — videoWidth/Height 기준 0..1
@@ -23,13 +25,27 @@ let _usbCropEditing = false;
 let _usbCropResizeOb = null;
 
 // ── settings ──────────────────────────────────────────────────────────────────
-function defaultSettings() { return { outW: 1.5, outH: 1.5, perRow: 6 }; }
+// The UI and exported files use the conventional width × height order.
+// Older releases displayed height first while storing the same two keys, so
+// migrate that persisted setting once rather than silently exporting it rotated.
+const SIZE_ORDER = 'width-height-v2';
+function defaultSettings() { return { outW: 1.5, outH: 1.5, perRow: 6, sizeOrder: SIZE_ORDER }; }
 function loadSettings() {
-  try { const r = localStorage.getItem(SETTINGS_KEY); if (r) return Object.assign(defaultSettings(), JSON.parse(r)); } catch(e) {}
-  return defaultSettings();
+  try {
+    const raw = JSON.parse(localStorage.getItem(SETTINGS_KEY));
+    if (!raw) return defaultSettings();
+    const cfg = Object.assign(defaultSettings(), raw);
+    if (raw.sizeOrder !== SIZE_ORDER) {
+      // Previous UI order was height × width. Preserve the visible values but
+      // map them to their intended width × height meaning from now on.
+      [cfg.outW, cfg.outH] = [raw.outH, raw.outW];
+      cfg.sizeOrder = SIZE_ORDER;
+    }
+    return cfg;
+  } catch(e) { return defaultSettings(); }
 }
 function saveSettings() {
-  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ outW: S.outW, outH: S.outH, perRow: S.perRow })); } catch(e) {}
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ outW: S.outW, outH: S.outH, perRow: S.perRow, sizeOrder: SIZE_ORDER })); } catch(e) {}
 }
 function loadCropPct() {
   try { const r = JSON.parse(localStorage.getItem(CROP_KEY)); if (r && 'x1' in r) return r; } catch(e) {}
@@ -54,7 +70,16 @@ function init() {
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
+const EXCEL_EMU_PER_INCH = 914400;
 function outPx() { return { w: Math.max(1, Math.round(S.outW * 96)), h: Math.max(1, Math.round(S.outH * 96)) }; }
+
+// DrawingML uses EMU (English Metric Units). Use explicit extents instead of
+// cell boundaries so Excel's column-width approximation cannot resize photos.
+export function excelImageSizeEmu(outW, outH, count = 1) {
+  const width = Math.max(1, Math.round((Number(outW) || 0) * EXCEL_EMU_PER_INCH));
+  const height = Math.max(1, Math.round((Number(outH) || 0) * EXCEL_EMU_PER_INCH));
+  return { width, height, groupHeight: height * Math.max(1, Math.trunc(Number(count) || 1)) };
+}
 
 function rotatedCroppedCanvas(f, outW, outH) {
   const rot = (f.rotation || 0) * Math.PI / 180;
@@ -78,18 +103,54 @@ function rotatedCroppedCanvas(f, outW, outH) {
 }
 
 // ── file loading ──────────────────────────────────────────────────────────────
-function handleFiles(fileList) {
-  const arr = Array.from(fileList).filter(f => /^image\//.test(f.type));
-  arr.forEach(file => {
+function updatePendingUI() {
+  const next = document.getElementById('aiNextBtn');
+  if (next) next.disabled = _pendingPhotoAdds > 0 || _capturing;
+  const status = document.getElementById('aiCamStatus');
+  if (status && _pendingPhotoAdds > 0) {
+    status.textContent = tf('ai_loading_photos', { n: _pendingPhotoAdds });
+  }
+}
+
+function addPhotoBlob(blob, name, fromCamera = false) {
+  _pendingPhotoAdds++;
+  updatePendingUI();
+  return new Promise((resolve, reject) => {
     const img = new Image();
+    const url = URL.createObjectURL(blob);
     img.onload = () => {
-      S.files.push({ name: file.name, size: file.size, img, rotation: 0, checked: false });
+      S.files.push({ name, size: blob.size || 0, img, rotation: 0, checked: false, fromCamera });
       if (S.selIdx < 0) S.selIdx = 0;
       renderSidebarList();
       updateMainView();
+      resolve(S.files[S.files.length - 1]);
     };
-    img.src = URL.createObjectURL(file);
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error(`Image load failed: ${name}`)); };
+    img.src = url;
+  }).finally(() => {
+    _pendingPhotoAdds = Math.max(0, _pendingPhotoAdds - 1);
+    updatePendingUI();
   });
+}
+
+async function backupCapturedBlob(blob, name) {
+  try {
+    const res = await fetch('/api/photo-editor/capture-backup', {
+      method: 'POST',
+      headers: { 'X-Filename': name, 'Content-Type': blob.type || 'image/jpeg' },
+      body: blob,
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (e) {
+    if (window.app?.log) app.log(tf('ai_capture_backup_fail', { error: e.message }));
+    return null;
+  }
+}
+
+function handleFiles(fileList) {
+  const arr = Array.from(fileList).filter(f => /^image\//.test(f.type));
+  arr.forEach(file => addPhotoBlob(file, file.name).catch(() => {}));
 }
 
 // ── CSS injection ─────────────────────────────────────────────────────────────
@@ -158,10 +219,10 @@ function ensureStyles() {
 @keyframes ai-focus-in { from{transform:translate(-50%,-50%) scale(1.5);opacity:.4} to{transform:translate(-50%,-50%) scale(1);opacity:1} }
 
 /* step2 */
-.ai-s2-wrap { padding:12px; height:100%; overflow-y:auto; }
+.ai-s2-wrap { padding:12px; height:100%; overflow:auto; }
 .ai-s2-hdr { display:flex; align-items:center; gap:8px; margin-bottom:10px; flex-wrap:wrap; }
 .ai-s2-hdr input[type=number] { width:52px; padding:3px 5px; border-radius:4px; border:1px solid var(--border); background:var(--bg); color:var(--fg); text-align:center; font-size:13px; }
-.ai-s2-grid { display:flex; gap:8px; }
+.ai-s2-grid { display:flex; gap:8px; width:max-content; min-width:100%; padding-bottom:10px; }
 .ai-s2-col { display:flex; flex-direction:column; gap:4px; }
 .ai-s2-col-hdr { text-align:center; font-size:11px; color:#6366f1; font-weight:700; padding:2px 0; }
 .ai-s2-thumb { border-radius:4px; object-fit:cover; cursor:pointer; border:2px solid transparent; }
@@ -423,40 +484,48 @@ function ensureKeyListener() {
 function startPhonePolling() {
   if (S.phonePoll) return;
   S.phoneSync = true;
-  let _prevKey = null;
 
-  function poll() {
+  async function poll() {
     if (!S.phoneSync) return;
-    fetch('/api/photos').then(r => r.json()).then(list => {
-      if (!list || !list.length) return;
-      const last = list[list.length - 1];
-      const key = last.id + '|' + last.name;
-      if (key === _prevKey) return;
-      const cnt = list.length;
-      const prevLen = _prevKey ? 1 : 0;
-      _prevKey = key;
-      return fetch('/api/photo/' + last.id).then(r => r.json()).then(d => {
-        const img = new Image();
-        img.onload = () => {
-          const f = { name: last.name, size: 0, img, rotation: 0, checked: false };
-          if (S.overwriteIdx >= 0 && S.overwriteIdx < S.files.length && prevLen > 0) {
-            S.files[S.overwriteIdx] = f;
-            S.selIdx = S.overwriteIdx;
-            S.overwriteIdx = -1;
-            S.files.forEach(ff => ff.checked = false);
-          } else {
-            S.files.push(f);
-            S.selIdx = S.files.length - 1;
-          }
-          S.showCamera = false;
+    try {
+      const res = await fetch(`/api/photos?since=${S.phoneLast || 0}`);
+      const payload = await res.json();
+      const items = Array.isArray(payload) ? payload : (payload.photos || []);
+      for (const item of items) {
+        const photoRes = await fetch('/api/photo/' + item.id);
+        if (!photoRes.ok) continue;
+        const blob = await photoRes.blob();
+        const overwrite = S.overwriteIdx >= 0 && S.overwriteIdx < S.files.length;
+        if (overwrite) {
+          const img = new Image();
+          const url = URL.createObjectURL(blob);
+          await new Promise((resolve, reject) => {
+            img.onload = resolve;
+            img.onerror = reject;
+            img.src = url;
+          });
+          S.files[S.overwriteIdx] = { name: item.name, size: blob.size, img, rotation: 0, checked: false, fromCamera: true };
+          S.selIdx = S.overwriteIdx;
+          S.overwriteIdx = -1;
+          S.files.forEach(f => { f.checked = false; });
           renderSidebarList();
           updateMainView();
-        };
-        img.src = d.dataUrl;
-      });
-    }).catch(() => {}).finally(() => {
+        } else {
+          await addPhotoBlob(blob, item.name, true);
+          S.selIdx = S.files.length - 1;
+        }
+        S.phoneLast = Math.max(S.phoneLast || 0, Number(item.id) || 0);
+      }
+      if (items.length) {
+        S.showCamera = false;
+        renderSidebarList();
+        updateMainView();
+      }
+    } catch (_) {
+      // 다음 polling에서 마지막으로 성공한 id 이후부터 다시 요청한다.
+    } finally {
       S.phonePoll = setTimeout(poll, 800);
-    });
+    }
   }
   S.phonePoll = setTimeout(poll, 800);
 }
@@ -803,6 +872,7 @@ async function doCapture() {
   _capturing = true;
   const btn = document.querySelector('.ai-shoot-btn');
   if (btn) { btn.disabled = true; btn.style.opacity = '0.5'; }
+  updatePendingUI();
   try {
   const checked = S.files.map((f, i) => f.checked ? i : -1).filter(i => i >= 0);
   S.overwriteIdx = checked.length === 1 ? checked[0] : -1;
@@ -817,14 +887,8 @@ async function doCapture() {
     const groupNum = Math.floor(idx / perRow) + 1;
     const posNum = (idx % perRow) + 1;
     const file = new File([blob], `${groupNum}-${posNum}.jpg`, { type: 'image/jpeg' });
-    const img = new Image();
-    img.onload = () => {
-      S.files.push({ name: file.name, size: file.size, img, rotation: 0, checked: false, fromCamera: true });
-      if (S.selIdx < 0) S.selIdx = 0;
-      renderSidebarList();
-      updateMainView();
-    };
-    img.src = URL.createObjectURL(file);
+    await addPhotoBlob(file, file.name, true);
+    await backupCapturedBlob(file, file.name);
     return;
   }
 
@@ -836,15 +900,15 @@ async function doCapture() {
   } finally {
     _capturing = false;
     if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+    updatePendingUI();
   }
 }
 
 // ── Step 2 ────────────────────────────────────────────────────────────────────
-function renderStep2() {
+async function renderStep2() {
   const layout = document.getElementById('layout');
   if (layout) { layout.className = (layout.className || '').replace(/\bai-\S+/g, '').trim() + ' ai-s2'; }
   const center = document.getElementById('center');
-  console.log('[renderStep2] center:', !!center, 'files:', S.files.length);
   if (!center) return;
 
   const { w: ow, h: oh } = outPx();
@@ -856,6 +920,7 @@ function renderStep2() {
         <button class="sbtn" onclick="app.instr.backToStep1()">${t('ai_back')}</button>
         <span style="color:#9fb0c4;font-size:13px;">${t('ai_output_size')}: ${S.outW}×${S.outH}″</span>
         <span style="color:#9fb0c4;font-size:13px;">${t('ai_s2_per_col')}: ${perRow}${t('ai_unit_sheets')}</span>
+        <strong id="aiS2Status" style="color:var(--accent);font-size:13px;">${tf('ai_step2_summary', { photos: S.files.length, groups: Math.ceil(S.files.length / perRow) })}</strong>
         <div style="flex:1"></div>
         <button id="aiJpegBtn" style="padding:6px 14px;border:none;border-radius:6px;background:#1f9d57;color:#fff;cursor:pointer;font-size:13px;font-weight:700;">${t('ai_jpeg_save_btn')}</button>
         <button id="aiExportBtn" style="padding:6px 14px;border:none;border-radius:6px;background:#6366f1;color:#fff;cursor:pointer;font-size:13px;font-weight:700;">${t('ai_export_excel')}</button>
@@ -868,8 +933,10 @@ function renderStep2() {
   document.getElementById('aiJpegBtn').addEventListener('click', exportJpegs);
 
   const grid = document.getElementById('aiS2Grid');
+  const renderToken = ++_step2RenderToken;
   const numCols = Math.ceil(S.files.length / perRow);
   for (let c = 0; c < numCols; c++) {
+    if (renderToken !== _step2RenderToken || !grid.isConnected) return;
     const col = document.createElement('div');
     col.className = 'ai-s2-col';
     const hdr = document.createElement('div');
@@ -889,6 +956,7 @@ function renderStep2() {
       col.appendChild(img);
     }
     grid.appendChild(col);
+    if ((c + 1) % 2 === 0) await new Promise(requestAnimationFrame);
   }
 }
 
@@ -923,8 +991,38 @@ function backToStep1() {
   renderSidebarList();
 }
 
-function backToStep1FromS2() {
-  backToStep1();
+// 같은 날 여러 번 내보내도 이전 파일을 덮어쓰지 않도록 날짜+시각 스탬프 사용 (PST-3202와 동일 형식)
+function _exportStamp() {
+  const now = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  return `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+}
+
+// ── 내보내기 저장 (서버 API 우선 — EXE/서버 폴더에 저장, 실패 시에만 브라우저 다운로드로 폴백) ──
+// 브라우저 다운로드(<a download>)는 pywebview(EXE) 환경에서 기본적으로 차단되어 있어
+// 파일이 저장되지 않은 채 조용히 실패할 수 있음 — 항상 서버 저장을 우선 시도한다.
+async function saveExportFile(filename, data, mimeType) {
+  try {
+    const res = await fetch('/api/export', {
+      method: 'POST',
+      headers: { 'X-Filename': filename, 'Content-Type': 'application/octet-stream' },
+      body: data,
+    });
+    const j = await res.json();
+    if (!j.ok) throw new Error(j.error || 'save failed');
+    alert(tf('ai_saved_to', { path: j.path || filename }));
+    return true;
+  } catch (e) {
+    const blob = new Blob([data], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    alert(tf('ai_saved_fallback', { name: filename }));
+    return false;
+  }
 }
 
 // ── Excel export ──────────────────────────────────────────────────────────────
@@ -947,11 +1045,7 @@ async function exportJpegs() {
       await new Promise(res => setTimeout(res, 0)); // UI 블로킹 방지
     }
     const content = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(content);
-    a.download = 'photos.zip';
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    await saveExportFile(`photos_${_exportStamp()}.zip`, content, 'application/zip');
   } catch(e) {
     alert(t('ai_save_fail') + e.message);
   } finally {
@@ -1004,10 +1098,11 @@ async function exportExcel() {
         const cvs = rotatedCroppedCanvas(f, ow, oh);
         const b64 = cvs.toDataURL('image/png').split(',')[1];
         const imgId = wb.addImage({ base64: b64, extension: 'png' });
-        // tl/br 셀 기반 배치 — 픽셀/포인트 단위 혼선 없음
+        // Explicit pixel extent preserves the requested physical size at 96 DPI.
+        // _groupImagesInXlsx() then writes the same size in EMU for Excel.
         ws.addImage(imgId, {
           tl: { col: c, row: r + 1 },
-          br: { col: c + 1, row: r + 2 },
+          ext: { width: ow, height: oh },
           editAs: 'oneCell',
         });
         await new Promise(res => setTimeout(res, 0));
@@ -1019,13 +1114,11 @@ async function exportExcel() {
     // drawing XML 후처리: 각 그룹의 이미지를 Excel 네이티브 그룹(<xdr:grpSp>)으로 묶기
     buf = await _groupImagesInXlsx(buf, perRow, numCols, outW, outH);
 
-    const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'photos.xlsx';
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    await saveExportFile(
+      `photos_${_exportStamp()}.xlsx`,
+      buf,
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
   } catch(e) {
     alert(t('ai_export_fail') + e.message);
   } finally {
@@ -1049,17 +1142,16 @@ async function _groupImagesInXlsx(buf, perRow, numCols, outW, outH) {
   if (!drawFile) return buf;
   const xml = await drawFile.async('text');
 
-  const IMW = Math.round(outW * 914400); // 이미지 너비 (EMU)
-  const IMH = Math.round(outH * 914400); // 이미지 높이 (EMU)
+  const { width: IMW, height: IMH } = excelImageSizeEmu(outW, outH);
 
   // ExcelJS가 생성한 개별 앵커 블록 추출
   const blocks = [];
-  const re = /<xdr:twoCellAnchor[\s\S]*?<\/xdr:twoCellAnchor>/g;
+  const re = /<xdr:(twoCellAnchor|oneCellAnchor)[\s\S]*?<\/xdr:\1>/g;
   let m;
   while ((m = re.exec(xml)) !== null) blocks.push(m[0]);
   if (!blocks.length) return buf;
 
-  const headerEnd = xml.indexOf('<xdr:twoCellAnchor');
+  const headerEnd = xml.search(/<xdr:(?:twoCellAnchor|oneCellAnchor)/);
   const xmlHeader = xml.slice(0, headerEnd);
 
   let newContent = '';
@@ -1079,10 +1171,12 @@ async function _groupImagesInXlsx(buf, perRow, numCols, outW, outH) {
       return `<xdr:pic>${inner}</xdr:pic>`;
     }).join('');
 
-    // 그룹 전체를 하나의 twoCellAnchor + grpSp로 감싸기
-    newContent += `<xdr:twoCellAnchor>` +
+    // A one-cell anchor with an explicit EMU extent keeps the native group at
+    // the exact requested inches, independent of Excel column/row calibration.
+    const { groupHeight } = excelImageSizeEmu(outW, outH, cnt);
+    newContent += `<xdr:oneCellAnchor>` +
       `<xdr:from><xdr:col>${c}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>1</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from>` +
-      `<xdr:to><xdr:col>${c+1}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>${1+cnt}</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to>` +
+      `<xdr:ext cx="${IMW}" cy="${groupHeight}"/>` +
       `<xdr:grpSp>` +
         `<xdr:nvGrpSpPr>` +
           `<xdr:cNvPr id="${(c+1)*1000}" name="${tf('ai_group_num', { n: c + 1 })}"/>` +
@@ -1091,15 +1185,15 @@ async function _groupImagesInXlsx(buf, perRow, numCols, outW, outH) {
         `<xdr:grpSpPr>` +
           `<a:xfrm>` +
             `<a:off x="0" y="0"/>` +
-            `<a:ext cx="${IMW}" cy="${IMH*cnt}"/>` +
+            `<a:ext cx="${IMW}" cy="${groupHeight}"/>` +
             `<a:chOff x="0" y="0"/>` +
-            `<a:chExt cx="${IMW}" cy="${IMH*cnt}"/>` +
+            `<a:chExt cx="${IMW}" cy="${groupHeight}"/>` +
           `</a:xfrm>` +
         `</xdr:grpSpPr>` +
         pics +
       `</xdr:grpSp>` +
       `<xdr:clientData/>` +
-    `</xdr:twoCellAnchor>\n`;
+    `</xdr:oneCellAnchor>\n`;
   }
 
   zip.file('xl/drawings/drawing1.xml', xmlHeader + newContent + '</xdr:wsDr>');
@@ -1112,10 +1206,11 @@ function buildCenterStep1(el) {
     <div class="ai-center-wrap">
       <div class="ai-topbar">
         <label>${t('ai_output_size')}</label>
-        <input type="number" id="aiOutH" min="0.5" max="20" step="0.1" value="${S.outH}" style="width:68px">
+        <label style="color:#9fb0c4">${t('ai_size_w')}</label>
+        <input type="number" id="aiOutW" min="0.5" max="20" step="0.01" value="${S.outW}" style="width:68px" aria-label="${t('ai_size_w')}">
         <span style="color:#9fb0c4">×</span>
-        <input type="number" id="aiOutW" min="0.5" max="20" step="0.1" value="${S.outW}" style="width:68px">
-        <label style="color:#9fb0c4">inch</label>
+        <input type="number" id="aiOutH" min="0.5" max="20" step="0.01" value="${S.outH}" style="width:68px" aria-label="${t('ai_size_h')}">
+        <label style="color:#9fb0c4">${t('ai_size_h')}</label>
         <span style="color:#9fb0c4;margin-left:4px">${t('ai_per_row')}</span>
         <input type="number" id="aiPerRow" min="1" max="20" step="1" value="${S.perRow}" style="width:44px">
         <span id="aiBackToCam" style="display:none">
@@ -1149,14 +1244,14 @@ function buildCenterStep1(el) {
         <div style="flex:1"></div>
         <button class="ai-shoot-btn" onclick="app.instr.doCapture()">${t('ai_shoot_btn')}</button>
         <div style="flex:1"></div>
-        <button class="sbtn green" onclick="app.instr.goNext()">${t('ai_next')}</button>
+        <button id="aiNextBtn" class="sbtn green" onclick="app.instr.goNext()">${t('ai_next')}</button>
       </div>
     </div>
   `;
 
   // settings binding
-  el.querySelector('#aiOutH').addEventListener('change', e => { S.outH = parseFloat(e.target.value) || 1.5; saveSettings(); });
   el.querySelector('#aiOutW').addEventListener('change', e => { S.outW = parseFloat(e.target.value) || 1.5; saveSettings(); });
+  el.querySelector('#aiOutH').addEventListener('change', e => { S.outH = parseFloat(e.target.value) || 1.5; saveSettings(); });
   el.querySelector('#aiPerRow').addEventListener('change', e => { S.perRow = parseInt(e.target.value) || 6; saveSettings(); });
 
   setTimeout(() => { setupCropDrag(); }, 0);
@@ -1169,8 +1264,15 @@ export default {
   viewType: 'custom',
   serial: null,
 
-  onConnect() {},
-  onDisconnect() {},
+  onDisconnect() {
+    stopLivePoll();
+    stopPhonePolling();
+    stopUSBCam();
+    const layout = document.getElementById('layout');
+    if (layout) {
+      layout.className = (layout.className || '').replace(/\bai-\S+/g, '').trim();
+    }
+  },
 
   buildSidebar(el) {
     ensureStyles();
@@ -1380,29 +1482,22 @@ export default {
 
   goNext() {
     if (!S.files.length) { alert(t('ai_upload_first')); return; }
+    if (_capturing || _pendingPhotoAdds > 0) {
+      alert(tf('ai_wait_photo_registration', { n: _pendingPhotoAdds || 1 }));
+      return;
+    }
     S.step = 2;
     stopLivePoll();
     const layout = document.getElementById('layout');
-    console.log('[goNext] files:', S.files.length, 'layout:', !!layout);
     if (layout) {
       layout.className = (layout.className || '').replace(/\bai-\S+/g, '').trim();
       layout.classList.add('ai-s2');
-      console.log('[goNext] layout.className:', layout.className);
     }
-    try { renderStep2(); console.log('[goNext] renderStep2 done'); }
-    catch(e) { console.error('[goNext] renderStep2 error:', e); }
+    renderStep2();
   },
 
   backToStep1() {
     backToStep1();
     setTimeout(setupFocusControl, 0);
-  },
-
-  onDeactivate() {
-    stopLivePoll();
-    stopPhonePolling();
-    _keyBound = false;
-    const layout = document.getElementById('layout');
-    if (layout) layout.className = (layout.className || '').replace(/\bai-\S+/g, '').trim();
   },
 };

@@ -1,0 +1,76 @@
+;=====================================================================
+;   EPSON LW-900P/OK900P/PEARLabel 360 x64 Driver INF-File for 7/8/8.1/10/11
+;
+;       Copyright(C)SEIKO EPSON CORPORATION 2011-2023.
+;
+;=====================================================================
+
+[Version]
+Signature   = "$Windows NT$"
+Provider    = %PROVIDER%
+ClassGUID   = {4D36E979-E325-11CE-BFC1-08002BE10318}
+Class       = Printer
+DriverVer   = 01/13/2023,6.1.0.0
+CatalogFile = LW900P.cat
+
+[Manufacturer]
+%PROVIDER% = LW900P, NTamd64
+
+[LW900P]
+%DRIVER_NAME%  = LW900P.DLL, %HARDWARE_ID%
+
+[LW900P.NTamd64]
+%DRIVER_NAME%  = LW900P.DLL, %HARDWARE_ID%
+
+[LW900P.DLL]
+CopyFiles       = DRIVER_FILES, LANGMON_FILES
+DataSection     = DRIVER_DATA
+LanguageMonitor = %LANG_MON%
+
+[DRIVER_FILES]
+LW900P.dll
+LW900PUI.dll
+LW900PR.dll
+LW900P.chm
+LW900PS.exe
+LW900PSR.dll
+PLPOUSUP.dll
+PLPOUUTL.dll
+PLPOUUTL64.dll
+
+[LANGMON_FILES]
+LW900PLM.dll
+LW900PLMR.dll
+
+[DRIVER_DATA]
+DriverFile = LW900P.dll
+ConfigFile = LW900PUI.dll
+HelpFile   = LW900P.chm
+
+[DestinationDirs]
+DefaultDestDir = 66000
+LANGMON_FILES  = 66002
+
+[SourceDisksNames]
+1 = %DISK_NAME%,,
+
+[SourceDisksFiles]
+LW900P.dll     = 1
+LW900PUI.dll   = 1
+LW900PR.dll    = 1
+LW900P.chm     = 1
+LW900PS.exe    = 1
+LW900PSR.dll   = 1
+PLPOUSUP.dll   = 1
+PLPOUUTL.dll   = 1
+PLPOUUTL64.dll = 1
+LW900PLM.dll   = 1
+LW900PLMR.dll  = 1
+
+[Strings]
+PROVIDER    = "EPSON"
+DRIVER_NAME = "EPSON OK900P"
+HARDWARE_ID = "USBPRINT\EPSON_PRIFIA_OK900PF352"
+LANG_MON    = "EPSON OK900P Language Monitor,LW900PLM.DLL"
+DISK_NAME   = "OK900P Printer Driver Disk"
+

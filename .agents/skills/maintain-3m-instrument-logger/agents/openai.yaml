@@ -1,0 +1,4 @@
+interface:
+  display_name: "3M Instrument Logger Maintainer"
+  short_description: "Maintain and release the full instrument logger"
+  default_prompt: "Use $maintain-3m-instrument-logger to safely inspect, modify, verify, or package the 3M Instrument Logger."

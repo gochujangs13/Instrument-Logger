@@ -1,0 +1,24 @@
+{
+  "name": "3M Photo Capture",
+  "short_name": "Photo Capture",
+  "description": "3M Instrument Logger 스마트폰 카메라 연동",
+  "start_url": "/phone.html",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#0b0e14",
+  "theme_color": "#0b0e14",
+  "icons": [
+    {
+      "src": "/pwa-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/pwa-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

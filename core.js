@@ -4,19 +4,16 @@ const T = {
     // topbar / launcher
     launcher_subtitle: '계측기를 선택하세요',
     launcher_sub_hint: 'Chrome / Edge 89+',
+    launcher_instruments_section: '계측기',
+    launcher_instrument_type: '계측기',
+    launcher_software_section: '소프트웨어',
+    launcher_software_type: '소프트웨어',
     launcher_fav_section: '★ 즐겨찾기',
     launcher_hidden: '숨겨진 항목',
     launcher_restore: '전체 복원',
     launcher_fav_tip: '즐겨찾기 추가/해제',
     launcher_del_tip: '숨기기',
     card_edit_title:   '편집',
-    card_edit_fav_add: '☆ 즐겨찾기 추가',
-    card_edit_fav_rm:  '★ 즐겨찾기 해제',
-    card_edit_fav_lbl: '즐겨찾기',
-    card_edit_group:   '그룹',
-    card_edit_order:   '순서 (그룹 내)',
-    card_edit_up:      '↑ 위로',
-    card_edit_down:    '↓ 아래로',
     card_edit_done:    '완료',
     card_meta_location:'보관 위치',
     card_meta_asset:   '자산번호',
@@ -29,21 +26,50 @@ const T = {
     disconnected: '연결 안됨', connected: '연결됨',
     conn_btn: '디바이스 연결', disconn_btn: '연결 해제',
     connect_first: '먼저 계측기를 연결하세요.',
+    conn_visa_server_unavailable: 'VISA 서버에 연결할 수 없습니다. EXE를 실행하거나 server.py를 먼저 시작하세요.',
+    conn_port_not_selected: '포트를 선택하지 않았습니다. 목록에서 장비 포트를 선택하세요.',
+    conn_port_open_failed: '⚠ 포트를 열 수 없습니다. 대개 포트가 이미 사용 중입니다:',
+    conn_port_step_browser: '  1) 다른 브라우저 탭에서 같은 장비가 연결돼 있으면 그 탭을 닫으세요 (포트는 한 탭만 사용 가능).',
+    conn_port_step_program: '  2) 데스크톱 프로그램(.exe)·PuTTY 등 다른 프로그램이 포트를 쓰고 있으면 종료하세요.',
+    conn_port_step_usb: '  3) USB-시리얼 케이블을 뽑았다 다시 꽂은 뒤 재시도하세요.',
+    conn_port_step_com: '  4) 연결 시 팝업에서 올바른 COM 포트(장비)를 선택했는지 확인하세요.',
+    conn_lost_title: '⚠️ 통신 오류',
+    conn_lost_body: '장비와의 통신이 끊겼습니다.',
+    conn_lost_steps: '아래 순서대로 진행해 주세요:',
+    conn_lost_step_unplug: '① USB 케이블을 분리하세요',
+    conn_lost_step_replug: '② 5초 후 다시 연결하세요',
+    conn_lost_step_retry: '③ 아래 확인 버튼 후 재연결하세요',
+    desktop_only_default: '{name}은(는) 데스크톱 앱에서만 실행 가능합니다.',
+    desktop_only_path: '실행 경로:',
+    desktop_only_title: '🖥️ 데스크톱 전용 앱',
+    btn_ok: '확인',
+    no_photo: '사진 없음',
+    test_added: "'{name}' 추가됨.",
     test_manage: '테스트 방법 관리',
     split_view: '출력 분할 화면:', screens: '화면',
     auto_log_wait: '자동 기록 대기 (초)',
     meas_wire: '측정 방식', sample_rate: '측정 속도',
     meas_range: '측정 레인지',
-    btn_copy: '복사', btn_csv: 'CSV 저장', btn_excel: 'Excel 저장', btn_clear: '전체 삭제', btn_del_sel: '선택 삭제',
+    btn_copy: '복사', btn_csv: 'CSV 저장', btn_excel: 'Excel 저장', btn_xlsx: 'XLSX 저장', btn_clear: '전체 삭제', btn_del_sel: '선택 삭제',
     test_add_new: '새 평가 방법 추가',
     test_name_label: '테스트명', test_total_cells: '총 칸 수',
     test_group_cells: '구분 칸 수 (0=없음)', test_set_group: '셋트 크기',
     btn_add: '추가', btn_delete: '삭제',
     test_delete_method: '기존 평가 방법 삭제',
     panel_prefix: 'PANEL',
-    status_disconnected: 'Disconnected',
-    status_connected: 'Connected',
-    status_failed: 'Connection Failed',
+    status_disconnected: '연결 안됨',
+    status_connected: '연결됨',
+    status_failed: '연결 실패',
+    status_ready: '준비',
+    port_select_placeholder: '-- 포트 선택 --',
+    serial_picker_label: 'RS-232 포트 선택… (팝업에서 COM 포트 선택)',
+    serial_port_label: '시리얼 포트 {n}',
+    conn_log_connecting: '{name} 연결 중…',
+    conn_log_connecting_visa: '{name} VISA 연결 중 ({address})…',
+    conn_log_connected: '{name} 연결됨.',
+    conn_log_connected_visa: '{name} VISA 연결됨.',
+    conn_log_disconnected: '연결 해제됨.',
+    conn_log_usb_address: '연결된 장비 USB 주소: {address}',
     running_warn: '측정 중에는 테마/언어 변경이 불가합니다.',
     chart_hint: '현재 패널 측정값 분포 (박스 플롯)',
     chart_empty: '측정 데이터가 없습니다',
@@ -70,7 +96,7 @@ const T = {
     clipboard_ok: '클립보드 복사됨.',
     csv_ok: 'CSV 내보내기 완료.',
     // Agilent 4339B
-    ag_gpib_notice: '⚠ GPIB 장비 — NI GPIB-USB → 가상 COM 포트 연결 필요',
+    ag_gpib_notice: '⚠ GPIB 장비 — NI-488.2/NI-VISA 드라이버 및 VISA 리소스 필요',
     ag_conn_section: '장비 연결',
     ag_meas_section: '측정 설정',
     ag_meas_mode: '모드',
@@ -83,7 +109,8 @@ const T = {
     ag_voltage:   '전압 (V)',
     ag_auto_volt: '자동 전압',
     ag_ilim:      '전류 상한 (I-Lim)',
-    ag_ilim_note: '※ 참고용 (장비로 전송되지 않음 — OL 시 표시만)',
+    ag_ilim_note: '※ 장비 적용값 · 최대: 100V=10mA, 250V=5mA, 500V=2mA, 1000V=1mA',
+    ag_ilim_adjusted: '{voltage} V: I-Limit {previous} → {selected} (매뉴얼 제한)',
     ag_charge_t:  '충전 (s)',
     ag_discharge_t:'방전 시간 (s)',
     ag_sop_btn:   '📋 SOP 매뉴얼 보기',
@@ -114,6 +141,10 @@ const T = {
     ag_mode_title_surf: '표면 저항률 (Surface) 측정 설정',
     ag_mode_title_vol:  '체적 저항률 (Volume) 측정 설정',
     ag_initializing: '장비 초기화 중... (*RST)',
+    ag_fetch_failed: '측정값 수신 실패',
+    ag_fetch_timeout: '장비 측정 응답 시간 초과',
+    ag_fetch_unparsed: '해석할 수 없는 측정 응답',
+    ag_fetch_empty: '(빈 응답)',
     // DAQ-6510
     daq_visa_label: 'VISA 주소',
     daq_visa_opt1: 'USB (04632710) — 1,2번 오븐',
@@ -165,6 +196,8 @@ const T = {
 
     // SP-2100 / TL-2200
     sp_model_label: '장비 모델',
+    sp_baud_label: '통신 속도 (Baud Rate)',
+    sp_baud_changed: '통신 속도 변경',
     sp_comm_label: '통신 설정',
     sp_comm_auto: '(자동)',
     sp_test_section: '테스트 조건 설정',
@@ -189,6 +222,7 @@ const T = {
     sp_del_done: '체크된 행을 삭제했습니다.',
     sp_no_data_log: '측정 데이터가 없습니다.',
     sp_csv_ok: 'CSV 내보내기 완료.',
+    sp_xlsx_ok: '대시보드 XLSX 저장 완료.',
     sp_cleared: '측정 기록을 초기화했습니다.',
     sp_clear_confirm: '모든 측정 기록을 지우겠습니까?',
     sp_copy_empty: '복사할 측정 기록이 없습니다.',
@@ -424,6 +458,10 @@ const T = {
     ai_usb_cam_fail: 'USB 카메라 연결 실패: ',
     ai_capture_signal_fail: '촬영 신호 실패 — server.py 실행 확인',
     ai_no_photos_to_save: '저장할 사진이 없습니다.',
+    ai_loading_photos: '사진 등록 중: {n}장',
+    ai_wait_photo_registration: '사진 {n}장이 아직 등록 중입니다. 잠시 후 다시 눌러주세요.',
+    ai_step2_summary: '총 {photos}장 / {groups}그룹',
+    ai_capture_backup_fail: '촬영 원본 자동 백업 실패: {error}',
     ai_save_fail: '저장 실패: ',
     ai_export_fail: '내보내기 실패: ',
     ai_confirm_delete_all: '모든 사진을 삭제하시겠습니까?',
@@ -432,6 +470,8 @@ const T = {
     ai_jpeg_save_btn: '📁 JPEG 저장',
     ai_generating: '생성 중…',
     ai_group_num: '{n}그룹',
+    ai_saved_to: '저장 완료\n{path}',
+    ai_saved_fallback: '{name} — 브라우저 다운로드 폴더에 저장되었습니다 (서버 저장 불가).',
     home_confirm_title: '홈으로 나가기',
     home_confirm_body: '현재 계측기 화면을 닫고 홈으로 돌아갑니다.',
     home_confirm_ok: '나가기',
@@ -583,6 +623,9 @@ const T = {
     pst_x_sheet_sum: '합산',
     pst_series_v: '직렬 합산 V',
     pst_series_i: '직렬 평균 I',
+    pst_series_live: '직렬 합산 실측',
+    pst_series_cv_ok: 'CV 정상',
+    pst_series_cc_limit: '⚠ CC 제한: {i} A 한도에 도달했습니다. {v} V 유지는 부하 {r} Ω 이상에서만 가능합니다.',
     pst_cond_fixed: '고정',
     pst_cond_tracked: 'CH2 트래킹',
     pst_cond_none: '(설정값 없음)',
@@ -621,19 +664,16 @@ const T = {
     // topbar / launcher
     launcher_subtitle: 'Select an Instrument',
     launcher_sub_hint: 'Chrome / Edge 89+',
+    launcher_instruments_section: 'Instruments',
+    launcher_instrument_type: 'Instrument',
+    launcher_software_section: 'Software',
+    launcher_software_type: 'Software',
     launcher_fav_section: '★ Favorites',
     launcher_hidden: 'Hidden items',
     launcher_restore: 'Restore All',
     launcher_fav_tip: 'Add / Remove Favorite',
     launcher_del_tip: 'Hide',
     card_edit_title:   'Edit',
-    card_edit_fav_add: '☆ Add to Favorites',
-    card_edit_fav_rm:  '★ Remove from Favorites',
-    card_edit_fav_lbl: 'Favorites',
-    card_edit_group:   'Group',
-    card_edit_order:   'Order (within group)',
-    card_edit_up:      '↑ Move Up',
-    card_edit_down:    '↓ Move Down',
     card_edit_done:    'Done',
     card_meta_location:'Storage Location',
     card_meta_asset:   'Asset Number',
@@ -646,12 +686,31 @@ const T = {
     disconnected: 'Disconnected', connected: 'Connected',
     conn_btn: 'Connect Device', disconn_btn: 'Disconnect',
     connect_first: 'Please connect the instrument first.',
+    conn_visa_server_unavailable: 'Cannot connect to the VISA server. Run the EXE or start server.py first.',
+    conn_port_not_selected: 'No port was selected. Select the instrument port from the list.',
+    conn_port_open_failed: '⚠ Cannot open the port. It is usually already in use:',
+    conn_port_step_browser: '  1) Close any other browser tab connected to the same instrument (only one tab can use the port).',
+    conn_port_step_program: '  2) Close any desktop app, PuTTY, or other program using the port.',
+    conn_port_step_usb: '  3) Unplug and reconnect the USB-to-serial cable, then try again.',
+    conn_port_step_com: '  4) Confirm that you selected the correct COM port (instrument) in the connection dialog.',
+    conn_lost_title: '⚠️ Communication Error',
+    conn_lost_body: 'Communication with the instrument was interrupted.',
+    conn_lost_steps: 'Follow these steps:',
+    conn_lost_step_unplug: '① Disconnect the USB cable',
+    conn_lost_step_replug: '② Reconnect it after 5 seconds',
+    conn_lost_step_retry: '③ Click OK below, then reconnect',
+    desktop_only_default: '{name} is available only as a desktop app.',
+    desktop_only_path: 'Launch path:',
+    desktop_only_title: '🖥️ Desktop-only App',
+    btn_ok: 'OK',
+    no_photo: 'No photo',
+    test_added: "Added '{name}'.",
     test_manage: 'Manage Test Methods',
     split_view: 'Split View:', screens: 'Panel',
     auto_log_wait: 'Auto-log Wait (s)',
     meas_wire: 'Wire Mode', sample_rate: 'Sample Rate',
     meas_range: 'Meas. Range',
-    btn_copy: 'Copy', btn_csv: 'Save CSV', btn_excel: 'Save Excel', btn_clear: 'Clear All', btn_del_sel: 'Delete Sel',
+    btn_copy: 'Copy', btn_csv: 'Save CSV', btn_excel: 'Save Excel', btn_xlsx: 'Save XLSX', btn_clear: 'Clear All', btn_del_sel: 'Delete Sel',
     test_add_new: 'Add New Test Method',
     test_name_label: 'Name', test_total_cells: 'Total Cells',
     test_group_cells: 'Group Size (0=none)', test_set_group: 'Set Size',
@@ -661,6 +720,16 @@ const T = {
     status_disconnected: 'Disconnected',
     status_connected: 'Connected',
     status_failed: 'Connection Failed',
+    status_ready: 'READY',
+    port_select_placeholder: '-- Select Port --',
+    serial_picker_label: 'Select RS-232 port… (choose COM port in popup)',
+    serial_port_label: 'Serial Port {n}',
+    conn_log_connecting: 'Connecting to {name}…',
+    conn_log_connecting_visa: 'Connecting to {name} via VISA ({address})…',
+    conn_log_connected: 'Connected to {name}.',
+    conn_log_connected_visa: 'Connected to {name} (VISA).',
+    conn_log_disconnected: 'Disconnected.',
+    conn_log_usb_address: 'Connected device USB address: {address}',
     running_warn: 'Cannot change theme/language during measurement.',
     chart_hint: 'Box plot of active panel values',
     chart_empty: 'No data yet',
@@ -687,7 +756,7 @@ const T = {
     clipboard_ok: 'Copied to clipboard.',
     csv_ok: 'CSV export complete.',
     // Agilent 4339B
-    ag_gpib_notice: '⚠ GPIB device — NI GPIB-USB → virtual COM port required',
+    ag_gpib_notice: '⚠ GPIB device — NI-488.2/NI-VISA driver and VISA resource required',
     ag_conn_section: 'Device Connection',
     ag_meas_section: 'Measurement Settings',
     ag_meas_mode: 'Mode',
@@ -700,7 +769,8 @@ const T = {
     ag_voltage:   'Voltage (V)',
     ag_auto_volt: 'Auto Voltage',
     ag_ilim:      'Current Limit (I-Lim)',
-    ag_ilim_note: '※ Reference only (not sent to device — shown on OL)',
+    ag_ilim_note: '※ Applied to device · Max: 100V=10mA, 250V=5mA, 500V=2mA, 1000V=1mA',
+    ag_ilim_adjusted: '{voltage} V: I-Limit {previous} → {selected} (manual limit)',
     ag_charge_t:  'Charge (s)',
     ag_discharge_t:'Discharge Time (s)',
     ag_sop_btn:   '📋 SOP Manual',
@@ -731,6 +801,10 @@ const T = {
     ag_mode_title_surf: 'Surface Resistivity (Surface) Settings',
     ag_mode_title_vol:  'Volume Resistivity (Volume) Settings',
     ag_initializing: 'Initializing device... (*RST)',
+    ag_fetch_failed: 'Measurement response failed',
+    ag_fetch_timeout: 'Instrument measurement response timed out',
+    ag_fetch_unparsed: 'Unrecognized measurement response',
+    ag_fetch_empty: '(empty response)',
     // DAQ-6510
     daq_visa_label: 'VISA Address',
     daq_visa_opt1: 'USB (04632710) — Oven 1, 2',
@@ -782,6 +856,8 @@ const T = {
 
     // SP-2100 / TL-2200
     sp_model_label: 'Instrument Model',
+    sp_baud_label: 'Baud Rate',
+    sp_baud_changed: 'Baud Rate Changed',
     sp_comm_label: 'Comm. Settings',
     sp_comm_auto: '(auto)',
     sp_test_section: 'Test Conditions',
@@ -806,6 +882,7 @@ const T = {
     sp_del_done: 'Deleted the checked rows.',
     sp_no_data_log: 'No measurement data.',
     sp_csv_ok: 'CSV export complete.',
+    sp_xlsx_ok: 'Dashboard XLSX export complete.',
     sp_cleared: 'Cleared the measurement log.',
     sp_clear_confirm: 'Clear all measurement records?',
     sp_copy_empty: 'No measurement records to copy.',
@@ -1041,6 +1118,10 @@ const T = {
     ai_usb_cam_fail: 'USB camera connection failed: ',
     ai_capture_signal_fail: 'Capture signal failed — check that server.py is running',
     ai_no_photos_to_save: 'No photos to save.',
+    ai_loading_photos: 'Registering photos: {n}',
+    ai_wait_photo_registration: '{n} photo(s) are still being registered. Please try again shortly.',
+    ai_step2_summary: '{photos} photos / {groups} groups',
+    ai_capture_backup_fail: 'Automatic capture backup failed: {error}',
     ai_save_fail: 'Save failed: ',
     ai_export_fail: 'Export failed: ',
     ai_confirm_delete_all: 'Delete all photos?',
@@ -1049,6 +1130,8 @@ const T = {
     ai_jpeg_save_btn: '📁 Save JPEG',
     ai_generating: 'Generating…',
     ai_group_num: 'Group {n}',
+    ai_saved_to: 'Saved\n{path}',
+    ai_saved_fallback: '{name} — saved to your browser Downloads folder (server save unavailable).',
     home_confirm_title: 'Go Home',
     home_confirm_body: 'Close the instrument view and return to the launcher.',
     home_confirm_ok: 'Go Home',
@@ -1200,6 +1283,9 @@ const T = {
     pst_x_sheet_sum: 'Combined',
     pst_series_v: 'Series Combined V',
     pst_series_i: 'Series Avg I',
+    pst_series_live: 'Series live output',
+    pst_series_cv_ok: 'CV normal',
+    pst_series_cc_limit: '⚠ CC limit: reached {i} A. Maintaining {v} V requires a load of at least {r} Ω.',
     pst_cond_fixed: 'Fixed',
     pst_cond_tracked: 'CH2 Tracking',
     pst_cond_none: '(no settings)',
@@ -1280,6 +1366,7 @@ class SerialController {
     this.port = null; this.writer = null; this.reader = null;
     this.readLoopActive = false;
     this.readPromise = null;
+    this.writePipePromise = null;
     this.isConnected = false;
     this.isVisa = false;
     this.visaAddress = '';
@@ -1303,7 +1390,11 @@ class SerialController {
       }
     }
     const enc = new TextEncoderStream();
-    enc.readable.pipeTo(this.port.writable).catch(() => {});
+    // Keep the pipe promise so disconnect can wait until the encoder releases
+    // the physical port's writable stream. Closing the port while pipeTo still
+    // owns that stream can fail with InvalidStateError and leave COM occupied.
+    this.writePipePromise = enc.readable.pipeTo(this.port.writable);
+    this.writePipePromise.catch(() => {});
     this.writer = enc.writable.getWriter();
     this.isConnected = true;
     this._loop();
@@ -1317,9 +1408,21 @@ class SerialController {
       try { await this.readPromise; } catch (_) {}
       this.readPromise = null;
     }
-    try { await this.writer?.close(); } catch (_) {}
-    try { await this.port?.close(); } catch (_) {}
-    this.port = null; this.writer = null; this.reader = null;
+    const writer = this.writer;
+    this.writer = null;
+    if (writer) {
+      try { await writer.close(); }
+      catch (_) { try { await writer.abort(); } catch (_) {} }
+      finally { try { writer.releaseLock(); } catch (_) {} }
+    }
+    if (this.writePipePromise) {
+      try { await this.writePipePromise; } catch (_) {}
+      this.writePipePromise = null;
+    }
+
+    const port = this.port;
+    if (port) await port.close();
+    this.port = null; this.reader = null;
     this.isConnected = false;
   }
   async sendCmd(cmd) {
@@ -1332,39 +1435,77 @@ class SerialController {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ cmd })
         });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         const data = await resp.json();
+        if (!data?.success) {
+          const message = data?.error || `VISA ${isQuery ? 'query' : 'write'} failed`;
+          this.onError?.(`VISA ${isQuery ? 'Query' : 'Write'}: ${message}`);
+          return { success: false, error: message };
+        }
         if (data.success && isQuery && data.response) {
           this.onLine?.(data.response.trim());
         }
+        return data;
       } catch (e) {
         this.onError?.(`VISA Transmit: ${e.message}`);
+        return { success: false, error: e.message };
       }
-      return;
     }
-    if (!this.writer) return;
-    try { await this.writer.write(cmd); } catch (e) { this.onError?.(`Send: ${e.message}`); }
+    if (!this.writer) return { success: false, error: 'Serial port is not connected' };
+    try {
+      await this.writer.write(cmd);
+      return { success: true };
+    } catch (e) {
+      this.onError?.(`Send: ${e.message}`);
+      return { success: false, error: e.message };
+    }
+  }
+  async readVisa() {
+    if (!this.isVisa) return { success: false, error: 'VISA device is not connected' };
+    try {
+      const resp = await fetch('/api/visa/read', { method: 'POST' });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      if (!data?.success) {
+        const message = data?.error || 'VISA read failed';
+        this.onError?.(`VISA Read: ${message}`);
+        return { success: false, error: message };
+      }
+      if (data.response) this.onLine?.(data.response.trim());
+      return data;
+    } catch (e) {
+      this.onError?.(`VISA Read: ${e.message}`);
+      return { success: false, error: e.message };
+    }
   }
   _loop() {
     this.readLoopActive = true;
-    this.reader = this.port.readable.getReader();
     const dec = new TextDecoder();
     let buf = '';
     this.readPromise = (async () => {
-      try {
-        while (this.readLoopActive) {
-          const { value, done } = await this.reader.read();
-          if (done) break;
-          if (!value) continue;
-          if (this.onByte) for (const b of value) this.onByte(b);
-          buf += dec.decode(value, { stream: true });
-          const parts = buf.split(/[\r\n]+/);
-          buf = parts.pop();
-          for (const line of parts) if (line.trim()) this.onLine?.(line.trim());
+      while (this.readLoopActive && this.port?.readable) {
+        try {
+          this.reader = this.port.readable.getReader();
+          while (this.readLoopActive) {
+            const { value, done } = await this.reader.read();
+            if (done) break;
+            if (!value) continue;
+            if (this.onByte) for (const b of value) this.onByte(b);
+            buf += dec.decode(value, { stream: true });
+            const parts = buf.split(/[\r\n]+/);
+            buf = parts.pop();
+            for (const line of parts) if (line.trim()) this.onLine?.(line.trim());
+          }
+        } catch (e) {
+          if (this.readLoopActive) {
+            this.onError?.(`Read: ${e.message}`);
+            // Framing error 또는 노이즈 발생 시 스트림 자동 복구
+            await new Promise(r => setTimeout(r, 200));
+          }
+        } finally {
+          try { this.reader?.releaseLock(); } catch (_) {}
+          this.reader = null;
         }
-      } catch (e) {
-        if (this.readLoopActive) this.onError?.(`Read: ${e.message}`);
-      } finally {
-        try { this.reader.releaseLock(); } catch (_) {}
       }
     })();
   }
@@ -1772,6 +1913,26 @@ function _fmt(v) {
   return v.toPrecision(4);
 }
 
+// ── Shared layout contract ───────────────────────────────────────────────────
+// Instrument modules may still use their legacy layout classes, but the common
+// engine owns the final 1/2/3-column decision.  New custom cards therefore do
+// not need a new CSS selector just to avoid an empty right-hand column.
+function resolveInstrumentLayoutMode(instrument, view = {}) {
+  const declared = typeof instrument?.layoutMode === 'function'
+    ? instrument.layoutMode()
+    : instrument?.layoutMode;
+  if (['one', 'two', 'three'].includes(declared)) return declared;
+  if (view.singleColumn || instrument?.hideSidebar) return 'one';
+  if (instrument?.viewType !== 'custom') return 'three';
+  const noRightPanel = instrument?.hideRightPanel
+    || !view.hasRightPanelBuilder
+    || view.rightHidden
+    || view.rightDisplay === 'none'
+    || !view.rightHasContent
+    || view.legacyTwoColumn;
+  return noRightPanel ? 'two' : 'three';
+}
+
 // ── Main Application ──────────────────────────────────────────────────────────
 class App {
   constructor(instruments = {}) {
@@ -1792,7 +1953,14 @@ class App {
     this.serial     = new SerialController();
     this.sm         = new StateMachine();
     this.pollTimer  = null;
-    this._chart     = null;
+    this.pollStartTimer = null;
+    this._connectPromise = null;
+    this._connectAttempt = 0;
+    this._disconnectPromise = null;
+    this._layoutSyncQueued = false;
+    this._layoutRedrawFrame = 0;
+    this._layoutResizeObserver = null;
+    this._layoutMutationObserver = null;
 
     // Save grid sidebar HTML for restore when switching back from custom views
     this._origSidebarHTML = document.getElementById('sidebar').innerHTML;
@@ -1811,6 +1979,7 @@ class App {
     this._applyTheme();
     this._applyLang();
     this._buildLauncher();
+    this._installLayoutGuards();
 
     this.sm.onStateChange  = s => this._onStateChange(s);
     this.sm.onLogTriggered = (v, f) => this._onLogTriggered(v, f);
@@ -1826,8 +1995,13 @@ class App {
 
   // ── i18n ───────────────────────────────────────────────────────────────────
   t(key) { return T[this.lang]?.[key] ?? T.ko[key] ?? key; }
+  tf(key, values = {}) {
+    return this.t(key).replace(/\{(\w+)\}/g, (match, name) =>
+      Object.prototype.hasOwnProperty.call(values, name) ? String(values[name]) : match
+    );
+  }
 
-  _applyLang() {
+  _applyLang({ rebuildInstrument = true } = {}) {
     document.querySelectorAll('[data-i18n]').forEach(el => {
       el.textContent = this.t(el.dataset.i18n);
     });
@@ -1847,7 +2021,7 @@ class App {
       this._buildLauncher();
     }
     // Re-apply instrument sidebar if loaded
-    if (this.instr) {
+    if (rebuildInstrument && this.instr) {
       this._rebuildInstrumentSidebar();
     }
   }
@@ -1858,15 +2032,18 @@ class App {
       // Custom-view modules build their own HTML with translated strings baked in.
       // buildSidebar must NOT call init() on rebuild (use `if (!S) init()` pattern)
       // so module-level state (rows, results) is preserved across lang/theme changes.
+      this._resetInstrumentLayout();
       this.instr.buildSidebar(document.getElementById('sidebar'));
       this.instr.buildCenter(document.getElementById('center'));
-      this.instr.buildRightPanel(document.getElementById('rightpanel'));
+      this.instr.buildRightPanel?.(document.getElementById('rightpanel'));
+      this._syncInstrumentLayout();
       this._updateCount();
       // 사이드바 재빌드 후 연결 상태 복원 (언어/테마 변경 시 connStatus가 초기화되는 문제 방지)
       this._setBtnState(this.serial.isConnected);
       if (this.serial.isConnected) this._connBadge(true);
       // Re-populate table/graph HTML after rebuild (each module opts in via onRebuild)
       this.instr.onRebuild?.();
+      this._queueLayoutRedraw();
     } else {
       const area = document.getElementById('dynamicSettings');
       if (area && this.instr.buildSettings) {
@@ -1884,6 +2061,8 @@ class App {
         const data  = this.instr.useVL50Modes ? this.vl50Data  : this.masterData;
         this._buildPanels(this.splitCount, modes, data);
       }
+      this._syncInstrumentLayout();
+      this._queueLayoutRedraw();
     }
   }
 
@@ -1902,6 +2081,131 @@ class App {
     this.theme = t; this._applyTheme(); this._rebuildInstrumentSidebar(); this._saveConfig();
   }
 
+  _installLayoutGuards() {
+    const layout = document.getElementById('layout');
+    const center = document.getElementById('center');
+    const right = document.getElementById('rightpanel');
+    if (window.ResizeObserver && layout) {
+      this._layoutResizeObserver = new ResizeObserver(() => this._queueLayoutRedraw());
+      [layout, center, right].filter(Boolean).forEach(el => this._layoutResizeObserver.observe(el));
+    }
+    if (window.MutationObserver && layout && right) {
+      this._layoutMutationObserver = new MutationObserver(() => this._queueLayoutSync());
+      this._layoutMutationObserver.observe(layout, { attributes: true, attributeFilter: ['class', 'style'] });
+      this._layoutMutationObserver.observe(right, { childList: true, attributes: true, attributeFilter: ['hidden', 'style'] });
+    }
+    window.addEventListener('resize', () => this._queueLayoutRedraw());
+  }
+
+  _resetInstrumentLayout() {
+    const layout = document.getElementById('layout');
+    const sidebar = document.getElementById('sidebar');
+    const right = document.getElementById('rightpanel');
+    if (layout) {
+      layout.removeAttribute('data-layout-mode');
+      layout.style.removeProperty('grid-template-columns');
+      layout.classList.remove(
+        'layout-no-right',
+        'ai-noright',
+        'ai-s2',
+        'pst-layout-no-right',
+        'k2400-layout-no-right',
+        'sp2100-layout-no-right',
+        'ok900p-layout',
+        'ok900p-layout-no-right',
+      );
+    }
+    if (sidebar) {
+      sidebar.hidden = false;
+      sidebar.removeAttribute('aria-hidden');
+      sidebar.style.removeProperty('display');
+    }
+    if (right) {
+      right.hidden = false;
+      right.removeAttribute('aria-hidden');
+      right.style.removeProperty('display');
+      right.innerHTML = '';
+    }
+  }
+
+  _rightPanelHasContent(right) {
+    if (!right) return false;
+    if (right.textContent.trim()) return true;
+    return Boolean(right.querySelector('canvas,img,svg,input,button,select,textarea,[data-layout-content]'));
+  }
+
+  _syncInstrumentLayout() {
+    const layout = document.getElementById('layout');
+    const sidebar = document.getElementById('sidebar');
+    const right = document.getElementById('rightpanel');
+    if (!layout || !sidebar || !right || !this.instr) return;
+    const singleColumn = layout.classList.contains('ai-s2');
+    const legacyTwoColumn = [
+      'layout-no-right', 'ai-noright', 'pst-layout-no-right',
+      'k2400-layout-no-right', 'sp2100-layout-no-right', 'ok900p-layout-no-right',
+    ].some(name => layout.classList.contains(name));
+    const mode = resolveInstrumentLayoutMode(this.instr, {
+      singleColumn,
+      legacyTwoColumn,
+      hasRightPanelBuilder: typeof this.instr.buildRightPanel === 'function',
+      rightHidden: right.hidden,
+      rightDisplay: right.style.display,
+      rightHasContent: this._rightPanelHasContent(right),
+    });
+
+    layout.dataset.layoutMode = mode;
+    // Inline grid widths survive class changes and were the main source of a
+    // blank third column after switching cards.  The data-layout contract owns
+    // the width from this point onward.
+    layout.style.removeProperty('grid-template-columns');
+    const hideSidebar = mode === 'one';
+    const hideRight = mode !== 'three';
+    if (sidebar.hidden !== hideSidebar) sidebar.hidden = hideSidebar;
+    if (hideSidebar) sidebar.setAttribute('aria-hidden', 'true');
+    else sidebar.removeAttribute('aria-hidden');
+    if (right.hidden !== hideRight) right.hidden = hideRight;
+    if (hideRight) right.setAttribute('aria-hidden', 'true');
+    else right.removeAttribute('aria-hidden');
+    if (!hideRight) right.style.removeProperty('display');
+  }
+
+  _queueLayoutSync() {
+    if (this._layoutSyncQueued) return;
+    this._layoutSyncQueued = true;
+    requestAnimationFrame(() => {
+      this._layoutSyncQueued = false;
+      if (!this.instr || document.getElementById('instrumentView')?.hidden) return;
+      this._syncInstrumentLayout();
+      this._queueLayoutRedraw();
+    });
+  }
+
+  refreshLayout() {
+    this._syncInstrumentLayout();
+    this._queueLayoutRedraw();
+  }
+
+  _queueLayoutRedraw() {
+    if (!this.instr || document.getElementById('instrumentView')?.hidden) return;
+    if (this._layoutRedrawFrame) cancelAnimationFrame(this._layoutRedrawFrame);
+    this._layoutRedrawFrame = requestAnimationFrame(() => {
+      this._layoutRedrawFrame = requestAnimationFrame(() => {
+        this._layoutRedrawFrame = 0;
+        if (!this.instr || document.getElementById('instrumentView')?.hidden) return;
+        if (this.instr.viewType !== 'custom') {
+          this._redrawChart();
+          return;
+        }
+        const redraw = this.instr.onLayout
+          || this.instr.drawGraph
+          || this.instr._redrawGraph
+          || this.instr._redrawChart;
+        try { redraw?.call(this.instr); }
+        catch (error) { this.log(`[LAYOUT] redraw failed: ${error.message}`, 'err'); }
+      });
+    });
+  }
+
   _showRunningWarning() {
     let toast = document.getElementById('_runningToast');
     if (toast) { clearTimeout(toast._t); }
@@ -1911,7 +2215,7 @@ class App {
       toast.style.cssText = 'position:fixed;top:60px;left:50%;transform:translateX(-50%);background:#d32f2f;color:#fff;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.4);pointer-events:none;';
       document.body.appendChild(toast);
     }
-    toast.textContent = this.t('running_warn') || '측정 중에는 테마/언어 변경이 불가합니다.';
+    toast.textContent = this.t('running_warn');
     toast._t = setTimeout(() => toast.remove(), 2500);
   }
 
@@ -1971,6 +2275,7 @@ class App {
   static _LAUNCHER_GROUPS = {
     'Hioki 3540':        'Resistance',
     'Keithley 2700':     'Resistance',
+    'Keithley 2400':     'Power',
     'Agilent 4339B':     'Resistance',
     'DAQ-6510':          'Resistance',
     'Mitutoyo VL-50':    'Thickness',
@@ -1980,6 +2285,8 @@ class App {
     'PST-3202':          'Power',
     'Photo Editor':      'Software',
     'Club Expense':      'Software',
+    'Epson PRIFIA OK900P': 'Software',
+    'Etching Design':    'Software',
   };
   static _GROUP_ORDER  = ['Resistance', 'Thickness', 'Adhesive', 'Power', 'Software'];
   static _GROUP_LABELS = {
@@ -1987,7 +2294,7 @@ class App {
     Thickness:  { ko: '두께',      en: 'Thickness'    },
     Adhesive:   { ko: '점착력',    en: 'Adhesive'     },
     Power:      { ko: '전원공급기', en: 'Power Supply' },
-    Software:   { ko: 'Software',  en: 'Software'     },
+    Software:   { ko: '소프트웨어',  en: 'Software'     },
   };
 
   _buildLauncher() {
@@ -2035,8 +2342,8 @@ class App {
       return sec;
     };
 
-    if (instrNames.length) root.appendChild(makeSection(this.lang === 'ko' ? '계측기' : 'Instruments', instrNames));
-    if (softNames.length)  root.appendChild(makeSection('Software', softNames));
+    if (instrNames.length) root.appendChild(makeSection(this.t('launcher_instruments_section'), instrNames));
+    if (softNames.length)  root.appendChild(makeSection(this.t('launcher_software_section'), softNames));
 
     // Hidden restore bar
     if (hiddenNames.length) {
@@ -2125,7 +2432,7 @@ class App {
 
     // 카드 상단: 계측기 / Software 타입 라벨
     const tp = document.createElement('div'); tp.className = 'card-type';
-    tp.textContent = g === 'Software' ? 'Software' : (this.lang === 'ko' ? '계측기' : 'Instrument');
+    tp.textContent = g === 'Software' ? this.t('launcher_software_type') : this.t('launcher_instrument_type');
 
     const nm = document.createElement('div'); nm.className = 'card-name'; nm.textContent = displayName;
 
@@ -2173,16 +2480,16 @@ class App {
         <div style="font-size:12px;color:var(--text-dim);margin-bottom:16px;">${name}</div>
 
         ${lblSt(this.t('card_meta_location'))}
-        <input id="_ceLoc" type="text" value="${(m0.location??'').replace(/"/g,'&quot;')}" placeholder="예) 3F EMSD Lab" ${inpSt}>
+        <input id="_ceLoc" type="text" value="${(m0.location??'').replace(/"/g,'&quot;')}" placeholder="${this.t('card_meta_location_ph')}" ${inpSt}>
 
         ${lblSt(this.t('card_meta_asset'))}
-        <input id="_ceAsset" type="text" value="${(m0.assetNo??'').replace(/"/g,'&quot;')}" placeholder="예) EQ-0042" ${inpSt}>
+        <input id="_ceAsset" type="text" value="${(m0.assetNo??'').replace(/"/g,'&quot;')}" placeholder="${this.t('card_meta_asset_ph')}" ${inpSt}>
 
         ${lblSt(this.t('card_meta_manager'))}
-        <input id="_ceMgr" type="text" value="${(m0.manager??'').replace(/"/g,'&quot;')}" placeholder="예) 홍길동" ${inpSt}>
+        <input id="_ceMgr" type="text" value="${(m0.manager??'').replace(/"/g,'&quot;')}" placeholder="${this.t('card_meta_manager_ph')}" ${inpSt}>
 
         ${lblSt(this.t('card_meta_note'))}
-        <textarea id="_ceNote" rows="2" placeholder="예) 교정 주기 1년" style="width:100%;box-sizing:border-box;padding:7px 10px;background:var(--panel-2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;resize:vertical;margin-bottom:12px;font-family:inherit;">${m0.note??''}</textarea>
+        <textarea id="_ceNote" rows="2" placeholder="${this.t('card_meta_note_ph')}" style="width:100%;box-sizing:border-box;padding:7px 10px;background:var(--panel-2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;resize:vertical;margin-bottom:12px;font-family:inherit;">${m0.note??''}</textarea>
 
         ${lblSt(this.t('card_meta_photo'))}
         <div style="margin-bottom:16px;">
@@ -2254,36 +2561,6 @@ class App {
     });
   }
 
-  _showCardMenu(name, x, y) {
-    document.querySelector('.card-ctx-menu')?.remove();
-    const isFav = this._lFavs.has(name);
-    const menu  = document.createElement('div');
-    menu.className = 'card-ctx-menu';
-    menu.style.cssText = `position:fixed;left:${x}px;top:${y}px;z-index:9000;`;
-    menu.innerHTML = `
-      <div class="ccm-item" data-action="edit">✏ ${this.t('card_edit_title')}</div>
-      <div class="ccm-item" data-action="fav">${isFav ? '★ ' + this.t('card_edit_fav_rm') : '☆ ' + this.t('card_edit_fav_add')}</div>
-      <div class="ccm-sep"></div>
-      <div class="ccm-item ccm-danger" data-action="hide">✕ ${this.t('launcher_del_tip')}</div>`;
-    document.body.appendChild(menu);
-
-    // 화면 경계 보정
-    const r = menu.getBoundingClientRect();
-    if (r.right  > window.innerWidth)  menu.style.left = `${x - r.width}px`;
-    if (r.bottom > window.innerHeight) menu.style.top  = `${y - r.height}px`;
-
-    menu.addEventListener('click', e => {
-      const action = e.target.dataset.action;
-      menu.remove();
-      if (action === 'edit') this._openCardEdit(name);
-      if (action === 'fav')  this._toggleFav(name);
-      if (action === 'hide') this._hideCard(name);
-    });
-
-    const close = e => { if (!menu.contains(e.target)) { menu.remove(); document.removeEventListener('click', close); } };
-    setTimeout(() => document.addEventListener('click', close), 0);
-  }
-
   _showCardInfo(name, cardEl) {
     // 이미 이 카드 팝업이 열려있으면 그냥 유지
     const existing = document.querySelector('.card-info-popup');
@@ -2313,7 +2590,7 @@ class App {
     const photoSrc = m.photo || defImg;
     const photoHTML = photoSrc
       ? `<img class="ci-photo" src="${photoSrc}" alt="">`
-      : `<div class="ci-photo ci-photo-empty">사진 없음</div>`;
+      : `<div class="ci-photo ci-photo-empty">${this.t('no_photo')}</div>`;
 
     popup.innerHTML = `
       <div class="ci-header">${this._lNames?.[name] ?? name}</div>
@@ -2406,11 +2683,18 @@ class App {
 
   goHome() {
     if (!this.instrName) return;
-    this._showHomeConfirm(() => {
-      this.instr?.onDisconnect?.();
-      if (this.serial.isConnected) this._doDisconnect();
+    this._showHomeConfirm(async () => {
+      const leavingInstr = this.instr;
+      this._connectAttempt++; // 연결 선택창/서버 요청이 늦게 끝나도 현재 화면에 적용하지 않음
+      if (this.serial.isConnected || this._disconnectPromise) {
+        await this._doDisconnect();
+      } else {
+        await leavingInstr?.onDisconnect?.();
+      }
+      if (this.instr !== leavingInstr) return;
       this.instr     = null;
       this.instrName = null;
+      this._resetInstrumentLayout();
       document.getElementById('launcher').hidden = false;
       document.getElementById('instrumentView').hidden = true;
       document.getElementById('deviceName').textContent = '';
@@ -2435,7 +2719,14 @@ class App {
     overlay.appendChild(box);
     document.body.appendChild(overlay);
     box.querySelector('#_homeCancel').onclick = () => overlay.remove();
-    box.querySelector('#_homeOk').onclick = () => { overlay.remove(); onConfirm(); };
+    box.querySelector('#_homeOk').onclick = async () => {
+      overlay.remove();
+      try {
+        await onConfirm();
+      } catch (e) {
+        this.log(`[ERR] Home cleanup: ${e.message}`, 'err');
+      }
+    };
     overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
   }
 
@@ -2445,15 +2736,16 @@ class App {
 
     // Desktop-only tools: show info modal instead of launching
     if (m?.viewType === 'desktop-only') {
-      const msg = (m.description || `${name}은(는) 데스크톱 앱에서만 실행 가능합니다.`).replace(/\n/g, '<br>');
-      const pathLine = m.exePath ? `<br><br><b>실행 경로:</b><br><code style="font-size:11px;word-break:break-all">${m.exePath}</code>` : '';
+      const defaultMsg = this.t('desktop_only_default').replace('{name}', name);
+      const msg = (m.description || defaultMsg).replace(/\n/g, '<br>');
+      const pathLine = m.exePath ? `<br><br><b>${this.t('desktop_only_path')}</b><br><code style="font-size:11px;word-break:break-all">${m.exePath}</code>` : '';
       // Use a styled overlay modal instead of alert() to avoid blocking
       const overlay = document.createElement('div');
       overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center';
       overlay.innerHTML = `<div style="background:#1e1e1e;color:#ddd;border:1px solid #444;border-radius:10px;padding:28px 32px;max-width:460px;width:90%;box-shadow:0 8px 32px #000a;font-family:inherit">
-        <div style="font-size:15px;font-weight:600;margin-bottom:14px;color:#fff">🖥️ 데스크톱 전용 앱</div>
+        <div style="font-size:15px;font-weight:600;margin-bottom:14px;color:#fff">${this.t('desktop_only_title')}</div>
         <div style="font-size:13px;line-height:1.7;margin-bottom:18px">${msg}${pathLine}</div>
-        <button onclick="this.closest('div[style*=fixed]').remove()" style="background:#555;color:#fff;border:none;border-radius:6px;padding:8px 22px;cursor:pointer;font-size:13px">확인</button>
+        <button onclick="this.closest('div[style*=fixed]').remove()" style="background:#555;color:#fff;border:none;border-radius:6px;padding:8px 22px;cursor:pointer;font-size:13px">${this.t('btn_ok')}</button>
       </div>`;
       document.body.appendChild(overlay);
       overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
@@ -2471,6 +2763,7 @@ class App {
 
     document.getElementById('launcher').hidden = true;
     document.getElementById('instrumentView').hidden = false;
+    this._resetInstrumentLayout();
     document.getElementById('deviceName').textContent = `(${name})`;
     this.sm.reset();
     this.count = 0;
@@ -2489,18 +2782,23 @@ class App {
   _setupCustomView() {
     this.instr.buildSidebar(document.getElementById('sidebar'));
     this.instr.buildCenter(document.getElementById('center'));
-    this.instr.buildRightPanel(document.getElementById('rightpanel'));
+    this.instr.buildRightPanel?.(document.getElementById('rightpanel'));
+    this._syncInstrumentLayout();
     this._updateCount();
+    this._setBtnState(this.serial.isConnected);
     this._setDisplay('— — —', '', 'off', this.t('disconnected'));
     this.refreshPorts();
     this.instr.onRebuild?.();
+    this._queueLayoutRedraw();
   }
 
   // ── Grid view ──────────────────────────────────────────────────────────────
   _setupGridView() {
     const cfg = this.instr;
     document.getElementById('sidebar').innerHTML = this._origSidebarHTML;
-    this._applyLang();
+    // Translate the restored shared sidebar without rebuilding the instrument.
+    // At this point the grid center (and panelsContainer) has not been created yet.
+    this._applyLang({ rebuildInstrument: false });
 
     if (cfg.hideSplit)   document.getElementById('splitPanel')?.style.setProperty('display','none');
     if (cfg.hideAutoLog) document.getElementById('autoLogPanel')?.style.setProperty('display','none');
@@ -2524,19 +2822,6 @@ class App {
       </div>
       <div id="panelsContainer" class="panels-scroll"></div>`;
 
-    document.getElementById('rightpanel').innerHTML = `
-      <div class="panel grow">
-        <div class="graph-head"><div class="panel-title" data-i18n="dist_panel_title">${this.t('dist_panel_title')}</div></div>
-        <div class="graph-hint" data-i18n="chart_hint">${this.t('chart_hint')}</div>
-        <div class="graph-area">
-          <canvas id="mainChart"></canvas>
-          <div class="graph-empty" id="chartEmpty" data-i18n="chart_empty">${this.t('chart_empty')}</div>
-        </div>
-        <div id="statsPanel" class="stats-area"></div>
-      </div>`;
-    this._chart = new BoxPlot(document.getElementById('mainChart'));
-    this._chart.attachYControls(document.querySelector('#rightpanel .graph-area'));
-
     const area = document.getElementById('dynamicSettings');
     if (area) { area.innerHTML = ''; cfg.buildSettings?.(area); }
 
@@ -2547,29 +2832,47 @@ class App {
     const modes = cfg.useVL50Modes ? this.vl50Modes : this.testModes;
     const data  = cfg.useVL50Modes ? this.vl50Data  : this.masterData;
     this._buildPanels(1, modes, data);
+    this._syncInstrumentLayout();
+    this._queueLayoutRedraw();
   }
 
   // ── Serial port ────────────────────────────────────────────────────────────
   async refreshPorts() {
     const sel = document.getElementById('portSelect');
     if (!sel) return;
+    const serialOnly = this.instr?.serialOnly === true;
+    const previousValue = sel.value;
 
     // Preserve existing hardcoded options (like VISA addresses) if any
     const existingOpts = [];
     if (sel.options.length > 0 && !sel.dataset.usbReflected) {
       for (let i = 0; i < sel.options.length; i++) {
         const opt = sel.options[i];
-        if (opt.value && !opt.textContent.startsWith('Serial Port')) {
+        const generatedPort = opt.dataset.autoPort === '1'
+          || opt.dataset.serverCom === '1'
+          || /^Serial Port \d+$/.test(opt.textContent)
+          || /^시리얼 포트 \d+$/.test(opt.textContent);
+        if (!serialOnly && opt.value && !generatedPort) {
           existingOpts.push({ value: opt.value, text: opt.textContent, selected: opt.selected });
         }
       }
     }
 
-    // 하드코딩 VISA 옵션이 있으면 빈 placeholder 삽입 안 함 (빈 항목 선택 → Web Serial 다이얼로그 팝업 방지)
-    if (existingOpts.length === 0) {
-      sel.innerHTML = '<option value="">-- Select Port --</option>';
-    } else {
-      sel.innerHTML = '';
+    sel.innerHTML = '';
+    // VISA/GPIB 주소가 함께 보여도 새 RS-232 포트를 선택할 수 있어야 한다.
+    // Web Serial은 보안상 OS의 COM 번호를 페이지에 직접 공개하지 않으므로,
+    // 이 항목을 누른 뒤 브라우저/웹뷰의 장치 선택 창에서 COM3 등을 고른다.
+    if (navigator.serial) {
+      const picker = document.createElement('option');
+      picker.value = '__web_serial_picker__';
+      picker.textContent = this.t('serial_picker_label');
+      picker.dataset.autoPort = '1';
+      sel.appendChild(picker);
+    } else if (existingOpts.length === 0) {
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = this.t('port_select_placeholder');
+      sel.appendChild(placeholder);
     }
     if (existingOpts.length > 0) {
       existingOpts.forEach(o => {
@@ -2579,28 +2882,46 @@ class App {
       });
     }
 
-    // 1) Fetch VISA devices from local backend server
-    try {
-      const resp = await fetch('/api/visa/list');
-      const data = await resp.json();
-      if (data) {
-        if (data.success && data.resources) {
-          data.resources.forEach(addr => {
-            let exists = false;
-            for (let i = 0; i < sel.options.length; i++) {
-              if (sel.options[i].value === addr) { exists = true; break; }
-            }
-            if (!exists) {
-              const opt = document.createElement('option');
-              opt.value = addr; opt.textContent = addr;
-              sel.appendChild(opt);
-            }
-          });
-        } else if (data.error) {
-          this.log(`[VISA Error] ${data.error}`, 'err');
+    // 1) Fetch VISA devices unless the active module explicitly supports RS-232 only.
+    if (!serialOnly) {
+      try {
+        const resp = await fetch('/api/visa/list');
+        const data = await resp.json();
+        if (data) {
+          if (data.success && data.resources) {
+            data.resources.forEach(addr => {
+              let exists = false;
+              for (let i = 0; i < sel.options.length; i++) {
+                if (sel.options[i].value === addr) { exists = true; break; }
+              }
+              if (!exists) {
+                const opt = document.createElement('option');
+                opt.value = addr; opt.textContent = addr;
+                sel.appendChild(opt);
+              }
+            });
+            // NI-VISA가 Windows COM 포트를 list_resources()에서 누락하는
+            // 컴퓨터가 있다. 서버가 별도로 검색한 COM 포트를 ASRL 주소로
+            // 연결하되 사용자에게는 익숙한 COM 번호를 표시한다.
+            (data.serialPorts || []).forEach(port => {
+              const addr = String(port?.address || '');
+              const label = String(port?.port || addr);
+              if (!addr) return;
+              let opt = Array.from(sel.options).find(item => item.value === addr);
+              if (!opt) {
+                opt = document.createElement('option');
+                opt.value = addr;
+                sel.appendChild(opt);
+              }
+              opt.textContent = `${label} (RS-232)`;
+              opt.dataset.serverCom = '1';
+            });
+          } else if (data.error) {
+            this.log(`[VISA Error] ${data.error}`, 'err');
+          }
         }
-      }
-    } catch (_) {}
+      } catch (_) {}
+    }
 
     // 2) Fetch standard Web Serial ports
     if (!navigator.serial) return;
@@ -2614,11 +2935,17 @@ class App {
         }
         if (!exists) {
           const opt = document.createElement('option');
-          opt.value = val; opt.textContent = `Serial Port ${i+1}`;
+          opt.value = val;
+          opt.textContent = this.tf('serial_port_label', { n: i + 1 });
+          opt.dataset.autoPort = '1';
           sel.appendChild(opt);
         }
       });
     } catch (_) {}
+
+    if (previousValue && Array.from(sel.options).some(opt => opt.value === previousValue)) {
+      sel.value = previousValue;
+    }
   }
 
   async toggleConnection() {
@@ -2627,7 +2954,32 @@ class App {
   }
 
   async _doConnect() {
-    if (!this.instr) return;
+    if (this._connectPromise) return this._connectPromise;
+    const targetInstr = this.instr;
+    const targetName = this.instrName;
+    if (!targetInstr) return;
+
+    const attempt = ++this._connectAttempt;
+    const task = this._connectInstrument(targetInstr, targetName, attempt);
+    this._connectPromise = task;
+    const btn = document.getElementById('btnConnect');
+    if (btn) btn.disabled = true;
+    try {
+      await task;
+    } finally {
+      if (this._connectPromise === task) this._connectPromise = null;
+      if (this.instr === targetInstr) {
+        const currentBtn = document.getElementById('btnConnect');
+        if (currentBtn) currentBtn.disabled = false;
+      }
+    }
+  }
+
+  _isCurrentConnectAttempt(targetInstr, attempt) {
+    return this.instr === targetInstr && this._connectAttempt === attempt;
+  }
+
+  async _connectInstrument(targetInstr, targetName, attempt) {
     const sel = document.getElementById('portSelect');
     let selectedPortValue = sel ? sel.value : '';
     // 빈 값이면 첫 번째 유효 옵션 자동 선택 (VISA 주소 드롭다운에서 빈 항목이 선택된 경우 방어)
@@ -2638,20 +2990,38 @@ class App {
     }
     const isVisa = selectedPortValue.includes('::') || selectedPortValue.startsWith('USB') || selectedPortValue.startsWith('GPIB');
 
+    if (targetInstr.serialOnly && isVisa) {
+      this.log(`[ERR] ${targetName} supports Web Serial (RS-232) only.`, 'err');
+      return;
+    }
+
     if (isVisa) {
       try {
-        this.log(`Connecting to ${this.instrName} via VISA (${selectedPortValue})…`);
+        this.log(this.tf('conn_log_connecting_visa', { name: targetName, address: selectedPortValue }));
         const resp = await fetch('/api/visa/connect', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ address: selectedPortValue })
+          body: JSON.stringify({
+            address: selectedPortValue,
+            // Safety-critical source instruments may need to force OUTPUT OFF
+            // before the first identity query. Other VISA modules keep the
+            // existing server-side *IDN? behavior.
+            skipIdn: targetInstr.visaConnectWithoutIdn === true,
+            // Only opted-in ASRL instruments ask the bridge to detect their
+            // configurable reply terminator. GPIB and other modules are unchanged.
+            asrlTermination: targetInstr.visaAsrlTermination,
+          })
         });
         if (!resp.ok || resp.headers.get('content-type')?.includes('text/html')) {
-          throw new Error('VISA 서버에 연결할 수 없습니다. EXE를 실행하거나 server.py를 먼저 시작하세요.');
+          throw new Error(this.t('conn_visa_server_unavailable'));
         }
         const data = await resp.json();
         if (!data || !data.success) {
           throw new Error(data.error || 'Failed to connect via VISA');
+        }
+        if (!this._isCurrentConnectAttempt(targetInstr, attempt)) {
+          try { await fetch('/api/visa/disconnect', { method: 'POST' }); } catch (_) {}
+          return;
         }
         this.serial.isVisa = true;
         this.serial.visaAddress = selectedPortValue;
@@ -2659,12 +3029,19 @@ class App {
 
         this._setBtnState(true);
         this._connBadge(true);
-        this._setDisplay('— — —', '', 'ready', 'READY');
-        this.log(`Connected to ${this.instrName} (VISA).`, 'ok');
-        this.instr.onConnect?.();
-        if (this.instr.pollCmd) this._startPolling(this.instr);
+        this._setDisplay('— — —', '', 'ready', this.t('status_ready'));
+        this.log(this.tf('conn_log_connected_visa', { name: targetName }), 'ok');
+        if (data.asrlTermination) {
+          this.log(`[VISA] RS-232 reply termination: ${data.asrlTermination}`, 'ok');
+        }
+        await targetInstr.onConnect?.();
+        if (targetInstr.pollCmd) this._startPolling(targetInstr);
       } catch (e) {
+        if (!this._isCurrentConnectAttempt(targetInstr, attempt)) return;
         this.log(`[ERR] ${e.message}`, 'err');
+        if (this.serial.isConnected) {
+          try { await this._doDisconnect(); } catch (_) {}
+        }
         const el = document.getElementById('connStatus');
         if (el) { el.className = 'conn-status-lbl err'; el.textContent = this.t('status_failed'); }
       }
@@ -2673,26 +3050,35 @@ class App {
 
     if (!navigator.serial) { alert(this.t('web_serial_unsupported')); return; }
     try {
-      this.log(`Connecting to ${this.instrName}…`);
-      await this.serial.connect(this.instr.serial);
+      const serialCfg = targetInstr.serial;
+      this.log(this.tf('conn_log_connecting', { name: targetName }) + ` (${serialCfg.baudRate} bps · ${serialCfg.dataBits || 8}-N-${serialCfg.stopBits || 1})`);
+      await this.serial.connect(serialCfg);
+      if (!this._isCurrentConnectAttempt(targetInstr, attempt)) {
+        await this.serial.disconnect();
+        return;
+      }
       this._setBtnState(true);
       this._connBadge(true);
-      this._setDisplay('— — —', '', 'ready', 'READY');
+      this._setDisplay('— — —', '', 'ready', this.t('status_ready'));
       this._reflectUsbAddress();
-      this.log(`Connected to ${this.instrName}.`, 'ok');
-      this.instr.onConnect?.();
-      if (this.instr.pollCmd) this._startPolling(this.instr);
+      this.log(this.tf('conn_log_connected', { name: targetName }), 'ok');
+      await targetInstr.onConnect?.();
+      if (targetInstr.pollCmd) this._startPolling(targetInstr);
     } catch (e) {
+      if (!this._isCurrentConnectAttempt(targetInstr, attempt)) return;
       this.log(`[ERR] ${e.message}`, 'err');
+      if (this.serial.isConnected || this.serial.port) {
+        try { await this._doDisconnect(); } catch (_) {}
+      }
       const msg = (e.message || '').toLowerCase();
       if (e.name === 'NotFoundError') {
-        this.log('포트를 선택하지 않았습니다. 목록에서 장비 포트를 선택하세요.', 'err');
+        this.log(this.t('conn_port_not_selected'), 'err');
       } else if (msg.includes('failed to open') || msg.includes('open')) {
-        this.log('⚠ 포트를 열 수 없습니다. 대개 포트가 이미 사용 중입니다:', 'err');
-        this.log('  1) 다른 브라우저 탭에서 같은 장비가 연결돼 있으면 그 탭을 닫으세요 (포트는 한 탭만 사용 가능).', 'err');
-        this.log('  2) 데스크톱 프로그램(.exe)·PuTTY 등 다른 프로그램이 포트를 쓰고 있으면 종료하세요.', 'err');
-        this.log('  3) USB-시리얼 케이블을 뽑았다 다시 꽂은 뒤 재시도하세요.', 'err');
-        this.log('  4) 연결 시 팝업에서 올바른 COM 포트(장비)를 선택했는지 확인하세요.', 'err');
+        this.log(this.t('conn_port_open_failed'), 'err');
+        this.log(this.t('conn_port_step_browser'), 'err');
+        this.log(this.t('conn_port_step_program'), 'err');
+        this.log(this.t('conn_port_step_usb'), 'err');
+        this.log(this.t('conn_port_step_com'), 'err');
       }
       const el = document.getElementById('connStatus');
       if (el) { el.className = 'conn-status-lbl err'; el.textContent = this.t('status_failed'); }
@@ -2700,44 +3086,64 @@ class App {
   }
 
   async _doDisconnect() {
-    clearInterval(this.pollTimer); this.pollTimer = null;
-    if (this.serial.isVisa) {
+    this._connectAttempt++; // 진행 중인 연결 완료 콜백을 무효화
+    if (this._disconnectPromise) return this._disconnectPromise;
+
+    const disconnectingInstr = this.instr;
+    const task = (async () => {
+      clearTimeout(this.pollStartTimer); this.pollStartTimer = null;
+      clearInterval(this.pollTimer); this.pollTimer = null;
       try {
-        await fetch('/api/visa/disconnect', { method: 'POST' });
-      } catch (_) {}
-      this.serial.isVisa = false;
-      this.serial.visaAddress = '';
-      this.serial.isConnected = false;
-    } else {
-      await this.serial.disconnect();
+        await disconnectingInstr?.onDisconnect?.();
+      } catch (e) {
+        this.log(`[ERR] Disconnect cleanup: ${e.message}`, 'err');
+      }
+      if (this.serial.isVisa) {
+        try {
+          await fetch('/api/visa/disconnect', { method: 'POST' });
+        } catch (_) {}
+        this.serial.isVisa = false;
+        this.serial.visaAddress = '';
+        this.serial.isConnected = false;
+      } else {
+        await this.serial.disconnect();
+      }
+      if (this.instr !== disconnectingInstr) return;
+      this._setBtnState(false);
+      this._connBadge(false);
+      this.sm.reset();
+      this._setDisplay('— — —', '', 'off', this.t('disconnected'));
+      this._resetUsbAddress();
+      this.log(this.t('conn_log_disconnected'));
+    })();
+
+    this._disconnectPromise = task;
+    try {
+      await task;
+    } finally {
+      if (this._disconnectPromise === task) this._disconnectPromise = null;
     }
-    this._setBtnState(false);
-    this._connBadge(false);
-    this.sm.reset();
-    this._setDisplay('— — —', '', 'off', this.t('disconnected'));
-    this._resetUsbAddress();
-    this.log('Disconnected.');
   }
 
   _showSerialErrorPopup() {
     if (this._serialErrPopupShown) return; // 중복 팝업 방지
     this._serialErrPopupShown = true;
     // 자동 연결 해제
-    this._doDisconnect();
+    this._doDisconnect().catch(e => this.log(`[ERR] Disconnect cleanup: ${e.message}`, 'err'));
 
     const overlay = document.createElement('div');
     overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center';
     overlay.innerHTML = `
       <div style="background:var(--panel);border:1px solid #ef4444;border-radius:14px;padding:28px 32px;max-width:400px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,.5)">
-        <div style="font-size:22px;margin-bottom:10px">⚠️ 통신 오류</div>
+        <div style="font-size:22px;margin-bottom:10px">${this.t('conn_lost_title')}</div>
         <div style="font-size:14px;color:var(--text);line-height:1.8;margin-bottom:20px">
-          장비와의 통신이 끊겼습니다.<br>
-          아래 순서대로 진행해 주세요:<br><br>
-          <b>① USB 케이블을 분리하세요</b><br>
-          <b>② 5초 후 다시 연결하세요</b><br>
-          <b>③ 아래 확인 버튼 후 재연결하세요</b>
+          ${this.t('conn_lost_body')}<br>
+          ${this.t('conn_lost_steps')}<br><br>
+          <b>${this.t('conn_lost_step_unplug')}</b><br>
+          <b>${this.t('conn_lost_step_replug')}</b><br>
+          <b>${this.t('conn_lost_step_retry')}</b>
         </div>
-        <button id="_serialErrOk" style="width:100%;padding:12px;background:#ef4444;border:none;border-radius:8px;color:#fff;font-size:15px;font-weight:700;cursor:pointer">확인</button>
+        <button id="_serialErrOk" style="width:100%;padding:12px;background:#ef4444;border:none;border-radius:8px;color:#fff;font-size:15px;font-weight:700;cursor:pointer">${this.t('btn_ok')}</button>
       </div>`;
     document.body.appendChild(overlay);
     document.getElementById('_serialErrOk').onclick = () => {
@@ -2769,7 +3175,7 @@ class App {
       }
       const st = document.getElementById('connStatus');
       if (st) st.textContent = `${this.t('status_connected')}  (${addr})`;
-      this.log(`Connected device USB address: ${addr}`, 'ok');
+      this.log(this.tf('conn_log_usb_address', { address: addr }), 'ok');
     } catch (_) { /* getInfo() not supported by this browser/port — ignore */ }
   }
 
@@ -2802,10 +3208,17 @@ class App {
 
   // ── Polling ────────────────────────────────────────────────────────────────
   _startPolling(cfg) {
+    clearTimeout(this.pollStartTimer);
     clearInterval(this.pollTimer);
-    this.pollTimer = setInterval(() => {
-      if (this.serial.isConnected) this.serial.sendCmd(cfg.pollCmd);
-    }, cfg.pollInterval);
+    this.pollStartTimer = setTimeout(() => {
+      this.pollStartTimer = null;
+      if (!this.serial.isConnected || this.instr !== cfg) return;
+      this.pollTimer = setInterval(() => {
+        if (this.serial.isConnected && this.instr === cfg) {
+          this.serial.sendCmd(cfg.pollCmd);
+        }
+      }, cfg.pollInterval);
+    }, cfg.pollStartDelay || 0);
   }
 
   _onLine(line) {
@@ -2898,8 +3311,8 @@ class App {
         chartPanel.style.flexDirection = 'column';
         chartPanel.style.minHeight = '0';
 
-        const titleText = n > 1 ? `📊 ${this.t('panel_prefix') || 'PANEL'} ${i+1} ${this.t('dist_panel_title') || '데이터 분포'}` : `📊 ${this.t('dist_panel_title') || '데이터 분포'}`;
-        const hintText = this.t('chart_hint') || '현재 패널의 측정값 분포를 표시합니다.';
+        const titleText = n > 1 ? `${this.t('panel_prefix')} ${i+1} · ${this.t('dist_panel_title')}` : this.t('dist_panel_title');
+        const hintText = this.t('chart_hint');
 
         chartPanel.innerHTML = `
           <div class="graph-head">
@@ -3009,26 +3422,6 @@ class App {
     }
   }
 
-  updateGridGroup(panelIdx, val) {
-    const p = this.panels[panelIdx];
-    if (!p) return;
-    const groupVal = parseInt(val) || 0;
-    p.grid.group = groupVal;
-    if (p.grid.set > 0 && groupVal > 0) {
-      p.grid.set = groupVal;
-    }
-    p.grid._render();
-
-    const modes = this.instr?.useVL50Modes ? this.vl50Modes : this.testModes;
-    if (modes && modes[p.modeKey]) {
-      modes[p.modeKey].group = groupVal;
-      if (modes[p.modeKey].set > 0 && groupVal > 0) {
-        modes[p.modeKey].set = groupVal;
-      }
-      this._saveConfig();
-    }
-  }
-
   // ── Toolbar (grid) ─────────────────────────────────────────────────────────
   copyData() {
     const lines = [];
@@ -3099,7 +3492,7 @@ class App {
     this._saveConfig();
     this.openTestManager();
     document.getElementById('mgr_name').value = '';
-    this.log(`'${name}' 추가됨.`, 'ok');
+    this.log(this.t('test_added').replace('{name}', name), 'ok');
   }
 
   deleteTestMode() {
@@ -3154,5 +3547,4 @@ function _dateStr() {
   return new Date().toISOString().slice(0, 10).replace(/-/g, '');
 }
 
-export { App, _dateStr };
-
+export { App, _dateStr, resolveInstrumentLayoutMode };

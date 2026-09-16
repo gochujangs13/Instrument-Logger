@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3M Instrument Logger — 사용설명서</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --accent: #2b8fff;
+    --green: #10b981;
+    --red: #ef4444;
+    --warn: #f59e0b;
+    --bg: #f3f5f8;
+    --panel: #ffffff;
+    --border: #dde3ec;
+    --text: #1e2a3a;
+    --text-dim: #5a6b80;
+    --radius: 10px;
+  }
+  html { scroll-behavior: smooth; }
+  body { font-family: 'Malgun Gothic', 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.7; }
+
+  /* ── 레이아웃 */
+  #wrap { display: flex; min-height: 100vh; }
+  #toc { position: fixed; top: 0; left: 0; width: 230px; height: 100vh; overflow-y: auto; background: var(--panel); border-right: 1px solid var(--border); padding: 16px 0; z-index: 100; }
+  #content { margin-left: 230px; max-width: 860px; padding: 40px 48px; }
+
+  /* ── 목차 */
+  .toc-title { font-size: 13px; font-weight: 700; color: var(--text-dim); padding: 0 18px 10px; letter-spacing: .05em; text-transform: uppercase; }
+  .toc-section { font-size: 12px; font-weight: 700; color: var(--text-dim); padding: 10px 18px 2px; text-transform: uppercase; letter-spacing: .04em; }
+  .toc-item { display: block; padding: 5px 18px 5px 28px; font-size: 13px; color: var(--text); text-decoration: none; border-left: 3px solid transparent; transition: all .15s; }
+  .toc-item:hover, .toc-item.active { color: var(--accent); border-left-color: var(--accent); background: rgba(43,143,255,.06); }
+  .toc-item.top { padding-left: 18px; font-weight: 600; }
+
+  /* ── 헤더 */
+  .page-title { font-size: 28px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+  .page-sub { font-size: 14px; color: var(--text-dim); margin-bottom: 40px; }
+
+  /* ── 섹션 */
+  section { margin-bottom: 52px; }
+  h2 { font-size: 20px; font-weight: 700; color: var(--text); padding-bottom: 8px; border-bottom: 2px solid var(--border); margin-bottom: 20px; }
+  h3 { font-size: 15px; font-weight: 700; color: var(--text); margin: 24px 0 10px; }
+  h4 { font-size: 13px; font-weight: 700; color: var(--text-dim); margin: 16px 0 6px; text-transform: uppercase; letter-spacing: .04em; }
+  p { margin-bottom: 10px; color: var(--text); }
+
+  /* ── 카드 */
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px 24px; margin-bottom: 16px; }
+  .card-title { font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+  .badge { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 20px; }
+  .badge-ok { background: #d1fae5; color: #065f46; }
+  .badge-warn { background: #fef3c7; color: #92400e; }
+  .badge-serial { background: #dbeafe; color: #1e40af; }
+  .badge-hid { background: #ede9fe; color: #4c1d95; }
+  .badge-noconn { background: #f3f4f6; color: #374151; }
+
+  /* ── 테이블 */
+  table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 10px 0 16px; }
+  th { background: #f0f4fa; text-align: left; padding: 8px 12px; font-weight: 700; border-bottom: 2px solid var(--border); color: var(--text-dim); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+  td { padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  td code { background: #f0f4fa; border-radius: 4px; padding: 1px 5px; font-size: 12px; font-family: 'Consolas', monospace; color: #1e40af; }
+
+  /* ── 순서 / 목록 */
+  ol, ul { padding-left: 20px; margin-bottom: 12px; }
+  li { margin-bottom: 5px; }
+  li strong { color: var(--text); }
+
+  /* ── 경고 박스 */
+  .note { background: #eff6ff; border-left: 4px solid var(--accent); border-radius: 6px; padding: 12px 16px; margin: 12px 0; font-size: 13px; }
+  .warn { background: #fffbeb; border-left: 4px solid var(--warn); border-radius: 6px; padding: 12px 16px; margin: 12px 0; font-size: 13px; }
+  .danger { background: #fef2f2; border-left: 4px solid var(--red); border-radius: 6px; padding: 12px 16px; margin: 12px 0; font-size: 13px; }
+
+  /* ── 코드 블록 */
+  pre { background: #1e2a3a; color: #e2e8f0; border-radius: 8px; padding: 14px 18px; font-size: 12px; font-family: 'Consolas', monospace; overflow-x: auto; margin: 10px 0 16px; line-height: 1.6; }
+  pre .c { color: #64748b; }
+  pre .s { color: #86efac; }
+  pre .k { color: #93c5fd; }
+
+  /* ── 단계 표시 */
+  .steps { counter-reset: step; list-style: none; padding: 0; }
+  .steps li { counter-increment: step; display: flex; gap: 12px; margin-bottom: 12px; align-items: flex-start; }
+  .steps li::before { content: counter(step); display: flex; align-items: center; justify-content: center; min-width: 24px; height: 24px; background: var(--accent); color: #fff; border-radius: 50%; font-size: 12px; font-weight: 700; flex-shrink: 0; margin-top: 1px; }
+
+  /* ── 하단 여백 */
+  .spacer { height: 80px; }
+
+  @media (max-width: 700px) {
+    #toc { display: none; }
+    #content { margin-left: 0; padding: 24px 20px; }
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+
+<!-- ── 목차 사이드바 ─────────────────────────────── -->
+<nav id="toc">
+  <div class="toc-title">목차</div>
+  <a class="toc-item top" href="#overview">앱 개요</a>
+  <a class="toc-item top" href="#start">시작하기</a>
+  <a class="toc-item top" href="#common">공통 기능</a>
+  <div class="toc-section">계측기 매뉴얼</div>
+  <a class="toc-item" href="#hioki">Hioki 3540</a>
+  <a class="toc-item" href="#keithley">Keithley 2700</a>
+  <a class="toc-item" href="#mitutoyo">Mitutoyo VL-50</a>
+  <a class="toc-item" href="#sp2100">SP-2100 / TL-2200</a>
+  <a class="toc-item" href="#agilent">Agilent 4339B</a>
+  <a class="toc-item" href="#daq6510">DAQ-6510</a>
+  <a class="toc-item" href="#pt2000">PT-2000 Probe Tack</a>
+  <a class="toc-item" href="#lt1000">LT-1000 Loop Tack</a>
+  <a class="toc-item" href="#photo">Photo Editor</a>
+  <div class="toc-section">부록</div>
+  <a class="toc-item top" href="#trouble">문제 해결</a>
+  <a class="toc-item top" href="#serial">시리얼 설정 표</a>
+</nav>
+
+<!-- ── 본문 ─────────────────────────────────────── -->
+<main id="content">
+
+  <div class="page-title">3M Instrument Logger</div>
+  <div class="page-sub">계측기 통합 로거 — 전체 사용설명서 · Ver 2026-06</div>
+
+  <!-- ════════════════════════════════════════════ -->
+  <section id="overview">
+    <h2>앱 개요</h2>
+    <p>
+      <strong>3M Instrument Logger</strong>는 여러 계측기를 웹 브라우저에서 직접 연결해
+      측정값을 표시·기록·CSV 내보내기 하는 통합 웹 앱입니다.
+      <strong>Web Serial API</strong>를 사용하므로 Chrome / Edge 브라우저가 필요하며,
+      인터넷 연결 없이 로컬에서만 동작합니다.
+    </p>
+    <table>
+      <tr><th>항목</th><th>내용</th></tr>
+      <tr><td>지원 브라우저</td><td>Chrome 89+ / Edge 89+ (Web Serial 지원 필수)</td></tr>
+      <tr><td>운영체제</td><td>Windows 10 / 11 (macOS 미지원)</td></tr>
+      <tr><td>Python</td><td>3.10 이상 (Photo Editor 폰 연동 기능 사용 시)</td></tr>
+      <tr><td>케이블</td><td>계측기별 RS-232C ↔ USB 변환 케이블</td></tr>
+    </table>
+    <div class="note">💡 <strong>Web Serial API</strong>는 보안 컨텍스트(HTTPS 또는 localhost)에서만 동작합니다.
+    반드시 <code>시작.bat</code> 또는 <code>python server.py</code>로 실행해야 합니다.</div>
+  </section>
+
+  <!-- ════════════════════════════════════════════ -->
+  <section id="start">
+    <h2>시작하기</h2>
+
+    <h3>방법 1 — 시작.bat (권장)</h3>
+    <ol class="steps">
+      <li>폴더 내 <strong>시작.bat</strong>를 더블클릭합니다.</li>
+      <li>기존 서버가 종료되고 새 서버가 자동 실행됩니다.</li>
+      <li>ADB가 설치되어 있으면 폰 연동 터널도 자동 설정됩니다.</li>
+      <li>브라우저가 <code>http://localhost:8000/index.html</code>로 자동 열립니다.</li>
+    </ol>
+
+    <h3>방법 2 — 수동 실행</h3>
+    <pre><span class="c"># 터미널에서 실행</span>
+cd "<span class="s">C:\경로\3M Instrument Logger</span>"
+python server.py
+<span class="c"># 브라우저에서 접속</span>
+http://localhost:8000/index.html</pre>
+
+    <h3>화면 구성</h3>
+    <table>
+      <tr><th>영역</th><th>설명</th></tr>
+      <tr><td>상단 내비게이션</td><td>앱 이름, 테마 전환(☀/🌙), 언어(한/EN), 시리얼 연결 버튼</td></tr>
+      <tr><td>런처 카드</td><td>계측기 선택 화면 — 카드 클릭 시 해당 계측기로 진입</td></tr>
+      <tr><td>좌측 사이드바</td><td>연결 설정, 측정 조건, 결과 테이블 버튼</td></tr>
+      <tr><td>중앙(Center)</td><td>실시간 측정값 표시, 그리드 테이블(grid형 계측기)</td></tr>
+      <tr><td>우측 패널</td><td>수염차트(Box &amp; Whisker), 시계열 그래프</td></tr>
+    </table>
+
+    <h3>계측기 연결 방법</h3>
+    <ol class="steps">
+      <li>USB↔RS-232C 변환 케이블로 계측기와 PC를 연결합니다.</li>
+      <li>상단 <strong>[연결 안됨]</strong> 버튼을 클릭합니다.</li>
+      <li>팝업에서 COM 포트를 선택하고 <strong>연결</strong>을 클릭합니다.</li>
+      <li>상단이 <strong>[연결됨]</strong>(초록)으로 바뀌면 측정 시작 가능합니다.</li>
+    </ol>
+    <div class="warn">⚠ 포트 선택 창에 장치가 없으면 드라이버 미설치 또는 케이블 미연결 상태입니다.
+    CH340 / FTDI 등 USB-Serial 드라이버를 설치하세요.</div>
+  </section>
+
+  <!-- ════════════════════════════════════════════ -->
+  <section id="common">
+    <h2>공통 기능</h2>
+
+    <h3>데이터 기록</h3>
+    <table>
+      <tr><th>버튼</th><th>기능</th></tr>
+      <tr><td>기록 시작 / 중지</td><td>측정값을 테이블에 수동으로 추가/중단</td></tr>
+      <tr><td>자동 기록</td><td>설정한 간격(초)마다 자동으로 한 행씩 기록</td></tr>
+      <tr><td>복사</td><td>현재 테이블 데이터를 클립보드(탭 구분)로 복사 → 엑셀 직접 붙여넣기</td></tr>
+      <tr><td>CSV 저장</td><td>테이블 전체를 .csv 파일로 내보내기</td></tr>
+      <tr><td>선택 삭제</td><td>체크박스 선택 행 삭제</td></tr>
+      <tr><td>전체 삭제</td><td>테이블 전체 초기화</td></tr>
+    </table>
+
+    <h3>수염차트(Box &amp; Whisker) — Y축 수동 조정</h3>
+    <p>그래프 좌측 Y축의 최댓값/최솟값 숫자를 클릭하면 직접 입력할 수 있습니다.
+    입력 후 Enter 또는 포커스 이탈 시 즉시 반영됩니다.
+    우측 상단 <strong>↺</strong> 버튼을 누르면 자동 스케일로 복귀합니다.</p>
+
+    <h3>언어 전환</h3>
+    <p>상단 <strong>한/EN</strong> 버튼으로 한국어 ↔ 영어를 즉시 전환할 수 있습니다.
+    모든 UI 텍스트와 CSV 헤더가 함께 변경됩니다.</p>
+  </section>
+
+  <!-- ════════════════════════════════════════════ -->
+  <section id="hioki">
+    <h2>Hioki 3540 — 저항계</h2>
+    <div class="card">
+      <div class="card-title">
+        Hioki 3540 <span class="badge badge-ok">✅ 동작 확인</span> <span class="badge badge-serial">RS-232C</span>
+      </div>
+      <table>
+        <tr><th>항목</th><th>값</th></tr>
+        <tr><td>Baud Rate</td><td><code>9600</code></td></tr>
+        <tr><td>Data Bits</td><td><code>8</code></td></tr>
+        <tr><td>Parity</td><td><code>None</code></td></tr>
+        <tr><td>Stop Bits</td><td><code>1</code></td></tr>
+        <tr><td>Poll 명령</td><td><code>RMES\r</code></td></tr>
+        <tr><td>Poll 간격</td><td>400 ms</td></tr>
+      </table>
+    </div>
+
+    <h3>계측기 측 설정</h3>
+    <ul>
+      <li>HIOKI 3540 본체에서 <strong>RS-232C 인터페이스</strong>가 활성화되어 있는지 확인</li>
+      <li>통신 속도를 <strong>9600 bps</strong>로 설정</li>
+      <li>터미네이터: CR (캐리지 리턴)</li>
+    </ul>
+
+    <h3>앱 사용 방법</h3>
+    <ol class="steps">
+      <li>Hioki 3540 카드를 클릭하여 진입합니다.</li>
+      <li>USB↔RS-232C 케이블로 연결 후 상단 [연결 안됨] 버튼을 클릭합니다.</li>
+      <li>연결되면 400ms마다 자동으로 저항값이 갱신됩니다.</li>
+      <li>사이드바에서 <strong>테스트 방법</strong>(MSL-2 등)을 선택하면 그룹 크기와 컬럼이 자동 설정됩니다.</li>
+      <li><strong>기록 시작</strong> 버튼을 누르면 측정값이 그리드에 자동 채워집니다.</li>
+    </ol>
+
+    <h3>사이드바 설정</h3>
+    <table>
+      <tr><th>항목</th><th>설명</th></tr>
+      <tr><td>샘플링 속도</td><td>FAST / SLOW — 빠른/느린 측정 속도</td></tr>
+      <tr><td>측정 레인지</td><td>Auto / 수동 레인지 선택</td></tr>
+      <tr><td>테스트 방법</td><td>규격별 그룹 크기 자동 설정</td></tr>
+    </table>
+  </section>
+
+  <!-- ════════════════════════════════════════════ -->
+  <section id="keithley">
+    <h2>Keithley 2700 — 멀티미터</h2>
+    <div class="card">
+      <div class="card-title">
+        Keithley 2700 <span class="badge badge-ok">✅ 동작 확인</span> <span class="badge badge-serial">RS-232C</span>
+      </div>
+      <table>
+        <tr><th>항목</th><th>값</th></tr>
+        <tr><td>Baud Rate</td><td><code>9600</code></td></tr>
+        <tr><td>Data Bits</td><td><code>8</code></td></tr>
+        <tr><td>Parity</td><td><code>None</code></td></tr>
+        <tr><td>Stop Bits</td><td><code>1</code></td></tr>
+        <tr><td>Poll 명령</td><td><code>:READ?\r\n</code></td></tr>
+        <tr><td>Poll 간격</td><td>500 ms</td></tr>
+      </table>
+    </div>
+
+    <h3>계측기 측 설정</h3>
+    <ul>
+      <li>Keithley 2700 메뉴에서 <strong>RS-232</strong> 인터페이스 선택</li>
+      <li>통신 속도 <strong>9600 bps</strong>, 8N1 설정</li>
+      <li>연결 시 앱이 자동으로 <code>*RST → SYST:REM → SENS:FUNC "FRES"</code> 시퀀스를 전송합니다</li>
+    </ul>
+
+    <h3>앱 사용 방법</h3>
+    <ol class="steps">
+      <li>Keithley 2700 카드를 클릭하여 진입합니다.</li>
+      <li>연결하면 약 3초 후 자동 초기화가 완료되고 측정이 시작됩니다.</li>
+      <li>측정값이 <strong>9.90E+37</strong>이면 "Over Flow"로 표시됩니다 — 프로브가 연결되지 않은 상태입니다.</li>
+      <li>테스트 방법, 측정 방식(2선/4선), NPLC를 사이드바에서 설정합니다.</li>
+      <li><strong>기록 시작</strong>으로 그리드에 측정값을 기록합니다. 오버플로우 값은 자동으로 기록에서 제외됩니다.</li>
+    </ol>
+
+    <h3>사이드바 설정</h3>
+    <table>
+      <tr><th>항목</th><th>설명</th></tr>
+      <tr><td>측정 방식</td><td>4-Wire (4선식 정밀 저항) / 2-Wire</td></tr>
+      <tr><td>NPLC</td><td>적분 사이클 수 — 높을수록 정밀하지만 느림 (0.01 / 1 / 10)</td></tr>
+      <tr><td>테스트 방법</td><td>그룹 크기 및 컬럼 자동 설정</td></tr>
+    </table>
+  </section>
+
+  <!-- ════════════════════════════════════════════ -->
+  <section id="mitutoyo">
+    <h2>Mitutoyo VL-50 — 두께계</h2>
+    <div class="card">
+      <div class="card-title">
+        Mitutoyo VL-50 <span class="badge badge-ok">✅ 동작 확인</span> <span class="badge badge-serial">RS-232C</span>
+      </div>
+      <table>
+        <tr><th>항목</th><th>값</th></tr>
+        <tr><td>Baud Rate</td><td><code>9600</code></td></tr>
+        <tr><td>Data Bits</td><td><code>7</code></td></tr>
+        <tr><td>Parity</td><td><code>Even</code></td></tr>
+        <tr><td>Stop Bits</td><td><code>2</code></td></tr>
+        <tr><td>Poll 명령</td><td><code>GA01\r\n</code></td></tr>
+        <tr><td>Poll 간격</td><td>300 ms</td></tr>
+      </table>
+    </div>
+
+    <div class="danger">🔴 <strong>중요</strong> — Data Bits <strong>7</strong>, Parity <strong>Even</strong>, Stop Bits <strong>2</strong>입니다.
+    다른 계측기와 다르므로 반드시 확인하세요. 설정이 틀리면 응답 없음 현상이 발생합니다.</div>
+
+    <h3>계측기 측 설정</h3>
+    <ul>
+      <li>Mitutoyo VL-50 후면 RS-232C 포트 사용</li>
+      <li>본체 통신 설정: 9600 bps, 7 data bits, Even Parity, 2 Stop Bits</li>
+      <li>연결 시 앱이 자동으로 <code>CS\r\n</code> (리셋) 명령을 전송합니다</li>
+    </ul>
+
+    <h3>앱 사용 방법</h3>
+    <ol class="steps">
+      <li>Mitutoyo VL-50 카드를 클릭하여 진입합니다.</li>
+      <li>연결 후 300ms마다 두께값이 소수점 5자리로 자동 갱신됩니다.</li>
+      <li>사이드바에서 <strong>테스트 방법</strong>(MSL-2, ETM-7 등)을 선택하면 그룹 크기가 자동 설정됩니다.</li>
+      <li><strong>기록 시작</strong>으로 그리드에 두께값을 기록합니다.</li>
+    </ol>
+
+    <div class="note">💡 측정값 단위는 <strong>mm</strong>, 소수점 5자리까지 표시됩니다. 기본 테스트 방법은 MSL-2, 그룹당 6개입니다.</div>
+  </section>
+
+  <!-- ════════════════════════════════════════════ -->
+  <section id="sp2100">
+    <h2>SP-2100 / TL-2200 — 박리·인장 시험기</h2>
+    <div class="card">
+      <div class="card-title">
+        SP-2100 <span class="badge badge-ok">✅ 동작 확인</span> <span class="badge badge-serial">RS-232C</span>
+      </div>
+      <table>
+        <tr><th>항목</th><th>SP-2100</th><th>TL-2200</th></tr>
+        <tr><td>Baud Rate</td><td><code>57600</code></td><td><code>38400</code></td></tr>
+        <tr><td>Data Bits</td><td><code>8</code></td><td><code>8</code></td></tr>
+        <tr><td>Parity</td><td><code>None</code></td><td><code>None</code></td></tr>
+        <tr><td>Stop Bits</td><td><code>1</code></td><td><code>1</code></td></tr>
+        <tr><td>Poll 명령</td><td colspan="2"><code>R\r</code></td></tr>
+        <tr><td>Poll 간격</td><td colspan="2">300 ms</td></tr>
+      </table>
+    </div>
+
+    <h3>장비 선택</h3>
+    <p>사이드바 상단 <strong>장비 모델</strong> 드롭다운에서 <strong>SP-2100</strong> 또는 <strong>TL-2200</strong>을 선택합니다.
+    선택에 따라 통신 속도와 파싱 방식이 자동으로 변경됩니다.</p>
+
+    <h3>측정 기록 테이블</h3>
+    <table>
+      <tr><th>컬럼</th><th>설명</th></tr>
+      <tr><td>#</td><td>그룹-내번호 (예: 1-1, 1-2 …)</td></tr>
+      <tr><td>이름</td><td>제품명 (클릭하여 직접 편집 가능)</td></tr>
+      <tr><td>AVG</td><td>평균 박리력 (gf) — 굵게 강조, 소수점 2자리</td></tr>
+      <tr><td>SP</td><td>시작 피크 (gf)</td></tr>
+      <tr><td>KP</td><td>최대 피크 (gf)</td></tr>
+      <tr><td>VAL</td><td>측정값 (gf)</td></tr>
+      <tr><td>RMS</td><td>RMS 값 (gf)</td></tr>
+    </table>
+
+    <h3>앱 사용 방법</h3>
+    <ol class="steps">
+      <li>SP-2100 / TL-2200 카드를 클릭하여 진입합니다.</li>
+      <li>사이드바에서 장비 모델, 테스트 속도, 평균화 시간, 그룹당 개수를 설정합니다.</li>
+      <li>연결 후 장비에서 측정을 실행하면 결과가 자동으로 테이블에 추가됩니다.</li>
+      <li>그룹이 완성되면 우측 AVG 분포 수염차트가 자동 업데이트됩니다.</li>
+      <li>이름 칸을 클릭하여 제품명을 입력할 수 있습니다.</li>
+    </ol>
+
+    <h3>사이드바 설정 (저장됨)</h3>
+    <table>
+      <tr><th>항목</th><th>설명</th></tr>
+      <tr><td>장비 모델</td><td>SP-2100 / TL-2200 선택</td></tr>
+      <tr><td>Test Speed</td><td>테스트 속도 (mm/min)</td></tr>
+      <tr><td>Initial Delay</td><td>초기 대기 시간 (s)</td></tr>
+      <tr><td>Averaging Time</td><td>평균화 구간 (s)</td></tr>
+      <tr><td>그룹당 개수</td><td>한 그룹에 포함될 측정 횟수</td></tr>
+    </table>
+    <div class="note">💡 설정값은 브라우저 localStorage에 자동 저장되어 다음 실행 시 복원됩니다.</div>
+  </section>
+
+  <!-- ════════════════════════════════════════════ -->
+  <section id="agilent">
+    <h2>Agilent 4339B — 고저항 측정기</h2>
+    <div class="card">
+      <div class="card-title">
+        Agilent 4339B <span class="badge badge-ok">✅ 동작 확인</span> <span class="badge badge-serial">GPIB-USB</span>
+      </div>
+      <table>
+        <tr><th>항목</th><th>값</th></tr>
+        <tr><td>인터페이스</td><td>GPIB-USB-HS (NI USB-GPIB)</td></tr>
+        <tr><td>Baud Rate</td><td><code>9600</code> (브리지 설정)</td></tr>
+        <tr><td>Data Bits</td><td><code>8</code></td></tr>
+        <tr><td>Parity</td><td><code>None</code></td></tr>
+        <tr><td>Stop Bits</td><td><code>1</code></td></tr>
+      </table>
+    </div>
+
+    <div class="warn">⚠ GPIB-USB-HS 어댑터가 필요합니다. NI VISA 드라이버 설치 후 PyVISA IPC 브리지를 통해 연결합니다.</div>
+
+    <h3>측정 시퀀스 (앱이 자동 실행)</h3>
+    <pre><span class="c"># 초기화</span>
+*RST → 2.2s → *CLS → FUNC 'RES' → SOUR:VOLT → TRIG:SOUR BUS → OUTP ON
+<span class="c"># 측정</span>
+[충전 대기] → ABOR → *CLS → INIT → 0.5s → *TRG → 0.5s → FETC?
+<span class="c"># 종료</span>
+OUTP OFF → 0.5s → *CLS</pre>
+
+    <h3>앱 사용 방법</h3>
+    <ol class="steps">
+      <li>Agilent 4339B 카드를 클릭하여 진입합니다.</li>
+      <li>사이드바에서 인가 전압, 충전 시간, 두께를 설정합니다.</li>
+      <li>연결 후 <strong>측정 시작</strong>을 클릭합니다.</li>
+      <li>충전 카운트다운이 표시되고 측정 완료 후 값이 테이블에 기록됩니다.</li>
+      <li>그룹 개수 ≥ 2인 경우 우측에 수염차트가 표시됩니다.</li>
+    </ol>
+
+    <h3>사이드바 설정</h3>
+    <table>
+      <tr><th>항목</th><th>설명</th></tr>
+      <tr><td>인가 전압 (V)</td><td>측정 인가 전압 설정</td></tr>
+      <tr><td>충전 시간 (s)</td><td>충전 대기 시간 — 두꺼운 시료일수록 길게</td></tr>
+      <tr><td>두께 (mm)</td><td>시료 두께 — 표면/체적 저항율 계산용</td></tr>
+      <tr><td>반복 횟수</td><td>그룹당 측정 횟수 (수염차트 그룹 단위)</td></tr>
+    </table>
+    <div class="note">💡 측정값은 <code>toExponential(4)</code> 형식으로 표시됩니다 (예: 1.9864E+14 Ω).</div>
+  </section>
+
+  <!-- ════════════════════════════════════════════ -->
+  <section id="daq6510">
+    <h2>DAQ-6510 — 다채널 저항 로거</h2>
+    <div class="card">
+      <div class="card-title">
+        Keithley DAQ-6510 <span class="badge badge-ok">✅ 동작 확인</span> <span class="badge badge-serial">RS-232C / LAN</span>
+      </div>
+      <table>
+        <tr><th>항목</th><th>값</th></tr>
+        <tr><td>Baud Rate</td><td><code>9600</code></td></tr>
+        <tr><td>Data Bits</td><td><code>8</code></td></tr>
+        <tr><td>Parity</td><td><code>None</code></td></tr>
+        <tr><td>Stop Bits</td><td><code>1</code></td></tr>
+      </table>
+    </div>
+
+    <h3>Front / Rear 단자 선택</h3>
+    <p>사이드바 상단 <strong>Front / Rear</strong> 토글로 단자를 선택합니다.</p>
+    <ul>
+      <li><strong>Front</strong> — 전면 4-Wire 단자 단일 측정 (스캔 비활성)</li>
+      <li><strong>Rear</strong> — 스캐너 카드(슬롯 1/2) 연결, 최대 10채널 순차 측정</li>
+    </ul>
+
+    <h3>Rear 스캔 시퀀스 (채널별 수동 릴레이 제어)</h3>
+    <pre><span class="c"># 채널별 반복</span>
+ROUT:OPEN:ALL (50ms)
+ROUT:CLOS (@CH101, CH111)   <span class="c"># 4-wire: 소스+센스</span>
+READ?
+ROUT:OPEN:ALL               <span class="c"># 릴레이 즉시 해제</span>
+<span class="c"># 딜레이 대기 후 다음 채널</span></pre>
+
+    <h3>앱 사용 방법</h3>
+    <ol class="steps">
+      <li>DAQ-6510 카드를 클릭하여 진입합니다.</li>
+      <li>Front/Rear를 선택합니다. Rear 선택 시 슬롯이 자동 감지됩니다.</li>
+      <li>채널별 딜레이(초), 측정 시간, 기록 간격을 설정합니다.</li>
+      <li><strong>측정 시작</strong>을 클릭하면 채널별로 순차 측정이 진행됩니다.</li>
+      <li>우측 그래프에 채널별 시계열이 실시간 표시됩니다.</li>
+      <li>설정한 측정 시간 도달 시 자동 종료됩니다.</li>
+    </ol>
+
+    <h3>사이드바 설정</h3>
+    <table>
+      <tr><th>항목</th><th>설명</th></tr>
+      <tr><td>채널 딜레이</td><td>채널 간 전환 대기 시간 (초) — 안정화 시간</td></tr>
+      <tr><td>측정 시간</td><td>총 측정 지속 시간 — 도달 시 자동 종료</td></tr>
+      <tr><td>기록 간격</td><td>그래프에 데이터 포인트를 찍는 주기</td></tr>
+      <tr><td>채널 설정</td><td>각 채널의 이름(샘플명) 설정 가능</td></tr>
+    </table>
+    <div class="note">💡 10채널 1사이클 소요 시간 ≈ 채널 수 × (딜레이 + 측정 시간). 채널 딜레이 2초 설정 시 약 22초/사이클.</div>
+  </section>
+
+  <!-- ════════════════════════════════════════════ -->
+  <section id="pt2000">
+    <h2>PT-2000 — Probe Tack 시험기</h2>
+    <div class="card">
+      <div class="card-title">
+        ChemInstruments PT-2000 <span class="badge badge-warn">🔧 실기 테스트 필요</span> <span class="badge badge-hid">WebHID</span>
+      </div>
+      <table>
+        <tr><th>항목</th><th>값</th></tr>
+        <tr><td>인터페이스</td><td>WebHID (USB)</td></tr>
+        <tr><td>시리얼 연결</td><td>불필요 — USB 직접 연결</td></tr>
+      </table>
+    </div>
+
+    <div class="note">💡 PT-2000은 Web Serial이 아닌 <strong>WebHID</strong>를 사용합니다.
+    USB 케이블로 연결 후 앱 내 <strong>연결</strong> 버튼을 클릭하면 HID 장치 선택 팝업이 나타납니다.</div>
+
+    <h3>앱 사용 방법</h3>
+    <ol class="steps">
+      <li>PT-2000 카드를 클릭하여 진입합니다.</li>
+      <li>USB 케이블로 PT-2000을 PC에 연결합니다.</li>
+      <li>사이드바의 <strong>연결</strong> 버튼을 클릭 → HID 장치 선택 팝업에서 PT-2000을 선택합니다.</li>
+      <li>장비에서 측정을 실행하면 Peak(gf) 값이 자동으로 기록됩니다.</li>
+      <li>그룹 개수 ≥ 2인 경우 우측에 수염차트가 표시됩니다.</li>
+    </ol>
+  </section>
+
+  <!-- ════════════════════════════════════════════ -->
+  <section id="lt1000">
+    <h2>LT-1000 — Loop Tack 시험기</h2>
+    <div class="card">
+      <div class="card-title">
+        ChemInstruments LT-1000 <span class="badge badge-ok">✅ 동작 확인</span> <span class="badge badge-serial">RS-232C</span>
+      </div>
+      <table>
+        <tr><th>항목</th><th>값</th></tr>
+        <tr><td>Baud Rate</td><td><code>9600</code></td></tr>
+        <tr><td>Data Bits</td><td><code>8</code></td></tr>
+        <tr><td>Parity</td><td><code>None</code></td></tr>
+        <tr><td>Stop Bits</td><td><code>1</code></td></tr>
+        <tr><td>Flow Control</td><td><code>None</code></td></tr>
+      </table>
+    </div>
+
+    <h3>데이터 전송 방법</h3>
+    <div class="warn">⚠ LT-1000은 능동 측정이 아닌 <strong>수동 전송</strong> 방식입니다. 아래 절차를 따르세요.</div>
+    <ol class="steps">
+      <li>LT-1000에서 <kbd>Select</kbd> 버튼으로 데이터 메뉴로 이동합니다.</li>
+      <li>🔴 <strong>Run</strong> 상태(빨간 LED)에서 평가를 진행합니다.</li>
+      <li><kbd>Print</kbd>(🔴 빨간 LED) → <kbd>Enter</kbd> → <kbd>Enter</kbd>를 누릅니다.</li>
+      <li>약 3~5초 후 타이머가 종료되면 데이터가 앱에 자동으로 기록됩니다 (녹색 표시).</li>
+    </ol>
+
+    <h3>로드셀 캘리브레이션</h3>
+    <ol class="steps">
+      <li>로드셀을 최상단으로 이동 후 고정핀을 체결합니다.</li>
+      <li><kbd>Select</kbd> + <kbd>Enter</kbd> 3초 → <strong>Setup</strong>(🔴 빨간 LED) → <kbd>Enter</kbd></li>
+      <li>디스플레이에 <strong>LC 0.000</strong> 확인 → <kbd>Enter</kbd> (무부하 0점 교정)</li>
+      <li>디스플레이에 <strong>HC 1000</strong> 표시 → <strong>1 kg 분동</strong>을 올린 후 <kbd>Enter</kbd></li>
+      <li>추를 제거하고 로드셀을 파지한 채 고정핀을 해제하고 조심히 내려놓습니다.</li>
+    </ol>
+
+    <h3>ST FULL 해결 방법</h3>
+    <p>메모리(20개)가 가득 찬 경우 ST FULL 오류가 발생합니다.</p>
+    <ol class="steps">
+      <li><kbd>Select</kbd> → <kbd>Print</kbd>(🔴) → <kbd>▲</kbd> × 2 → <kbd>DL</kbd> → <kbd>Enter</kbd></li>
+      <li><kbd>Select</kbd> + <kbd>Enter</kbd> 3초 → 초기화 완료</li>
+      <li>이후 다시 평가를 시작합니다 (녹색 표시).</li>
+    </ol>
+  </section>
+
+  <!-- ════════════════════════════════════════════ -->
+  <section id="photo">
+    <h2>Photo Editor — 사진 편집 · 엑셀 내보내기</h2>
+    <div class="card">
+      <div class="card-title">
+        Photo Editor <span class="badge badge-noconn">비-시리얼 도구</span>
+      </div>
+      <p style="margin:0;">RS-232C 불필요. 파일 업로드 또는 스마트폰 카메라 연동으로 사진을 수집하고 엑셀(.xlsx)로 내보냅니다.</p>
+    </div>
+
+    <h3>기본 사용 흐름</h3>
+    <ol class="steps">
+      <li>Photo Editor 카드를 클릭하여 진입합니다.</li>
+      <li>좌측 <strong>📁 파일 선택 / 드롭</strong> 버튼으로 사진을 업로드하거나, 스마트폰 카메라를 연동합니다.</li>
+      <li>사이드바 파일 목록에서 사진을 클릭하면 메인뷰에 크롭 영역이 표시됩니다.</li>
+      <li>크롭 영역을 드래그하여 원하는 범위를 설정합니다.</li>
+      <li>하단 <strong>다음 단계 ▶</strong>를 클릭하면 Step 2 그룹 미리보기로 이동합니다.</li>
+      <li><strong>엑셀로 내보내기</strong>를 클릭하면 .xlsx 파일이 생성됩니다.</li>
+    </ol>
+
+    <h3>스마트폰 카메라 연동</h3>
+    <ol class="steps">
+      <li><code>시작.bat</code>로 앱을 실행합니다 (python server.py 필수).</li>
+      <li>사이드바 <strong>▶ 폰 연동 시작</strong>을 클릭합니다.</li>
+      <li><strong>USB 연결 시</strong>: ADB가 자동으로 포트를 연결합니다. 폰 브라우저에서 <code>http://localhost:8000/phone.html</code>을 엽니다.</li>
+      <li><strong>WiFi 연결 시</strong>: 폰과 PC를 같은 WiFi에 연결 후 폰 브라우저에서 <code>http://[PC의 IP]:8000/phone.html</code>을 엽니다.</li>
+      <li>폰 화면에서 <strong>● 촬영 → 업로드</strong>를 누르면 사이드바에 사진이 자동으로 추가됩니다.</li>
+    </ol>
+
+    <div class="note">💡 PC에서 카메라 라이브뷰를 클릭하면 초점이 이동합니다. 길게 누르면 초점이 고정됩니다 (폰 카메라가 지원하는 경우).</div>
+
+    <h3>덮어쓰기 촬영</h3>
+    <p>사이드바 파일 목록에서 <strong>체크박스를 선택</strong>한 후 새로 촬영하면 해당 파일이 새 사진으로 교체됩니다.
+    잘못 찍힌 사진을 재촬영할 때 활용합니다.</p>
+
+    <h3>크롭 설정</h3>
+    <table>
+      <tr><th>조작</th><th>기능</th></tr>
+      <tr><td>드래그</td><td>크롭 영역 이동</td></tr>
+      <tr><td>모서리 핸들 드래그</td><td>크롭 영역 크기 조절</td></tr>
+      <tr><td>회전 슬라이더</td><td>−15° ~ +15° 회전 (±0.1° 스텝)</td></tr>
+    </table>
+
+    <h3>엑셀 내보내기 설정</h3>
+    <table>
+      <tr><th>항목</th><th>설명</th></tr>
+      <tr><td>출력 크기 (인치)</td><td>엑셀 셀 내 이미지 크기 (기본 1.5 × 1.5인치)</td></tr>
+      <tr><td>한 열 개수</td><td>열당 이미지 수 (기본 6개) — 이 수 이후 다음 열로 넘어감</td></tr>
+    </table>
+    <div class="warn">⚠ 엑셀 내보내기는 CDN(ExcelJS)을 사용합니다. 오프라인 환경에서는 내보내기가 불가능할 수 있습니다.</div>
+  </section>
+
+  <!-- ════════════════════════════════════════════ -->
+  <section id="trouble">
+    <h2>문제 해결</h2>
+
+    <h3>연결 관련</h3>
+    <table>
+      <tr><th>증상</th><th>원인</th><th>해결</th></tr>
+      <tr>
+        <td>포트 선택 창에 COM 포트가 없음</td>
+        <td>USB-Serial 드라이버 미설치</td>
+        <td>CH340, FTDI, PL2303 등 드라이버를 설치하세요</td>
+      </tr>
+      <tr>
+        <td>연결은 되지만 값이 안 옴</td>
+        <td>시리얼 설정 불일치</td>
+        <td>본 매뉴얼의 계측기별 설정을 다시 확인하세요</td>
+      </tr>
+      <tr>
+        <td>연결 후 "오류" 표시</td>
+        <td>계측기 전원 OFF / 케이블 불량</td>
+        <td>계측기 전원 확인 및 케이블 재연결</td>
+      </tr>
+      <tr>
+        <td>Mitutoyo VL-50 값 없음</td>
+        <td>7E2 설정 누락 — 기본값(8N1)으로 연결</td>
+        <td>앱이 자동으로 7E2로 연결됩니다. 별도 설정 불필요</td>
+      </tr>
+    </table>
+
+    <h3>측정값 관련</h3>
+    <table>
+      <tr><th>증상</th><th>원인</th><th>해결</th></tr>
+      <tr>
+        <td>Keithley 2700: "Over Flow"</td>
+        <td>프로브 미연결 또는 측정 범위 초과</td>
+        <td>프로브를 시료에 접촉시키거나 레인지를 확인하세요</td>
+      </tr>
+      <tr>
+        <td>SP-2100 측정값이 기록 안 됨</td>
+        <td>AVG/PEAK 라벨이 포함된 라인만 인식</td>
+        <td>장비가 측정을 완료(COMPLETE)해야 값이 전송됩니다</td>
+      </tr>
+      <tr>
+        <td>DAQ-6510 채널 1개만 측정됨</td>
+        <td>Rear 스캔이 아닌 Front 모드</td>
+        <td>사이드바에서 Rear를 선택하세요</td>
+      </tr>
+    </table>
+
+    <h3>앱/화면 관련</h3>
+    <table>
+      <tr><th>증상</th><th>원인</th><th>해결</th></tr>
+      <tr>
+        <td>런처 카드가 표시 안 됨</td>
+        <td>JavaScript 오류 또는 CORS</td>
+        <td><code>python -m http.server</code>가 아닌 <code>python server.py</code>로 실행하세요</td>
+      </tr>
+      <tr>
+        <td>그래프가 찌그러짐</td>
+        <td>화면 크기 문제</td>
+        <td>브라우저 창을 넓게 하거나 줌 레벨을 조정하세요</td>
+      </tr>
+      <tr>
+        <td>설정이 초기화됨</td>
+        <td>브라우저 캐시/쿠키 삭제</td>
+        <td>설정은 localStorage에 저장됩니다. 캐시 삭제 시 초기화됩니다</td>
+      </tr>
+      <tr>
+        <td>폰 카메라 라이브뷰 지연 (6초+)</td>
+        <td>폰 → 서버 첫 프레임 전송 대기</td>
+        <td>정상입니다 (폰이 카메라 권한 취득 + 첫 프레임 전송까지 5~7초 소요)</td>
+      </tr>
+    </table>
+  </section>
+
+  <!-- ════════════════════════════════════════════ -->
+  <section id="serial">
+    <h2>시리얼 설정 빠른 참조표</h2>
+    <table>
+      <tr><th>계측기</th><th>Baud</th><th>Data</th><th>Parity</th><th>Stop</th><th>인터페이스</th></tr>
+      <tr><td>Hioki 3540</td><td>9600</td><td>8</td><td>None</td><td>1</td><td>RS-232C</td></tr>
+      <tr><td>Keithley 2700</td><td>9600</td><td>8</td><td>None</td><td>1</td><td>RS-232C</td></tr>
+      <tr><td>Mitutoyo VL-50</td><td>9600</td><td><strong>7</strong></td><td><strong>Even</strong></td><td><strong>2</strong></td><td>RS-232C</td></tr>
+      <tr><td>SP-2100</td><td><strong>57600</strong></td><td>8</td><td>None</td><td>1</td><td>RS-232C</td></tr>
+      <tr><td>TL-2200</td><td><strong>38400</strong></td><td>8</td><td>None</td><td>1</td><td>RS-232C</td></tr>
+      <tr><td>Agilent 4339B</td><td>9600</td><td>8</td><td>None</td><td>1</td><td>GPIB-USB</td></tr>
+      <tr><td>DAQ-6510</td><td>9600</td><td>8</td><td>None</td><td>1</td><td>RS-232C</td></tr>
+      <tr><td>PT-2000</td><td>—</td><td>—</td><td>—</td><td>—</td><td>WebHID(USB)</td></tr>
+      <tr><td>LT-1000</td><td>9600</td><td>8</td><td>None</td><td>1</td><td>RS-232C</td></tr>
+    </table>
+    <div class="note">💡 <strong>Mitutoyo VL-50</strong>만 7E2 설정으로 다릅니다. 앱이 자동으로 올바른 설정으로 연결합니다.</div>
+  </section>
+
+  <div class="spacer"></div>
+</main>
+</div>
+
+<script>
+// 목차 active 하이라이트
+const items = document.querySelectorAll('.toc-item');
+const sections = document.querySelectorAll('section[id]');
+const obs = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      items.forEach(a => a.classList.toggle('active', a.getAttribute('href') === '#' + e.target.id));
+    }
+  });
+}, { rootMargin: '-30% 0px -60% 0px' });
+sections.forEach(s => obs.observe(s));
+</script>
+</body>
+</html>

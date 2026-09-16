@@ -261,6 +261,42 @@ function updateAllMeasDisplay() {
     const v = $(`pstV${c}`); if (v) v.textContent = `${S.ch[c - 1].measV.toFixed(3)} V`;
     const i = $(`pstI${c}`); if (i) i.textContent = `${S.ch[c - 1].measI.toFixed(3)} A`;
   });
+  updateSeriesLiveSummary();
+}
+
+// In series tracking voltage adds, but the same current flows through CH1 and
+// CH2.  Never add their current readings: that would double the DUT current.
+export function seriesMeasurement(ch1Voltage, ch1Current, ch2Voltage, ch2Current) {
+  return {
+    voltage: (Number(ch1Voltage) || 0) + (Number(ch2Voltage) || 0),
+    current: ((Number(ch1Current) || 0) + (Number(ch2Current) || 0)) / 2,
+  };
+}
+
+export function isSeriesCurrentLimited(measured, voltageSetpoint, currentLimit) {
+  const expectedVoltage = Math.max(0, Number(voltageSetpoint) || 0) * 2;
+  const limit = Math.max(0, Number(currentLimit) || 0);
+  return limit > 0
+    && measured.current >= limit * 0.995
+    && measured.voltage < expectedVoltage * 0.98;
+}
+
+function updateSeriesLiveSummary() {
+  const summary = $('pstSeriesLiveSummary');
+  if (!summary || !S) return;
+  const isSeries = S.trackMode === 2;
+  summary.style.display = isSeries ? 'flex' : 'none';
+  if (!isSeries) return;
+  const measured = seriesMeasurement(S.ch[0].measV, S.ch[0].measI, S.ch[1].measV, S.ch[1].measI);
+  const vSet = parseFloat($('pstVset2')?.value) || 0;
+  const iLimit = parseFloat($('pstIset2')?.value) || 0;
+  const limited = S.outputActive && isSeriesCurrentLimited(measured, vSet, iLimit);
+  summary.classList.toggle('pst-series-limited', limited);
+  summary.innerHTML = `
+    <span>${t('pst_series_live')} <b>${measured.voltage.toFixed(3)} V</b> / ${t('pst_series_i')} <b>${measured.current.toFixed(3)} A</b></span>
+    <span class="pst-series-limit-msg">${limited
+      ? tf('pst_series_cc_limit', { v: (vSet * 2).toFixed(1), i: iLimit.toFixed(3), r: iLimit > 0 ? (vSet * 2 / iLimit).toFixed(1) : '-' })
+      : t('pst_series_cv_ok')}</span>`;
 }
 
 function _sidebarBtnLocked() {
@@ -319,6 +355,7 @@ function updateTrackModeUI() {
     if (isTracking && S.selectedCh === 3) selCh(1);
   }
   syncTrackingSettings();
+  updateSeriesLiveSummary();
 }
 
 function setNeedsConn(on) {
@@ -1519,8 +1556,9 @@ function _seriesCombinedSource(ts, v, i) {
   const n = ts.length;
   const vC = new Array(n), iC = new Array(n);
   for (let j = 0; j < n; j++) {
-    vC[j] = (v[0]?.[j] || 0) + (v[1]?.[j] || 0);
-    iC[j] = ((i[0]?.[j] || 0) + (i[1]?.[j] || 0)) / 2;
+    const measured = seriesMeasurement(v[0]?.[j], i[0]?.[j], v[1]?.[j], i[1]?.[j]);
+    vC[j] = measured.voltage;
+    iC[j] = measured.current;
   }
   return { ts, v: [vC, [], []], i: [iC, [], []], chIdxs: [0] };
 }
@@ -1711,8 +1749,10 @@ function computeMaxCurrent(rec) {
   if (rec.trackMode !== 0) {
     const ts = rec.raw?.ts || [];
     for (let j = 0; j < ts.length; j++) {
-      const tot = (i[0]?.[j] || 0) + (i[1]?.[j] || 0);
-      if (tot > max) max = tot;
+      const combined = rec.trackMode === 2
+        ? seriesMeasurement(0, i[0]?.[j], 0, i[1]?.[j]).current
+        : (i[0]?.[j] || 0) + (i[1]?.[j] || 0);
+      if (combined > max) max = combined;
     }
   }
   return max;
@@ -2533,10 +2573,13 @@ function onDisconnect() {
   }
   setNeedsConn(false);
   pstLog(t('pst_log_disconnected'), 'warn');
+  // PST-3202 has no shared right panel.  Disconnecting a serial device must
+  // not restore the application's default 3-column layout: doing so leaves an
+  // empty right column and visibly shrinks the measurement workspace.
   const rp = $('rightpanel');
-  if (rp) rp.style.display = '';
+  if (rp) rp.style.display = 'none';
   const layout = $('layout');
-  if (layout) layout.classList.remove('pst-layout-no-right');
+  if (layout) layout.classList.add('pst-layout-no-right');
 }
 
 // ── HTML 생성 ──────────────────────────────────────────────────────────────────
@@ -2670,6 +2713,8 @@ function buildCenter(el) {
         </div>
         ${chCardHTML(2)}${chCardHTML(3)}
       </div>
+
+      <div id="pstSeriesLiveSummary" class="pst-series-live-summary" style="display:none;"></div>
 
       <!-- Cycle Editor -->
       <div id="pstCycleEditor" class="pst-cycle-editor" style="display:none;">

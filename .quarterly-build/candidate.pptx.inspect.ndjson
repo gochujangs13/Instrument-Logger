@@ -1,0 +1,41 @@
+{"kind":"deck","id":"pr/0r34ld","name":"Deck"}
+{"kind":"layout","layoutId":"f9a18348-eaf6-420d-886b-e9d406a3e355","name":"Master","type":"master"}
+{"kind":"layout","layoutId":"5f1e35a1-2465-4869-ab89-900601da2d8c","name":"Title Slide","type":"title"}
+{"kind":"slide","id":"sl/ake4hy","slide":1,"title":"JP Kim : 분기별 성과 대화 3Q26","textShapes":14}
+{"kind":"textbox","id":"sh/8fy187m9","slide":1,"text":"JP Kim : 분기별 성과 대화 3Q26","textPreview":"JP Kim : 분기별 성과 대화 3Q26","textChars":23,"textLines":1,"bbox":[30,22,1220,62]}
+{"kind":"textbox","id":"sh/ne5kz25o","slide":1,"text":"2026년 3분기 진행사항 (7월~9월 14일 기준)","textPreview":"2026년 3분기 진행사항 (7월~9월 14일 기준)","textChars":29,"textLines":1,"bbox":[32,85,1100,30]}
+{"kind":"textbox","id":"sh/mdwj6x43","slide":1,"text":"3M Confidential","textPreview":"3M Confidential","textChars":15,"textLines":1,"bbox":[32,678,500,22]}
+{"kind":"textbox","id":"sh/h4725cnq","slide":1,"text":"1","textPreview":"1","textChars":1,"textLines":1,"bbox":[1210,678,35,22]}
+{"kind":"shape","id":"sh/w3y1c7m5","slide":1,"bbox":[30,130,612,530]}
+{"kind":"shape","id":"sh/v2pk325k","slide":1,"bbox":[658,130,592,250]}
+{"kind":"shape","id":"sh/u1gjax4z","slide":1,"bbox":[658,394,592,266]}
+{"kind":"textbox","id":"sh/58r29c3m","slide":1,"text":"기여 및 성과","textPreview":"기여 및 성과","textChars":7,"textLines":1,"bbox":[48,145,570,38]}
+{"kind":"textbox","id":"sh/47i1grm1","slide":1,"text":"2분기에 구축한 통합 프로그램을 바탕으로, 실제 평가 업무에 필요한 측정·분석 기능과 신규 도구를 확대했습니다.","textPreview":"2분기에 구축한 통합 프로그램을 바탕으로, 실제 평가 업무에 필요한 측정·분석 기능과 신규 도구를 확대했습니다.","textChars":62,"textLines":1,"bbox":[48,195,568,75]}
+{"kind":"textbox","id":"sh/atov2tsb","slide":1,"text":"Keithley 2400\n전압·전류·저항 그래프와 다중 샘플 비교,\n원시 데이터 연동 Excel 보고서 및 안전 설정 개선","textPreview":"Keithley 2400 | 전압·전류·저항 그래프와 다중 샘플 비교, | 원시 데이터 연동 Excel 보고서 및 안전 설정 개선","textChars":68,"textLines":3,"bbox":[48,279,568,95]}
+{"kind":"textbox","id":"sh/buxwvytw","slide":1,"text":"SP-2100 / TL-2200\n원시 데이터 수집과 파형 분석 개선,\n복수 구간 선택 및 구간별 평균 비교 기능 추가","textPreview":"SP-2100 / TL-2200 | 원시 데이터 수집과 파형 분석 개선, | 복수 구간 선택 및 구간별 평균 비교 기능 추가","textChars":65,"textLines":3,"bbox":[48,384,568,95]}
+{"kind":"textbox","id":"sh/cv6d43ah","slide":1,"text":"Epson OK900P / 에칭 설계\n라벨 편집·연속 번호 인쇄 기능 완성\n시편 자동 배치·대칭 홀 가공·CAD 내보내기 개발","textPreview":"Epson OK900P / 에칭 설계 | 라벨 편집·연속 번호 인쇄 기능 완성 | 시편 자동 배치·대칭 홀 가공·CAD 내보내기 개발","textChars":70,"textLines":3,"bbox":[48,489,568,105]}
+{"kind":"textbox","id":"sh/xwfex8b2","slide":1,"text":"공통 화면 및 배포 안정성 개선도 병행했습니다.","textPreview":"공통 화면 및 배포 안정성 개선도 병행했습니다.","textChars":26,"textLines":1,"bbox":[48,616,568,28]}
+{"kind":"textbox","id":"sh/yx8v6dsn","slide":1,"text":"업무 방식","textPreview":"업무 방식","textChars":5,"textLines":1,"bbox":[676,145,550,38]}
+{"kind":"textbox","id":"sh/zihwzit8","slide":1,"text":"평가자 관점에서 설정을 쉽게 이해하고, 결과를 편리하게 비교할 수 있도록 개선했습니다.\n\n사용자 피드백과 실제 오류 사례를 수정에 반영하고, 작업 이력과 배포 기록을 문서화했습니다.","textPreview":"평가자 관점에서 설정을 쉽게 이해하고, 결과를 편리하게 비교할 수 있도록 개선했습니다. |  | 사용자 피드백과 실제 오류 사례를 수정에 반영하고, 작업 이력과 배포 기록을 문서화했습니다.","textChars":101,"textLines":3,"bbox":[676,198,550,164]}
+{"kind":"textbox","id":"sh/kjqd8nad","slide":1,"text":"개발 방향 및 역량 강화","textPreview":"개발 방향 및 역량 강화","textChars":13,"textLines":1,"bbox":[676,409,550,38]}
+{"kind":"textbox","id":"sh/lkze1sby","slide":1,"text":"측정 데이터 분석, 시스템 구조 설계와 사용자 중심 화면 설계 역량을 강화하고자 합니다.\n\n다음 단계에서는 2400 실측·그래프 일치 여부와 CAD 호환성을 검증하고, 업데이트 편의성을 개선해 PIM/Hx 평가 업무의 통합 범위를 넓힐 계획입니다.","textPreview":"측정 데이터 분석, 시스템 구조 설계와 사용자 중심 화면 설계 역량을 강화하고자 합니다. |  | 다음 단계에서는 2400 실측·그래프 일치 여부와 CAD 호환성을 검증하고, 업데이트 편의성을 개선해 PIM/Hx 평가 업무의 통합 범위를 넓힐 계...","textChars":138,"textLines":3,"bbox":[676,461,550,184]}
+{"kind":"notes","id":"nt/ake4hy","slide":1,"text":"사용자 제공 2Q26 보고서 이미지 및 대화에 기록된 2026년 3분기 작업 내용을 바탕으로 작성. 분기 종료 전인 9월 14일 기준. 장비 실측 정확도와 사용자 도면 CAD 호환성의 최종 확인은 후속 과제."}
+{"kind":"slide","id":"sl/22zla3","slide":2,"title":"계측기·도구별 주요 업데이트","textShapes":17}
+{"kind":"textbox","id":"sh/83a94byl","slide":2,"text":"계측기·도구별 주요 업데이트","textPreview":"계측기·도구별 주요 업데이트","textChars":15,"textLines":1,"bbox":[30,22,1220,62]}
+{"kind":"textbox","id":"sh/n2h8vqx0","slide":2,"text":"2026년 3분기 진행사항 (7월~9월 14일 기준)","textPreview":"2026년 3분기 진행사항 (7월~9월 14일 기준)","textChars":29,"textLines":1,"bbox":[32,85,1100,30]}
+{"kind":"textbox","id":"sh/m18r2lgf","slide":2,"text":"3M Confidential","textPreview":"3M Confidential","textChars":15,"textLines":1,"bbox":[32,678,500,22]}
+{"kind":"textbox","id":"sh/x8jq10f2","slide":2,"text":"2","textPreview":"2","textChars":1,"textLines":1,"bbox":[1210,678,35,22]}
+{"kind":"textbox","id":"sh/w7a98vyh","slide":2,"text":"Keithley 2400","textPreview":"Keithley 2400","textChars":13,"textLines":1,"bbox":[35,136,280,64]}
+{"kind":"textbox","id":"sh/v618zqxc","slide":2,"text":"RS-232/GPIB 연결 및 2-Wire/4-Wire 설정 개선\n시간·사이클 평가, 다중 샘플 그래프, 원시 데이터 연동 Excel 대시보드\n설정 범위 검사와 보호 안내 추가","textPreview":"RS-232/GPIB 연결 및 2-Wire/4-Wire 설정 개선 | 시간·사이클 평가, 다중 샘플 그래프, 원시 데이터 연동 Excel 대시보드 | 설정 범위 검사와 보호 안내 추가","textChars":98,"textLines":3,"bbox":[328,136,900,78]}
+{"kind":"textbox","id":"sh/a5sr6lgr","slide":2,"text":"SP-2100 / TL-2200","textPreview":"SP-2100 / TL-2200","textChars":17,"textLines":1,"bbox":[35,222,280,64]}
+{"kind":"textbox","id":"sh/5w3a50fe","slide":2,"text":"원시 데이터 수집과 파형 표시 개선\n마우스로 복수 구간을 선택하여 구간별 평균 비교\n측정 기록 및 Excel 보고 기능 개선","textPreview":"원시 데이터 수집과 파형 표시 개선 | 마우스로 복수 구간을 선택하여 구간별 평균 비교 | 측정 기록 및 Excel 보고 기능 개선","textChars":69,"textLines":3,"bbox":[328,222,900,78]}
+{"kind":"textbox","id":"sh/kvu9cvyt","slide":2,"text":"LT-1000 / PT-2000","textPreview":"LT-1000 / PT-2000","textChars":17,"textLines":1,"bbox":[35,308,280,64]}
+{"kind":"textbox","id":"sh/uxovqp0n","slide":2,"text":"반복 측정 기록과 그룹별 결과 비교 흐름 개선\n평가 데이터 확인 및 사용 편의성 보완","textPreview":"반복 측정 기록과 그룹별 결과 비교 흐름 개선 | 평가 데이터 확인 및 사용 편의성 보완","textChars":47,"textLines":2,"bbox":[328,308,900,78]}
+{"kind":"textbox","id":"sh/vyxcjuh8","slide":2,"text":"Photo Editor","textPreview":"Photo Editor","textChars":12,"textLines":1,"bbox":[35,394,280,64]}
+{"kind":"textbox","id":"sh/wz6dsfit","slide":2,"text":"사진 크기·정렬 및 Excel 저장 일관성 개선\n카메라 촬영과 여러 이미지 정리 기능 보완","textPreview":"사진 크기·정렬 및 Excel 저장 일관성 개선 | 카메라 촬영과 여러 이미지 정리 기능 보완","textChars":50,"textLines":2,"bbox":[328,394,900,78]}
+{"kind":"textbox","id":"sh/h0fulkzy","slide":2,"text":"Epson OK900P","textPreview":"Epson OK900P","textChars":12,"textLines":1,"bbox":[35,480,280,64]}
+{"kind":"textbox","id":"sh/i1ovup0j","slide":2,"text":"테이프 폭에 따른 디자인 자동 조정, 바코드·QR 코드 지원\n시리얼 시작·종료 범위 인쇄와 여러 요소 일괄 편집","textPreview":"테이프 폭에 따른 디자인 자동 조정, 바코드·QR 코드 지원 | 시리얼 시작·종료 범위 인쇄와 여러 요소 일괄 편집","textChars":62,"textLines":2,"bbox":[328,480,900,78]}
+{"kind":"textbox","id":"sh/j2xcnuh4","slide":2,"text":"에칭 설계","textPreview":"에칭 설계","textChars":5,"textLines":1,"bbox":[35,566,280,64]}
+{"kind":"textbox","id":"sh/436dwzip","slide":2,"text":"원판·시편 크기와 간격에 따른 자동 배치\n중앙 및 대칭 2·4포인트 가공, 홀 중심 간 거리 설정\nODA 기반 AutoCAD 2007 DWG 변환 구현","textPreview":"원판·시편 크기와 간격에 따른 자동 배치 | 중앙 및 대칭 2·4포인트 가공, 홀 중심 간 거리 설정 | ODA 기반 AutoCAD 2007 DWG 변환 구현","textChars":84,"textLines":3,"bbox":[328,566,900,78]}
+{"kind":"textbox","id":"sh/54zup4za","slide":2,"text":"후속 확인: 2400 실측 정확도 및 사용자 도면의 TrueView/Inventor 호환성","textPreview":"후속 확인: 2400 실측 정확도 및 사용자 도면의 TrueView/Inventor 호환성","textChars":50,"textLines":1,"bbox":[35,654,1200,24]}
+{"kind":"notes","id":"nt/22zla3","slide":2,"text":"사용자 제공 2Q26 보고서 이미지 및 대화에 기록된 2026년 3분기 작업 내용을 바탕으로 작성. 분기 종료 전인 9월 14일 기준. 장비 실측 정확도와 사용자 도면 CAD 호환성의 최종 확인은 후속 과제."}

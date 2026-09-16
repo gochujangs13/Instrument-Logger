@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 500" role="img" aria-labelledby="title desc">
+  <title id="title">Keithley 2400 SourceMeter illustration</title>
+  <desc id="desc">A simplified front panel illustration used by the 3M Instrument Logger.</desc>
+  <defs>
+    <linearGradient id="case" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#d6d9dc"/><stop offset="1" stop-color="#9da3a9"/>
+    </linearGradient>
+    <linearGradient id="screen" x1="0" x2="1">
+      <stop stop-color="#0c2417"/><stop offset="1" stop-color="#163c27"/>
+    </linearGradient>
+    <filter id="shadow"><feDropShadow dx="0" dy="18" stdDeviation="18" flood-opacity=".35"/></filter>
+  </defs>
+  <rect x="50" y="70" width="800" height="350" rx="24" fill="url(#case)" stroke="#59626b" stroke-width="8" filter="url(#shadow)"/>
+  <rect x="78" y="102" width="744" height="286" rx="12" fill="#20262c" stroke="#11171c" stroke-width="5"/>
+  <text x="112" y="143" fill="#f5f7f9" font-family="Arial,sans-serif" font-size="27" font-weight="700">KEITHLEY</text>
+  <text x="704" y="143" fill="#e8edf1" font-family="Arial,sans-serif" font-size="25" font-weight="700">2400</text>
+  <text x="653" y="170" fill="#9aa7b1" font-family="Arial,sans-serif" font-size="13">SourceMeter</text>
+  <rect x="112" y="174" width="355" height="126" rx="6" fill="url(#screen)" stroke="#63736b" stroke-width="4"/>
+  <text x="136" y="229" fill="#73ff93" font-family="Consolas,monospace" font-size="44" font-weight="700">1.00000 V</text>
+  <text x="136" y="273" fill="#9eeab0" font-family="Consolas,monospace" font-size="24">10.0000 mA</text>
+  <g fill="#7e8991" stroke="#b7bec4" stroke-width="2">
+    <circle cx="526" cy="207" r="22"/><circle cx="584" cy="207" r="22"/><circle cx="642" cy="207" r="22"/>
+    <circle cx="526" cy="267" r="22"/><circle cx="584" cy="267" r="22"/><circle cx="642" cy="267" r="22"/>
+  </g>
+  <g font-family="Arial,sans-serif" font-size="12" fill="#e8edf1" text-anchor="middle">
+    <text x="526" y="211">MEAS</text><text x="584" y="211">SRC</text><text x="642" y="211">CONF</text>
+    <text x="526" y="271">TRIG</text><text x="584" y="271">MENU</text><text x="642" y="271">EXIT</text>
+  </g>
+  <circle cx="738" cy="230" r="45" fill="#303a42" stroke="#9da8b0" stroke-width="4"/>
+  <circle cx="738" cy="230" r="15" fill="#66737d"/>
+  <g stroke-width="8">
+    <circle cx="540" cy="338" r="17" fill="#c62828" stroke="#ff7f7f"/><circle cx="594" cy="338" r="17" fill="#171b1f" stroke="#69737b"/>
+    <circle cx="666" cy="338" r="17" fill="#c62828" stroke="#ff7f7f"/><circle cx="720" cy="338" r="17" fill="#171b1f" stroke="#69737b"/>
+  </g>
+  <g fill="#cbd2d7" font-family="Arial,sans-serif" font-size="11" text-anchor="middle">
+    <text x="567" y="375">FORCE</text><text x="693" y="375">SENSE</text>
+  </g>
+  <rect x="100" y="330" width="92" height="34" rx="5" fill="#313940" stroke="#6a737a" stroke-width="3"/>
+  <text x="146" y="352" fill="#70ff92" font-family="Arial,sans-serif" font-size="13" text-anchor="middle">OUTPUT</text>
+</svg>

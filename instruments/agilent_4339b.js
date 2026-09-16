@@ -30,12 +30,14 @@ function init() {
     mode: sv.mode || 'VOL',
     running: false,
     timer: null,
+    responsePoll: null,
+    pendingTimeouts: new Set(),
+    awaitingFetch: false,
+    fetchToken: 0,
     latestVal: null,
     latestOL: false,
     lastRaw: null,
     rows: [],
-    currentIlimIdx: 0,
-    autoEscalating: false,
     autoVolt: sv.autoVolt !== undefined ? sv.autoVolt : true,
     curGroup: null,
     curIdx: 0,
@@ -82,16 +84,91 @@ function _attachYOverlay(graphAreaEl, redrawFn) {
   };
 }
 
-// ── I-Lim auto-escalation config ──────────────────────────────────────────────
-const ILIM_STEPS  = ['500uA', '1mA', '2mA', '5mA', '10mA'];
-const ILIM_CMDS   = ['500E-6', '1E-3', '2E-3', '5E-3', '10E-3'];
+// ── Current-limit configuration (4339B Operation Manual, SOURce subsystem) ────
+// 0.5/1 mA: 0-1000 V, 2 mA: 0-500 V, 5 mA: 0-250 V, 10 mA: 0-100 V.
+const ILIM_LEVELS = [
+  { label: '500uA', mA: 0.5, maxVoltage: 1000, scpi: '0.5MA' },
+  { label: '1mA',   mA: 1,   maxVoltage: 1000, scpi: '1MA' },
+  { label: '2mA',   mA: 2,   maxVoltage: 500,  scpi: '2MA' },
+  { label: '5mA',   mA: 5,   maxVoltage: 250,  scpi: '5MA' },
+  { label: '10mA',  mA: 10,  maxVoltage: 100,  scpi: '10MA' },
+];
 
 // OL threshold: Agilent returns +9.9E+37 on overflow
 const OL_THRESHOLD = 9e+36;
+const FETCH_TIMEOUT_MS = 125000;
+const FETCH_POLL_MS = 200;
+
+function parseFetchResponse(rawLine) {
+  const line = String(rawLine ?? '').trim();
+  if (!line) return null;
+
+  const errorMatch = line.match(/^([+-]\d+)\s*,\s*"([^"]*)"/);
+  if (errorMatch) {
+    return { kind: 'error', code: parseInt(errorMatch[1]), raw: line };
+  }
+
+  if (/^OL(?:\s|$)/i.test(line)) {
+    return { kind: 'measurement', statusCode: 1, value: 9.9e37, overload: true, raw: line };
+  }
+
+  // Trigger-output response: "+0,+1.234E+09" (status code, measured value).
+  const pairMatch = line.match(/^([+-]?\d+(?:\.\d+)?)\s*,\s*([+-]?(?:\d+\.?\d*|\.\d+)(?:[Ee][+-]?\d+)?)/);
+  if (pairMatch) {
+    const statusCode = parseInt(parseFloat(pairMatch[1]));
+    const value = parseFloat(pairMatch[2]);
+    return {
+      kind: 'measurement', statusCode, value,
+      overload: statusCode !== 0 || Math.abs(value) > OL_THRESHOLD,
+      raw: line,
+    };
+  }
+
+  // Some 4339B format settings return only the numeric reading. The legacy
+  // PyVISA implementation accepted this form, so preserve that compatibility.
+  const singleMatch = line.match(/^([+-]?(?:\d+\.?\d*|\.\d+)(?:[Ee][+-]?\d+)?)$/);
+  if (singleMatch) {
+    const value = parseFloat(singleMatch[1]);
+    return {
+      kind: 'measurement', statusCode: 0, value,
+      overload: Math.abs(value) > OL_THRESHOLD,
+      raw: line,
+    };
+  }
+
+  return null;
+}
 
 // helpers
 const t = k => app?.t(k) ?? k;
 const escAttr = s => String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+
+function _schedule(callback, delayMs) {
+  const state = S;
+  const id = setTimeout(() => {
+    state?.pendingTimeouts?.delete(id);
+    if (S !== state) return;
+    callback();
+  }, delayMs);
+  state?.pendingTimeouts?.add(id);
+  return id;
+}
+
+function _clearMeasurementTimers() {
+  if (!S) return;
+  S.fetchToken++;
+  S.awaitingFetch = false;
+  if (S.timer !== null) {
+    clearInterval(S.timer);
+    S.timer = null;
+  }
+  if (S.responsePoll !== null) {
+    clearInterval(S.responsePoll);
+    S.responsePoll = null;
+  }
+  for (const id of S.pendingTimeouts) clearTimeout(id);
+  S.pendingTimeouts.clear();
+}
 
 // ── Mode selection popup (guide image — click image to close) ─────────────────
 function showModeModal(mode) {
@@ -206,11 +283,42 @@ function onAutoVoltChange(checked) {
   saveAgSettings();
 }
 
+function _ilimLevel(label) {
+  return ILIM_LEVELS.find(level => level.label === label) || ILIM_LEVELS[0];
+}
+
+function _syncIlimitForVoltage(logAdjustment = true) {
+  const voltage = parseFloat(document.getElementById('ag_voltage')?.value) || 500;
+  const ilimSel = document.getElementById('ag_ilimit');
+  if (!ilimSel) return ILIM_LEVELS[0];
+
+  for (const option of ilimSel.options) {
+    const level = _ilimLevel(option.value);
+    option.disabled = voltage > level.maxVoltage;
+  }
+
+  let selected = _ilimLevel(ilimSel.value);
+  if (voltage > selected.maxVoltage) {
+    const previous = selected.label;
+    const allowed = ILIM_LEVELS.filter(level => voltage <= level.maxVoltage);
+    selected = allowed[allowed.length - 1] || ILIM_LEVELS[0];
+    ilimSel.value = selected.label;
+    if (logAdjustment) {
+      app.log(`[4339B] ${app.tf('ag_ilim_adjusted', {
+        voltage, previous, selected: selected.label,
+      })}`, 'warn');
+    }
+  }
+
+  return selected;
+}
+
 function calcAutoVoltage() {
   if (!S.autoVolt) return;
   const thick = parseFloat(document.getElementById('ag_thickness')?.value) || 1.0;
   const voltSel = document.getElementById('ag_voltage');
   if (voltSel) voltSel.value = thick <= 0.1 ? '100' : '500';
+  _syncIlimitForVoltage();
 }
 
 // ── Measurement ───────────────────────────────────────────────────────────────
@@ -218,9 +326,15 @@ function startMeas() {
   if (!app.serial.isConnected) { alert(t('connect_first')); return; }
   if (S.running) return;
 
+  // A quick stop/restart must not allow a delayed command from the previous run
+  // to interleave with the new initialization sequence.
+  _clearMeasurementTimers();
+
   const voltage    = parseInt(document.getElementById('ag_voltage')?.value)    || 500;
   const chargeT    = parseInt(document.getElementById('ag_charge')?.value)     || 60;
   const dischargeT = parseInt(document.getElementById('ag_discharge')?.value)  || 0;
+  const ilim       = _syncIlimitForVoltage();
+  saveAgSettings();
 
   S.running = true;
   S.latestVal = null;
@@ -230,87 +344,153 @@ function startMeas() {
   const d = document.getElementById('ag_timerDisp');
   if (d) d.textContent = t('ag_initializing');
   app._setDisplay('INIT', '', 'stabilizing', 'SETUP');
-  app.log(`[4339B] 초기화: *RST → FUNC 'RES' → SOUR:VOLT ${voltage} → TRIG:SOUR BUS`, 'ok');
+  app.log(`[4339B] 초기화: *RST → FUNC 'RES' → SOUR:VOLT ${voltage} → SOUR:CURR:LIM ${ilim.scpi} → TRIG:SOUR BUS`, 'ok');
 
-  // Python _setup_instrument() 시퀀스 그대로 적용
+  // 실기 검증된 트리거 시퀀스에 공식 매뉴얼의 current-limit 설정을 추가
   app.serial.sendCmd('*RST\r\n');
-  setTimeout(() => app.serial.sendCmd('*CLS\r\n'),                       2200);
-  setTimeout(() => app.serial.sendCmd("FUNC 'RES'\r\n"),                 2500);
-  setTimeout(() => app.serial.sendCmd(`SOUR:VOLT ${voltage}\r\n`),       2800);
-  setTimeout(() => app.serial.sendCmd('TRIG:SOUR BUS\r\n'),              3100);
-  setTimeout(() => _doStartCycle(voltage, chargeT, dischargeT),          3400);
+  _schedule(() => app.serial.sendCmd('*CLS\r\n'),                       2200);
+  _schedule(() => app.serial.sendCmd("FUNC 'RES'\r\n"),                 2500);
+  _schedule(() => app.serial.sendCmd(`SOUR:VOLT ${voltage}\r\n`),       2800);
+  _schedule(() => app.serial.sendCmd(`SOUR:CURR:LIM ${ilim.scpi}\r\n`), 3100);
+  _schedule(() => app.serial.sendCmd('TRIG:SOUR BUS\r\n'),              3400);
+  _schedule(() => _doStartCycle(voltage, ilim.label, chargeT, dischargeT), 3700);
 }
 
-function _doStartCycle(voltage, chargeT, dischargeT) {
+function _doStartCycle(voltage, ilimLbl, chargeT, dischargeT) {
   if (!S.running) return;
   S.latestVal = null;
-
-  const ilimLbl = document.getElementById('ag_ilimit')?.value || '500uA';
 
   // Python measure() Step 1: OUTP ON → 1s 안정화 후 충전 카운트 시작
   app.log('[4339B] OUTP ON — 충전 시작', 'ok');
   app.serial.sendCmd('OUTP ON\r\n');
 
-  setTimeout(() => {
+  _schedule(() => {
     if (!S.running) return;
     let elapsed = 0;
-    const disp = () => document.getElementById('ag_timerDisp');
-    if (disp()) disp().textContent = `${t('ag_charging')} 0 / ${chargeT}s  [${ilimLbl}]`;
+    const status = document.getElementById('ag_timerDisp');
+    if (status) status.textContent = `${t('ag_charging')} [${ilimLbl}]`;
     app._setDisplay(chargeT, 's', 'stabilizing', 'CHARGING');
 
     S.timer = setInterval(() => {
       if (!S.running) { clearInterval(S.timer); return; }
       elapsed++;
       const remaining = chargeT - elapsed;
-      const d = disp();
-      if (d) d.textContent = `${t('ag_charging')} ${elapsed} / ${chargeT}s  [${ilimLbl}]`;
       app._setDisplay(remaining, 's', 'stabilizing', 'CHARGING');
-      if (elapsed >= chargeT) { clearInterval(S.timer); doMeasure(voltage, chargeT, dischargeT); }
+      if (elapsed >= chargeT) { clearInterval(S.timer); doMeasure(voltage, ilimLbl, chargeT, dischargeT); }
     }, 1000);
   }, 1000);
 }
 
-function doMeasure(voltage, chargeT, dischargeT) {
+function doMeasure(voltage, ilimLbl, chargeT, dischargeT) {
   if (!S.running) return;
+  const fetchToken = ++S.fetchToken;
   const d = document.getElementById('ag_timerDisp');
-  const ilimLbl = document.getElementById('ag_ilimit')?.value || '500uA';
   if (d) d.textContent = `${t('ag_measuring')} [${ilimLbl}]`;
   app._setDisplay('📏 MEAS', '', 'stabilizing', 'MEASURING');
-  app.log('[4339B] ABOR → *CLS → INIT → *TRG → FETC?', 'ok');
+  app.log(`[4339B] ABOR → *CLS → INIT → *TRG → ${app.serial.isVisa ? 'READ' : 'FETC?'}`, 'ok');
 
-  // Python measure() Step 3: ABOR → 0.5s → *CLS → 0.3s → INIT → 0.5s → *TRG → 0.5s → FETC?
+  // The 4339B queues the measurement automatically after *TRG. On VISA/GPIB,
+  // read that queued response directly; another query here causes -410.
   app.serial.sendCmd('ABOR\r\n');
-  setTimeout(() => app.serial.sendCmd('*CLS\r\n'),  500);
-  setTimeout(() => app.serial.sendCmd('INIT\r\n'),  800);
-  setTimeout(() => app.serial.sendCmd('*TRG\r\n'), 1300);
-  setTimeout(() => {
+  _schedule(() => app.serial.sendCmd('*CLS\r\n'),  500);
+  _schedule(() => app.serial.sendCmd('INIT\r\n'),  800);
+  _schedule(() => app.serial.sendCmd('*TRG\r\n'), 1300);
+  _schedule(() => {
     if (!S.running) return;
-    app.serial.sendCmd('FETC?\r\n');
-
-    let waited = 0;
-    const poll = setInterval(() => {
-      waited += 200;
-      if (S.latestVal !== null || waited > 8000) {
-        clearInterval(poll);
-        if (!S.running) return;
-        const raw = S.latestVal;
-        S.latestVal = null;
-        S.lastRaw = raw;
-        logResult(raw, voltage, chargeT);
-        doDischarge(dischargeT);
-      }
-    }, 200);
+    void _requestFetch(fetchToken, voltage, ilimLbl, chargeT, dischargeT);
   }, 1800);
 }
 
-function logResult(raw, voltage, chargeT) {
+async function _requestFetch(fetchToken, voltage, ilimLbl, chargeT, dischargeT) {
+  if (!S.running || S.fetchToken !== fetchToken) return;
+  S.awaitingFetch = true;
+  S.latestVal = null;
+
+  const result = app.serial.isVisa
+    ? await app.serial.readVisa()
+    : await app.serial.sendCmd('FETC?\r\n');
+  if (!S.running || S.fetchToken !== fetchToken) return;
+
+  // VISA read() completes only after the trigger response has been consumed.
+  // Processing it here prevents OUTP OFF/*CLS from interrupting that read.
+  if (app.serial.isVisa) {
+    if (!result?.success) {
+      _failFetch(fetchToken, result?.error || t('ag_fetch_timeout'), dischargeT);
+      return;
+    }
+    if (S.latestVal !== null) {
+      _completeFetch(fetchToken, voltage, ilimLbl, chargeT, dischargeT);
+      return;
+    }
+    const response = String(result.response || t('ag_fetch_empty'));
+    _failFetch(fetchToken, `${t('ag_fetch_unparsed')}: ${response}`, dischargeT);
+    return;
+  }
+
+  // Web Serial/ASRL writes and reads on separate streams, so wait for onLine().
+  const startedAt = Date.now();
+  const poll = setInterval(() => {
+    if (!S.running || S.fetchToken !== fetchToken) {
+      clearInterval(poll);
+      if (S.responsePoll === poll) S.responsePoll = null;
+      return;
+    }
+    if (S.latestVal !== null) {
+      _completeFetch(fetchToken, voltage, ilimLbl, chargeT, dischargeT);
+    } else if (Date.now() - startedAt >= FETCH_TIMEOUT_MS) {
+      _failFetch(fetchToken, t('ag_fetch_timeout'), dischargeT);
+    }
+  }, FETCH_POLL_MS);
+  S.responsePoll = poll;
+}
+
+function _clearResponsePoll() {
+  if (S.responsePoll !== null) {
+    clearInterval(S.responsePoll);
+    S.responsePoll = null;
+  }
+}
+
+function _completeFetch(fetchToken, voltage, ilimLbl, chargeT, dischargeT) {
+  if (!S.running || S.fetchToken !== fetchToken) return;
+  _clearResponsePoll();
+  S.awaitingFetch = false;
+  const raw = S.latestVal;
+  S.latestVal = null;
+  S.lastRaw = raw;
+  logResult(raw, voltage, ilimLbl, chargeT);
+  doDischarge(dischargeT);
+}
+
+function _failFetch(fetchToken, message, dischargeT) {
+  if (!S.running || S.fetchToken !== fetchToken) return;
+  _clearResponsePoll();
+  S.awaitingFetch = false;
+  S.latestVal = null;
+  app.log(`[4339B] ${t('ag_fetch_failed')}: ${message}`, 'err');
+  const d = document.getElementById('ag_timerDisp');
+  if (d) d.textContent = `${t('ag_fetch_failed')}: ${message}`;
+  app._setDisplay('GPIB ERR', '', 'off', 'QUERY ERROR');
+  doDischarge(dischargeT, () => _finishFetchError(message));
+}
+
+function _finishFetchError(message) {
+  _clearMeasurementTimers();
+  S.running = false;
+  document.getElementById('ag_btnStart').disabled = false;
+  document.getElementById('ag_btnStop').disabled = true;
+  const d = document.getElementById('ag_timerDisp');
+  if (d) d.textContent = `${t('ag_fetch_failed')}: ${message}`;
+  app._setDisplay('GPIB ERR', '', 'off', 'QUERY ERROR');
+}
+
+function logResult(raw, voltage, ilimLbl, chargeT) {
   // ── 체크박스 재측정 확인 ──
   const chkd = [...document.querySelectorAll('.ag-row-chk:checked')];
   if (chkd.length > 1) { app.log('재측정: 1개 행만 선택해주세요.', 'warn'); return; }
   const reIdx = chkd.length === 1 ? +chkd[0].dataset.idx : null;
 
   const thickness  = parseFloat(document.getElementById('ag_thickness')?.value) || 1.0;
-  const ilimLbl    = document.getElementById('ag_ilimit')?.value || '500uA';
   const sample     = document.getElementById('ag_sample')?.value || 'Sample';
   const repeat     = Math.max(1, parseInt(document.getElementById('ag_repeatCount')?.value || '1') || 1);
   const electrode  = 50;
@@ -378,25 +558,28 @@ function logResult(raw, voltage, chargeT) {
 function doDischarge(dischargeT, onDone) {
   // Python _safe_off(): OUTP OFF → 0.5s → *CLS
   app.serial.sendCmd('OUTP OFF\r\n');
-  setTimeout(() => app.serial.sendCmd('*CLS\r\n'), 500);
+  _schedule(() => app.serial.sendCmd('*CLS\r\n'), 500);
 
   if (dischargeT <= 0) {
-    setTimeout(() => (onDone ?? finishOne)(), 700);
+    _schedule(() => (onDone ?? finishOne)(), 700);
     return;
   }
   let elapsed = 0;
-  app._setDisplay('🔋 DISCH', '', 'stabilizing', 'DISCHARGING');
-  setTimeout(() => {
+  const status = document.getElementById('ag_timerDisp');
+  if (status) status.textContent = t('ag_discharging');
+  app._setDisplay(dischargeT, 's', 'stabilizing', 'DISCHARGING');
+  _schedule(() => {
     S.timer = setInterval(() => {
       elapsed++;
-      const d = document.getElementById('ag_timerDisp');
-      if (d) d.textContent = `${t('ag_discharging')} ${elapsed} / ${dischargeT}s`;
+      const remaining = Math.max(0, dischargeT - elapsed);
+      app._setDisplay(remaining, 's', 'stabilizing', 'DISCHARGING');
       if (elapsed >= dischargeT) { clearInterval(S.timer); (onDone ?? finishOne)(); }
     }, 1000);
   }, 700);
 }
 
 function finishOne() {
+  _clearMeasurementTimers();
   S.running = false;
   document.getElementById('ag_btnStart').disabled = false;
   document.getElementById('ag_btnStop').disabled  = true;
@@ -411,10 +594,11 @@ function finishOne() {
 }
 
 function stopMeas() {
-  clearInterval(S.timer); S.timer = null; S.running = false;
+  _clearMeasurementTimers();
+  S.running = false;
   // Python voltage_off(): OUTP OFF → *CLS
   app.serial.sendCmd('OUTP OFF\r\n');
-  setTimeout(() => app.serial.sendCmd('*CLS\r\n'), 500);
+  _schedule(() => app.serial.sendCmd('*CLS\r\n'), 500);
   document.getElementById('ag_btnStart').disabled = false;
   document.getElementById('ag_btnStop').disabled  = true;
   const d = document.getElementById('ag_timerDisp');
@@ -760,10 +944,19 @@ export default {
       if (cb) { cb.checked = sv.autoVolt; onAutoVoltChange(sv.autoVolt); }
     }
     if (sv.mode && sv.mode !== 'VOL') applyMode(sv.mode);
+    _syncIlimitForVoltage(false);
 
     // 변경 시 자동 저장
-    ['ag_voltage','ag_ilimit','ag_charge','ag_discharge','ag_thickness','ag_sample'].forEach(id =>
+    ['ag_charge','ag_discharge','ag_thickness','ag_sample'].forEach(id =>
       document.getElementById(id)?.addEventListener('change', saveAgSettings));
+    document.getElementById('ag_voltage')?.addEventListener('change', () => {
+      _syncIlimitForVoltage();
+      saveAgSettings();
+    });
+    document.getElementById('ag_ilimit')?.addEventListener('change', () => {
+      _syncIlimitForVoltage();
+      saveAgSettings();
+    });
     document.getElementById('ag_thickness')?.addEventListener('input', saveAgSettings);
     document.getElementById('ag_sample')?.addEventListener('input', saveAgSettings);
   },
@@ -824,41 +1017,48 @@ export default {
 
   onLine(line) {
     if (!S) return;
+    const parsed = parseFetchResponse(line);
+    if (!parsed) return;
+
     // SCPI 에러 응답 필터: -213,"INIT IGNORED" 등 (따옴표 포함)
-    if (/^[+-]\d+\s*,\s*"/.test(line)) {
-      const code = parseInt(line);
-      if (code !== 0) app.log(`4339B 오류: ${line}`, 'err');
+    if (parsed.kind === 'error') {
+      if (parsed.code !== 0) app.log(`4339B 오류: ${parsed.raw}`, 'err');
       return;
     }
-    if (/OL|9\.9[0-9]*E\+37/i.test(line)) {
+    if (!S.running || !S.awaitingFetch) return;
+
+    // Operation Manual: 0=Normal, 1=Overload, 2=No-Contact, 4=Over-Current.
+    const { statusCode, value, overload, raw } = parsed;
+    app.log(`[4339B RX] ${raw}`, overload ? 'warn' : 'ok');
+    if (overload) {
+      const statusLabel = ({ 1: 'Overload', 2: 'No-Contact', 4: 'Over-Current (I-Limit)' })[statusCode]
+        || (statusCode !== 0 ? `Measurement Status ${statusCode}` : 'Overload');
+      app.log(`[4339B] ${statusLabel}`, 'warn');
       S.latestVal = 9.9e37;
-      return;
-    }
-    // FETC? 응답: "+0,+1.234E+09" — 상태코드,측정값
-    // 상태코드가 0이면 정상, 非0이면 I-Limit 등 오류
-    const fetchMatch = line.match(/^([+-]?\d+(?:\.\d+)?),([+-]?\d+\.?\d*[Ee][+-]?\d+)/);
-    if (fetchMatch) {
-      const statusCode = parseInt(parseFloat(fetchMatch[1]));
-      const value = parseFloat(fetchMatch[2]);
-      if (statusCode !== 0) {
-        app.log(`[4339B] I-Limit 또는 측정 오류 (status=${statusCode})`, 'warn');
-        S.latestVal = 9.9e37; // OL로 처리
-      } else {
-        app._setDisplay(value.toExponential(4), 'Ω');
-        S.latestVal = value;
-      }
-      return;
+    } else {
+      app._setDisplay(value.toExponential(4), 'Ω');
+      S.latestVal = value;
     }
   },
 
   onRebuild() { renderTable(); drawChart(); },
-  onDisconnect() { if (S?.running) stopMeas(); },
+  async onDisconnect() {
+    if (!S) return;
+    _clearMeasurementTimers();
+    S.running = false;
+    // core.js awaits this hook before closing Serial/VISA, so OUTP OFF is
+    // completed while the transport is still available.
+    if (app.serial.isConnected) await app.serial.sendCmd('OUTP OFF\r\n');
+  },
 
   // Exposed for inline onclick handlers
   showModeModal, applyMode, showSOPModal,
   onAutoVoltChange, calcAutoVoltage,
+  _syncIlimitForVoltage,
   startMeas, stopMeas,
   toggleAll, deleteSel, clearData, copyData, exportCSV, renameSample,
   _redrawChart: drawChart,
   _saveAgSettings: saveAgSettings,
 };
+
+export { parseFetchResponse };
