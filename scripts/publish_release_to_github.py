@@ -11,21 +11,22 @@ import urllib.request
 import urllib.error
 
 REPO = "gochujangs13/Instrument-Logger"
-TAG_NAME = "v1.0.0-rc.6.3"
-RELEASE_NAME = "3M Instrument Logger v1.0.0-rc.6.3"
-RELEASE_NOTES = """## 3M Instrument Logger v1.0.0-rc.6.3
+TAG_NAME = "v1.0.0-rc.6.4"
+RELEASE_NAME = "3M Instrument Logger v1.0.0-rc.6.4"
+RELEASE_NOTES = """## 3M Instrument Logger v1.0.0-rc.6.4
 
 ### 🚀 업데이트 하이라이트
-- **무중단 독립 팝업 자동 업데이트 테스트 버전**:
-  - 독립 프로세스(PowerShell WPF)를 통한 다운로드, 파일 안전 교체, 자동 재실행 검증용 빌드
-  - Windows 프로세스 파일 잠금(`WinError 32`) 방지 및 자동 재시작
+- **무중단 독립 팝업 자동 업데이트 실기 테스트 버전 (v1.0.0-rc.6.4)**:
+  - v1.0.0-rc.6.3 환경에서 최신 버전 감지 및 독립 팝업 무중단 자가 교체 실기 검증용
+  - 독립 프로세스(PowerShell WPF)를 통한 다운로드, 파일 안전 교체, 자동 재실행
+  - Windows 프로세스 파일 잠금(`WinError 32`) 원천 차단 및 3초 카운트다운 자동 전환
 - **Club Expense 카드 완전 영구 삭제**:
   - 런처 화면 정리 (계측기 10종 + 소프트웨어 3종 정규 13종 구성)
 - **안정성 및 네트워크 호환성 강화**:
   - 사내망/보안 프록시 환경 SSL 통신 호환성 개선
 
 ### 📦 포함 파일
-- `3M_Instrument_Logger.exe` (v1.0.0-rc.6.3 Windows 단독 실행 파일)
+- `3M_Instrument_Logger.exe` (v1.0.0-rc.6.4 Windows 단독 실행 파일)
 """
 
 EXE_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "dist", "3M_Instrument_Logger.exe")

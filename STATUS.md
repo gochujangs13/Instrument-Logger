@@ -1,15 +1,15 @@
 # 🎯 [STATUS.md] 실시간 작업 상황판 (항상 최신 1개만 유지)
 
-- **최종 작업 일시**: 2026-09-18 07:22 (작업자: 안티그래비티)
-- **현재 진행 중인 목표**: [완료] GitHub v1.0.0-rc.6.3 공식 릴리즈 배포 완료 (자동 업데이트 실기 테스트용)
+- **최종 작업 일시**: 2026-09-18 07:28 (작업자: 안티그래비티)
+- **현재 진행 중인 목표**: [완료] GitHub v1.0.0-rc.6.4 공식 릴리즈 배포 완료 (사용자 6.3 버전 업데이트 실기 테스트용)
 
 ---
 
 ### 1. 직전에 완료된 작업
-- **GitHub 공식 릴리즈 v1.0.0-rc.6.3 배포 완료**:
+- **GitHub 공식 릴리즈 v1.0.0-rc.6.4 배포 완료**:
   - 저장소: `gochujangs13/Instrument-Logger` (Private)
-  - 릴리즈: `v1.0.0-rc.6.3` 태그 및 `3M_Instrument_Logger.exe` (143.38MB, 150,339,992 바이트) 에셋 업로드 완료 (Release ID: `391095361`, Asset ID: `571267416`)
-  - 검증: v1.0.0-rc.6.2 실행 시 `update_available: True`, `latest_version: 1.0.0-rc.6.3` 감지 확인 완료.
+  - 릴리즈: `v1.0.0-rc.6.4` 태그 및 `3M_Instrument_Logger.exe` (143.38MB, 150,339,739 바이트) 에셋 업로드 완료 (Release ID: `391097946`, Asset ID: `571277446`)
+  - 검증: v1.0.0-rc.6.3 실행 시 `update_available: True`, `latest_version: 1.0.0-rc.6.4` 감지 확인 완료. 사용자 6.3 환경에서 원클릭 독립 팝업 자동 업데이트 테스트 준비 완료.
 - **Club Expense 카드 완전 영구 삭제**:
   - `build/build_standalone.py`의 `INSTRUMENT_MAP`에서 완전 제거
   - `core.js`의 `_LAUNCHER_GROUPS`에서 삭제
