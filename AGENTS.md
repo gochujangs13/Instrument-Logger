@@ -76,10 +76,100 @@ this.onByte = null;            // 신규: 매 수신 바이트마다 호출
 | DAQ-6510 | daq_6510.js | 🔧 실기 테스트 필요 | 수동 릴레이 제어(ROUT:OPEN:ALL→ROUT:CLOS→READ?), Front/Rear 토글, 3-컬럼 디스플레이, 동적 X축 그래프 구현 완료. ROUT:SCAN:CRE 폐기(2859 오류). 실기 테스트 필요 |
 | PT-2000 Probe Tack | pt2000_probe_tack.js | 🔧 작업 중 | |
 | LT-1000 Loop Tack | lt1000_loop_tack.js | 🔧 작업 중 | |
-| Photo Editor | photo_editor.js | ✅ 신규 웹 포팅 | 비-시리얼 Tool. 아래 4-1 항목 참고 |
+| Photo Editor | photo_editor.js | ✅ 신규 웹 포팅 | 비-시리얼 Tool. AI Photo Editor 잔여 표기 일원화 완료. 아래 4-1 항목 참고 |
 | PST-3202 | pst3202.js | 🔧 실기 테스트 필요 | GW Instek 3채널 DC 전원공급기. 아래 4-2 항목 참고 |
 | Epson PRIFIA OK900P | epson_ok900p.js | ✅ 실기 검증 완료 | 360 DPI 1-bit 라벨 프린터. Windows Spooler API 연동, 가로(Landscape) 및 24mm 테이프 물리 여백 대칭 센터 정렬, 1D/2D 바코드, 엑셀 배치 인쇄 지원. 아래 4-3 항목 참고 |
 | Etching Design | etching_design.js | ✅ 완성 및 검증 완료 | 정밀 에칭 패턴 CAD & 레이아웃 도구 (0.01mm 정밀도). TYPE 1/2/3 프리셋, 방향성 및 중앙 시편 개별 방향 오버라이드, 혼합 배치 최적화, DWG/DXF 내보내기 UI, 실행 취소/다시 실행, 가로/세로 맞춤, 동적 타입/여백/모서리 관리, 실물 컷팅 슬릿 및 0.5mm 마이크로 조인트 브릿지 연동. SVG/PDF 생성 모듈은 있으나 현재 사용자 툴바에 미연결. 단위 테스트 통과 |
+| App Updater | updater.js, updater_backend.py | ✅ 구축 및 실기 검증 완료 | GitHub Private 저장소(`gochujangs13/Instrument-Logger`) 기반 무중단 자동 업데이트. 0~100% 게이지, 100% 완료 카드, 3초 카운트다운 자동 재시작 및 `taskkill` 기반 Windows 프로세스 파일 잠금 해제 자가 교체 엔진 완비 |
+
+### 2026-09-18 Club Expense 영구 제거 및 GitHub 공식 릴리즈 배포 완료 (v1.0.0-rc.6.2)
+
+- **배경 및 조치 내역**:
+  - 과거 `index.js`에서만 제거되고 `build/build_standalone.py`, `core.js`, `instruments/club_expense.js`, `assets/club_expense.png`에 남아있던 잔여 요소를 완전 영구 삭제.
+  - `dist/*ClubExpense*` 폴더 정리 및 정규 13종(계측기 10종 + 소프트웨어 3종: Photo Editor, Epson PRIFIA OK900P, Etching Design) 런처 구성 확립.
+  - 최신 EXE `dist/3M_Instrument_Logger.exe` (143.37MB, 150,339,187 바이트, SHA256 `45535FAE5D170ACE432877381089D4A8DD24569F1EB025B421713B4899FCAA22`) 빌드 완료.
+  - GitHub Private Release `v1.0.0-rc.6.2` 공식 생성 및 에셋 업로드 완료 (Release ID: `391075651`, Asset ID: `571191450`).
+
+### 2026-09-18 독립 팝업창(Standalone Updater) 기반 무중단 자가 교체·자동 재실행 시스템 구축 (v1.0.0-rc.6.1+)
+
+- **배경 및 사용자 요구사항**:
+  - 기존 방식은 3M 통합 프로그램이 켜져 있는 상태에서 내부적으로 재시작을 시도하다 보니, 프로그램 종료 후 새 프로그램이 켜지지 않거나 백그라운드 프로세스 잔여로 인해 Windows 파일 잠금(`Access Denied`)이 발생하는 문제가 있었음.
+  - 사용자의 제안: *"업데이트 진행할 때 프로그램과는 별도의 팝업창이 단독으로 실행되고 3M 통합 프로그램은 종료되며, 다운로드 및 기존 파일 교체, 자동 재실행 후 '완료되었습니다' 표시 및 업데이트 팝업은 종료"*되는 완전 독립형 업데이트 아키텍처로 전면 개편.
+
+- **핵심 아키텍처 및 동작 프로세스**:
+  1. **독립 팝업창(PowerShell WPF) 단독 실행**:
+     - 사용자가 '지금 업데이트' 클릭 시, 백엔드(`updater_backend.py`)가 `%TEMP%\3M_Updater.ps1`을 생성하고 Windows 기본 내장 컴포넌트(PowerShell 5.1 + WPF)를 독립 프로세스(`DETACHED_PROCESS`)로 즉시 기동.
+     - 파이썬 런타임이 설치되지 않은 고객사/현장 PC에서도 100% 무설치 네이티브 구동 보장.
+     - 3M 다크 테마 디자인(`0f172a`, `#1e293b`, 3M 레드 로고 배지, Segoe UI) 일치.
+  2. **3M 메인 프로그램 즉시 안전 종료**:
+     - 독립 팝업창이 뜨는 즉시 메인 프로그램이 `os._exit(0)`로 완전히 닫힘.
+     - `3M_Instrument_Logger.exe`의 Windows 프로세스 파일 잠금이 100% 즉각 해제됨.
+  3. **독립 팝업창 내 5단계 자동 워크플로우**:
+     - **1단계 (프로세스 확인)**: 메인 프로그램 PID 완전 종료 감지 (필요 시 `Stop-Process -Force`).
+     - **2단계 (다운로드)**: GitHub Private S3 릴리즈 직접 스트리밍 다운로드 (0% ~ 100% 실시간 게이지, 속도 `MB/s`, 잔여 용량 표시).
+     - **3단계 (파일 교체)**: 최신 패키지를 타깃 `3M_Instrument_Logger.exe`로 안전 교체 (`Copy-Item -Force` 재시도 루프).
+     - **4단계 (자동 재실행)**: 원래 작업 폴더 컨텍스트에서 최신 버전 `3M_Instrument_Logger.exe`를 `Start-Process`로 기동.
+     - **5단계 (완료 및 자동 종료)**:
+       - 에메랄드 그린 완료 카드: `🎉 최신 버전(v1.0.0-rc.6.1) 업데이트가 완료되었습니다!`
+       - 실시간 3초 카운트다운 타이머 (`확인 및 닫기 (3s)` ➔ `(2s)` ➔ `(1s)`).
+       - 사용자가 버튼을 클릭하거나 3초 경과 시 업데이트 팝업창이 스스로 닫히며 최신 프로그램으로 매끄럽게 전환.
+
+- **수정 및 연동 파일**:
+  - `updater_backend.py`: `get_standalone_updater_ps1_content()`, `launch_standalone_updater()` 구현 및 `apply_update_and_restart()` 위임.
+  - `scripts/updater_gui.ps1`: 독립 실행용 PowerShell WPF 스크립트 (UTF-8 BOM 보장).
+  - `updater.js`: `startDownloadFlow()`를 독립 팝업창 연동 모드로 전환.
+  - `server.py` & `build/package_exe.py`: `/api/update/apply` body 파싱 및 위임.
+  - `dist/3M_Instrument_Logger.exe`: 최신 통합 빌드 완료 (150.8 MB).
+  - GitHub Release `v1.0.0-rc.6.1`: 신규 바이너리 업로드 완료 (Asset ID: 571160419).
+
+- **검증**:
+  - `verify_project.py` 전체 저장소 검증 100% PASS (JS 33개, 계측기 15개, Python 26개, HTTP 19개).
+  - 실제 GitHub S3 스트리밍 다운로드 및 파일 교체/재실행/3초 자동 닫힘 실기 테스트 통과.
+
+### 2026-09-17 GitHub Private 자동 업데이트 시스템 구축, 100% 완료 팝업 및 자동 재시작 프로세스 구현 완료 (v1.0.0-rc.6.1)
+
+- **배경 및 개요**:
+  - 클라우드 저장소(GitHub Private Repository: `gochujangs13/Instrument-Logger`)와 연동하여, 프로그램 실행 시 백그라운드에서 신규 버전을 자동 감지하고 원클릭으로 0~100% 게이지 다운로드 후 안전하게 자가 교체·재실행하는 시스템 전면 구축.
+  - 최신 릴리즈 태그: `v1.0.0-rc.6.1` (에셋: `3M_Instrument_Logger.exe`, 150.8MB, 150,828,569 바이트).
+  - 상세 릴리즈 문서: `docs/RELEASE_STATUS_20260917.md` 참조.
+
+- **100% 완료 팝업창 및 자동 재시작 UI/UX (`updater.js`)**:
+  - 실제 다운로드 진행률이 100%까지 끊김 없이 차오르도록 구현.
+  - 100% 도달 시 에메랄드 그린 빛나는 100% 바(`updater-progress-done`) 및 축하 헤더 `🎉 v1.0.0-rc.6.1 업데이트 준비 완료`.
+  - 상단 안내 카드 (`updater-completion-card`):
+    > `🎉 새 버전 업데이트가 100% 준비되었습니다!`  
+    > `🔄 3초 후 프로그램을 안전하게 종료하고 최신 버전으로 자동 재시작합니다... (3)`
+  - 실시간 3초 카운트다운 타이머 (3초 ➔ 2초 ➔ 1초 ➔ 재시작 실행) 및 즉시 재시작 버튼 `[🚀 지금 바로 재시작 (3s)]` 제공.
+  - 카운트다운 완료 또는 버튼 클릭 시: `🚀 프로그램을 안전하게 종료하고 최신 버전으로 교체 재실행 중입니다...` 로 상태 전환 후 백엔드 자가 교체 스크립트 가동.
+
+- **Windows 프로세스 잠금 완벽 해제 및 자가 교체 엔진 (`updater_backend.py`)**:
+  - PyInstaller `--onefile` 구동 시 부트로더 부모 프로세스와 파이썬 자식 프로세스 2개가 동시 실행되는데, 기존 스크립트가 단일 PID만 체크하여 Windows 파일 잠금(`WinError 32: Access Denied`)이 발생하던 문제를 해결.
+  - 자가 교체 배치 스크립트(`3M_Instrument_Logger_updater.bat`)에서 `taskkill /f /im "!EXE_NAME!"`으로 관련 프로세스를 확실히 종료 후 `copy /y`를 수행.
+  - 재실행 시 `start "" /D "!TARGET_DIR!" "!TARGET!"`를 호출하여 EXE가 위치한 본래 폴더 컨텍스트에서 새 버전이 완벽하게 실행되도록 보장.
+
+- **인증 및 통신 안정화 (`updater_backend.py`)**:
+  - GitHub Private Asset 스트리밍 다운로드 시 S3 리다이렉트 인증 헤더 분리 (`_S3SafeRedirectHandler`로 400 Bad Request 방지).
+  - 사내 프록시/보안망 환경의 SSL 인증서 통신 에러를 방지하기 위해 `ssl._create_unverified_context()` Fallback 탑재.
+  - Windows Credential Manager(`git:https://github.com`) 토큰 자동 탐색 탑재 (`advapi32.CredReadW`).
+  - 다중 뎁스 버전 비교기(`is_newer_version('1.0.0-rc.6.1', '1.0.0-rc.6') == True`) 구현.
+
+- **업데이트 범위 및 신규 카드 확장 가이드 (인수인계 규약)**:
+  - **업데이트 가능한 범위 (100% 완전 지원)**:
+    1. 모든 웹 리소스 (`index.html`, `index.css`, `core.js`, `instruments/*.js`, `assets/` 등).
+    2. 파이썬 서버 로직 (`server.py`, `updater_backend.py`, 신규 API 라우트 등).
+    3. **신규 계측기/도구 카드 추가**: `instruments/신규장비.js` 작성 후 `index.js` 및 `build_standalone.py`에 등록하고 버전을 올려 배포하면, 기존 설치된 EXE가 새 버전을 다운받아 신규 카드가 포함된 프로그램으로 100% 완전 업데이트됨.
+  - **주의 사항 (업데이트 시 유의점)**:
+    1. C-레벨 네이티브 바이너리나 신규 Python 라이브러리가 추가되는 경우에도 PyInstaller가 단일 통 EXE(`3M_Instrument_Logger.exe`) 전체를 교체하므로 완전히 반영됨.
+    2. 단, GitHub Release의 에셋 파일명은 항상 `3M_Instrument_Logger.exe`로 유지되어야 함.
+
+- **명칭 일원화 (`Photo Editor`)**:
+  - `AI Photo Editor` / `AIPhotoEditor` 잔여 표기를 `Photo Editor` / `PhotoEditor`로 완전 통일 (`index.js`, `build_standalone.py`, `make_report_ppt.py`).
+
+- **검증 및 산출물**:
+  - `verify_project.py` 전체 저장소 무결성 검증 100% PASS (JS 33개, 계측기 15개, Python 24개, HTTP 19개).
+  - 브라우저 실기 검증 완료: `updater_completion_100_percent_1789628387900.png`.
+  - 배포 릴리즈: GitHub `gochujangs13/Instrument-Logger` Release `v1.0.0-rc.6.1` (Asset ID: 569677471).
+  - 테스트용 베이스 EXE: `dist/3M_Instrument_Logger.exe` (v1.0.0-rc.6) 빌드 완료.
 
 ### 2026-09-14 Etching Design 자동 배치 의미 명확화 및 선택 시편 브릿지 가공 미리보기
 
@@ -1777,10 +1867,11 @@ dist에 수동 복사 후 `package_exe.py` 실행.
 - 하단 `card-cat`에 분류 표시 (저항/두께/점착력, 차분한 텍스트 — 기존 파란 배지 제거)
 - 전체 카드 구조: `card-type` → 이미지 → 이름 → `card-cat`
 
-#### ClubExpense 런처 카드 제거 (`index.js`, `build/build_standalone.py`)
-- `instruments/club_expense.js` 파일 자체는 유지
-- `index.js` import 및 INSTRUMENTS 레지스트리에서 제거
-- `build/build_standalone.py` `INSTRUMENT_MAP`에서 항목 제거
+#### Club Expense 완전 영구 제거 (`index.js`, `core.js`, `build/build_standalone.py`, 파일 삭제)
+- `instruments/club_expense.js` 및 `assets/club_expense.png` 완전 영구 삭제 (재유입 원천 차단)
+- `core.js` `_LAUNCHER_GROUPS` 및 `index.js` import/레지스트리에서 제거
+- `build/build_standalone.py` `INSTRUMENT_MAP`에서 완전 제거
+- 과거 standalone 빌드 잔여 폴더(`dist/*ClubExpense*`) 정리 및 클린 EXE 재빌드/GitHub 릴리즈 완료
 
 ### 미해결 / 후속 작업
 - **체크박스 재측정**: ✅ 전 계측기 완료

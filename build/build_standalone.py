@@ -40,9 +40,9 @@ INSTRUMENT_MAP = {
     'SP2100':         ('SP2100',        'instruments/sp2100_logger.js'),
     'PT2000':         ('PT2000',        'instruments/pt2000_probe_tack.js'),
     'LT1000':         ('LT1000',        'instruments/lt1000_loop_tack.js'),
-    'AIPhotoEditor':  ('AIPhotoEditor', 'instruments/photo_editor.js'),
+    'PhotoEditor':    ('PhotoEditor',   'instruments/photo_editor.js'),
+    'AIPhotoEditor':  ('PhotoEditor',   'instruments/photo_editor.js'),
     'PST3202':        ('PST3202',       'instruments/pst3202.js'),
-    'ClubExpense':    ('ClubExpense',   'instruments/club_expense.js'),
     'EpsonOK900P':    ('EpsonOK900P',   'instruments/epson_ok900p.js'),
     'EtchingDesign':  ('EtchingDesign', 'instruments/etching_design.js'),
 }

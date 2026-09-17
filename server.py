@@ -317,6 +317,23 @@ class Handler(SimpleHTTPRequestHandler):
             return self._load_pst3202_evaldata()
         if u.path == "/api/keithley2400/evaldata":
             return self._load_evaldata_file("Keithley2400_eval_data.json", {"schema": "3m-instrument-logger/keithley2400-evaluations", "version": 1, "rows": []})
+        if u.path == "/api/update/config":
+            import updater_backend
+            return self._json(updater_backend.get_masked_config())
+        if u.path == "/api/update/check":
+            import updater_backend
+            cur_ver = "1.0.0"
+            try:
+                v_path = os.path.join(ROOT, "version.json")
+                if os.path.exists(v_path):
+                    with open(v_path, "r", encoding="utf-8") as vf:
+                        cur_ver = json.load(vf).get("version", cur_ver)
+            except Exception:
+                pass
+            return self._json(updater_backend.check_for_updates(cur_ver))
+        if u.path == "/api/update/progress":
+            import updater_backend
+            return self._json(updater_backend.get_download_status())
         if u.path == "/api/visa/list":
             return self._visa_list()
         if u.path == "/api/info":
@@ -460,6 +477,30 @@ class Handler(SimpleHTTPRequestHandler):
             return self._visa_query()
         if u.path == "/api/visa/read":
             return self._visa_read()
+        if u.path == "/api/update/config":
+            try:
+                import updater_backend
+                body = self._read_body()
+                saved = updater_backend.save_config(body.get("repo"), body.get("token"))
+                return self._json({"ok": True, "config": updater_backend.get_masked_config()})
+            except Exception as e:
+                return self._json({"ok": False, "error": str(e)}, 400)
+        if u.path == "/api/update/download":
+            try:
+                import updater_backend
+                body = self._read_body()
+                res = updater_backend.start_download_task(body.get("asset_id"), body.get("asset_name"), body.get("asset_size", 0))
+                return self._json(res)
+            except Exception as e:
+                return self._json({"ok": False, "error": str(e)}, 400)
+        if u.path == "/api/update/apply":
+            try:
+                import updater_backend
+                body = self._read_body()
+                res = updater_backend.apply_update_and_restart(body)
+                return self._json(res)
+            except Exception as e:
+                return self._json({"ok": False, "error": str(e)}, 500)
         if u.path == "/api/visa/write":
             return self._visa_write()
         if u.path == "/api/upload":

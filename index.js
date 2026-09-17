@@ -7,7 +7,7 @@ import DAQ6510       from './instruments/daq_6510.js';
 import SP2100        from './instruments/sp2100_logger.js';
 import PT2000        from './instruments/pt2000_probe_tack.js';
 import LT1000        from './instruments/lt1000_loop_tack.js';
-import AIPhotoEditor from './instruments/photo_editor.js';
+import PhotoEditor   from './instruments/photo_editor.js';
 import PST3202       from './instruments/pst3202.js';
 import EpsonOK900P   from './instruments/epson_ok900p.js';
 import EtchingDesign from './instruments/etching_design.js';
@@ -18,7 +18,7 @@ import { applyAppVersion } from './version.js';
 // To add a new instrument: create instruments/your_device.js and import it here.
 const INSTRUMENTS = {};
 [Hioki3540, Keithley2700, Keithley2400, MitutoyoVL50, Agilent4339B, DAQ6510, SP2100, PT2000, LT1000,
- AIPhotoEditor, PST3202, EpsonOK900P, EtchingDesign].forEach(m => {
+ PhotoEditor, PST3202, EpsonOK900P, EtchingDesign].forEach(m => {
   INSTRUMENTS[m.name] = m;
 });
 

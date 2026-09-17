@@ -25,6 +25,7 @@ package_exe.py — dist/<폴더>를 pywebview + PyInstaller로 EXE 파일로 패
 import sys
 import os
 import json
+import shutil
 import subprocess
 import textwrap
 
@@ -539,6 +540,35 @@ def package(dist_dir: str):
                         self._send_json({{'ok': False, 'error': str(e)}})
                     return
 
+                elif self.path == '/api/update/config':
+                    try:
+                        import updater_backend
+                        self._send_json(updater_backend.get_masked_config())
+                    except Exception as e:
+                        self._send_json({{'ok': False, 'error': str(e)}})
+                    return
+
+                elif self.path == '/api/update/check':
+                    try:
+                        import updater_backend
+                        cur_ver = '1.0.0'
+                        v_path = os.path.join(APP_DIR, 'version.json')
+                        if os.path.exists(v_path):
+                            with open(v_path, 'r', encoding='utf-8') as vf:
+                                cur_ver = json.load(vf).get('version', cur_ver)
+                        self._send_json(updater_backend.check_for_updates(cur_ver))
+                    except Exception as e:
+                        self._send_json({{'ok': False, 'error': str(e)}})
+                    return
+
+                elif self.path == '/api/update/progress':
+                    try:
+                        import updater_backend
+                        self._send_json(updater_backend.get_download_status())
+                    except Exception as e:
+                        self._send_json({{'ok': False, 'error': str(e)}})
+                    return
+
                 else:
                     super().do_GET()
 
@@ -575,6 +605,40 @@ def package(dist_dir: str):
                         _storage.clear()
                         _save_storage()
                     self._send_json({{'ok': True}})
+                    return
+
+                # ── Updater API ───────────────────────────────────────────────
+                elif self.path == '/api/update/config':
+                    try:
+                        import updater_backend
+                        length = int(self.headers.get('Content-Length', 0))
+                        body   = json.loads(self.rfile.read(length))
+                        saved = updater_backend.save_config(body.get('repo'), body.get('token'))
+                        self._send_json({{'ok': True, 'config': updater_backend.get_masked_config()}})
+                    except Exception as e:
+                        self._send_json({{'ok': False, 'error': str(e)}})
+                    return
+
+                elif self.path == '/api/update/download':
+                    try:
+                        import updater_backend
+                        length = int(self.headers.get('Content-Length', 0))
+                        body   = json.loads(self.rfile.read(length))
+                        res = updater_backend.start_download_task(body.get('asset_id'), body.get('asset_name'), body.get('asset_size', 0))
+                        self._send_json(res)
+                    except Exception as e:
+                        self._send_json({{'ok': False, 'error': str(e)}})
+                    return
+
+                elif self.path == '/api/update/apply':
+                    try:
+                        import updater_backend
+                        length = int(self.headers.get('Content-Length', 0))
+                        body = json.loads(self.rfile.read(length)) if length > 0 else {{}}
+                        res = updater_backend.apply_update_and_restart(body)
+                        self._send_json(res)
+                    except Exception as e:
+                        self._send_json({{'ok': False, 'error': str(e)}})
                     return
 
                 # ── VISA API ──────────────────────────────────────────────────
@@ -776,6 +840,8 @@ def package(dist_dir: str):
         f.write(launcher_src)
     print(f"[build] launcher: {launcher_path}")
 
+    shutil.copy2(os.path.join(root, 'updater_backend.py'), os.path.join(build_tmp, 'updater_backend.py'))
+
     # ── PyInstaller 실행 ──────────────────────────────────────────────────────
     exe_name = '3M_Instrument_Logger'
     out_dir  = os.path.join(root, 'dist')
@@ -786,6 +852,7 @@ def package(dist_dir: str):
         '--onefile',
         '--windowed',
         '--hidden-import=pyvisa',
+        '--hidden-import=updater_backend',
         f'--name={exe_name}',
         f'--version-file={version_file}',
         f'--add-data={dist_dir}{os.pathsep}{bundle_dir}',

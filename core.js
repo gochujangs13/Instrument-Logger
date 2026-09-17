@@ -2284,7 +2284,6 @@ class App {
     'LT-1000 Loop Tack': 'Adhesive',
     'PST-3202':          'Power',
     'Photo Editor':      'Software',
-    'Club Expense':      'Software',
     'Epson PRIFIA OK900P': 'Software',
     'Etching Design':    'Software',
   };

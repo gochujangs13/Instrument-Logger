@@ -1,8 +1,8 @@
 # 3M Instrument Logger — 인수인계 문서 (CLAUDE.md)
 
-> **최신 문서 안내 (2026-09-12)**: 이 파일은 과거 세션의 인수인계 기록이며 일부 카드 수와 기능 상태가 오래됐습니다. 현재 지침은 `AGENTS.md`, 최신 실행 파일/버전은 `docs/RELEASE_STATUS_20260912.md`, 계측기 사용자 절차는 `docs/manuals/README.md`의 최신 링크를 기준으로 확인하세요.
+> **최신 문서 안내 (2026-09-17)**: 이 파일은 과거 세션의 인수인계 기록을 포함하고 있습니다. 현재 최신 실행 파일 및 배포 현황은 `docs/RELEASE_STATUS_20260917.md`, 실시간 작업 상황판은 `STATUS.md`, 전체 종합 지침은 `AGENTS.md`를 기준으로 확인하세요.
 
-> **상태 안내 (2026-09-12)**: 이 문서는 과거 작업 기록을 보존한 아카이브입니다. 현재 작업 규칙과 최신 계측기/레이아웃/버전 정보는 `AGENTS.md`, 현재 배포 파일 정보는 `docs/RELEASE_STATUS_20260912.md`를 기준으로 하세요. 아래 날짜가 붙은 이전 상태/미구현 항목은 해당 날짜의 기록이며 현재 동작으로 해석하지 마세요.
+> **상태 안내 (2026-09-18)**: Club Expense 완전 영구 삭제 및 독립 팝업창(Standalone Updater) 기반 무중단 자동 업데이트 시스템(v1.0.0-rc.6.2)이 공식 배포되었습니다. 13종 정규 도구(계측기 10종 + 소프트웨어 3종) 탑재.
 
 > 이 문서는 다른 환경/계정에서 이 폴더만 열어도 작업을 이어갈 수 있도록
 > 지금까지의 작업 내용·아키텍처·규칙·미해결 과제를 정리한 것입니다.
@@ -16,6 +16,7 @@
   ```
   cd "3M Instrument Logger"
   python -m http.server 8000
+  # 또는 python server.py
   # 브라우저(Chrome/Edge, Web Serial 지원)에서 http://localhost:8000/index.html
   ```
 - **핵심 파일**
@@ -23,16 +24,16 @@
   - `index.js` — 계측기 import + INSTRUMENTS 레지스트리 + 부트 (~40줄, 진입점)
   - `core.js` — 공통 엔진 (T 번역, StateMachine, SerialController, EditableGrid, BoxPlot, App 클래스 등) — `export { App, _dateStr }`
   - `index.css` — 스타일
+  - `updater.js` — GitHub Private 자동 업데이트 프론트엔드 (0~100% 게이지, 100% 완료 카드, 3초 카운트다운 재시작)
+  - `updater_backend.py` — GitHub 릴리즈 체크, 스트리밍 다운로드, Windows Credential Manager 연동, 자가 교체 배치 엔진
   - `instruments/*.js` — 계측기별 모듈 (아래 "계측기 모듈 구조" 참고)
   - `instruments/_utils.js` — 공통 헬퍼 (`fmt`, `buildToggleRow`, `syslogPanelHTML`, `dateStr` 등)
   - `standalone.html` — standalone/EXE 배포용 HTML 셸 (`standalone_entry.js` 로드)
   - `build/build_standalone.py` — 특정 계측기만 추출해 `dist/<이름>/` 폴더 생성
   - `build/package_exe.py` — pywebview + PyInstaller로 EXE 패키징
+  - `scripts/publish_release_to_github.py` — GitHub Private Release 자동 발행 및 EXE 에셋 업로드 스크립트
   - `docs/INSTRUMENT_COMMUNICATION_PROTOCOLS.md` — 계측기별 통신 프로토콜 검증 문서 (SSOT)
-  - `docs/SP2100_PROTOCOL_REFERENCE.md` — SP-2100/TL-2200 파싱 규칙 SSOT
-  - `docs/manuals/` — 계측기별 사용자 매뉴얼 (MD, 2026-07-04 신규 — PST-3202는 초보자용 상세판)
-  - `instruments/*/`, `instruments/*.py` — 구버전 PyInstaller(Electron 이전) 데스크톱
-    구현체. **참고용일 뿐, 현재 통합 작업의 기준이 아님** (단, SP-2100은 예외 — 아래 참고)
+  - `docs/RELEASE_STATUS_20260917.md` — 최신 v1.0.0-rc.6.1 릴리즈 검증 및 배포 현황
 
 ## 2. 계측기 모듈 구조 (instruments/*.js)
 
@@ -73,14 +74,63 @@ this.onByte = null;            // 신규: 매 수신 바이트마다 호출
 |---|---|---|---|
 | Hioki 3540 | hioki_3540.js | ✅ | 기본 그리드 뷰 |
 | Keithley 2700 | keithley_2700.js | ✅ 동작 확인 | 9.90e+37(오버레인지) → "Over Flow" 표시, `valid:false`로 자동기록 상태머신 정상 동작하도록 수정함 |
+| Keithley 2400 | keithley_2400.js | ✅ RS-232 및 GPIB 저에너지 검증 완료 | Web Serial RS-232 및 VISA ASRL/GPIB. ASRL 응답 종단 LF/CR 안전 자동 검출, GPIB 안전 첫 명령, 단일·시간·Sweep, 표·그래프, 정상 OFF, 오류 큐, 연결 해제·리소스 재검색 확인. |
 | Mitutoyo VL-50 | mitutoyo_vl50.js | ✅ 동작 확인 | `pollCmd: 'GA01\r\n', pollInterval: 300` 필수 (없으면 응답 없음). 표시 소수점 5자리(`toFixed(5)`) |
-| SP-2100 / TL-2200 | sp2100_logger.js | ✅ SSOT 기준 | 아래 4번 항목 참고 — 가장 많이 작업됨 |
-| Agilent 4339B | agilent_4339b.js | 🔧 실기 테스트 필요 | SCPI 시퀀스 Python 단독 프로그램 기준으로 전면 재작성(-213 수정). 샘플명 인라인 편집, 그룹별 수염차트(Box & Whisker) 구현 완료. 실기 검증 필요. GPIB-USB-HS는 PyVISA IPC 브리지 필요(별도 과제) |
-| DAQ-6510 | daq_6510.js | 🔧 실기 테스트 필요 | 수동 릴레이 제어(ROUT:OPEN:ALL→ROUT:CLOS→READ?), Front/Rear 토글, 3-컬럼 디스플레이, 동적 X축 그래프 구현 완료. ROUT:SCAN:CRE 폐기(2859 오류). 실기 테스트 필요 |
+| SP-2100 / TL-2200 | sp2100_logger.js | ✅ SSOT 기준 | 라벨 기반 정규식 파싱, 다중 세그먼트 파형 캡처 |
+| Agilent 4339B | agilent_4339b.js | 🔧 실기 테스트 필요 | SCPI 시퀀스 재작성. 박스플롯 지원 |
+| DAQ-6510 | daq_6510.js | 🔧 실기 테스트 필요 | 수동 릴레이 제어, 3-컬럼 디스플레이, 동적 X축 그래프 |
 | PT-2000 Probe Tack | pt2000_probe_tack.js | 🔧 작업 중 | |
 | LT-1000 Loop Tack | lt1000_loop_tack.js | 🔧 작업 중 | |
-| Photo Editor | photo_editor.js | ✅ 신규 웹 포팅 | 비-시리얼 Tool. 아래 4-1 항목 참고 |
-| PST-3202 | pst3202.js | 🔧 실기 테스트 필요 | GW Instek 3채널 DC 전원공급기. 아래 4-2 항목 참고 |
+| Photo Editor | photo_editor.js | ✅ 신규 웹 포팅 | 비-시리얼 Tool. AI Photo Editor 잔여 표기 일원화 완료 |
+| PST-3202 | pst3202.js | 🔧 실기 테스트 필요 | GW Instek 3채널 DC 전원공급기 |
+| Epson PRIFIA OK900P | epson_ok900p.js | ✅ 실기 검증 완료 | 360 DPI 1-bit 라벨 프린터. Windows Spooler 연동, 엑셀 배치 인쇄 |
+| Etching Design | etching_design.js | ✅ 완성 및 검증 완료 | 0.01mm 정밀 에칭 CAD 도구. 브릿지 홀/홈 가공, ODA ACAD2007 DWG 변환 |
+| App Updater | updater.js, updater_backend.py | ✅ 구축 및 실기 검증 완료 | GitHub Private 저장소(`gochujangs13/Instrument-Logger`) 기반 무중단 자동 업데이트. 0~100% 게이지, 100% 완료 카드, 3초 카운트다운 자동 재시작 및 `taskkill` 기반 Windows 프로세스 파일 잠금 해제 자가 교체 엔진 완비 |
+
+### 2026-09-17 GitHub Private 자동 업데이트 시스템 구축, 100% 완료 팝업 및 자동 재시작 프로세스 구현 완료 (v1.0.0-rc.6.1)
+
+- **배경 및 개요**:
+  - 클라우드 저장소(GitHub Private Repository: `gochujangs13/Instrument-Logger`)와 연동하여, 프로그램 실행 시 백그라운드에서 신규 버전을 자동 감지하고 원클릭으로 0~100% 게이지 다운로드 후 안전하게 자가 교체·재실행하는 시스템 전면 구축.
+  - 최신 릴리즈 태그: `v1.0.0-rc.6.1` (에셋: `3M_Instrument_Logger.exe`, 150.8MB, 150,828,569 바이트).
+  - 상세 릴리즈 문서: `docs/RELEASE_STATUS_20260917.md` 참조.
+
+- **100% 완료 팝업창 및 자동 재시작 UI/UX (`updater.js`)**:
+  - 실제 다운로드 진행률이 100%까지 끊김 없이 차오르도록 구현.
+  - 100% 도달 시 에메랄드 그린 빛나는 100% 바(`updater-progress-done`) 및 축하 헤더 `🎉 v1.0.0-rc.6.1 업데이트 준비 완료`.
+  - 상단 안내 카드 (`updater-completion-card`):
+    > `🎉 새 버전 업데이트가 100% 준비되었습니다!`  
+    > `🔄 3초 후 프로그램을 안전하게 종료하고 최신 버전으로 자동 재시작합니다... (3)`
+  - 실시간 3초 카운트다운 타이머 (3초 ➔ 2초 ➔ 1초 ➔ 재시작 실행) 및 즉시 재시작 버튼 `[🚀 지금 바로 재시작 (3s)]` 제공.
+  - 카운트다운 완료 또는 버튼 클릭 시: `🚀 프로그램을 안전하게 종료하고 최신 버전으로 교체 재실행 중입니다...` 로 상태 전환 후 백엔드 자가 교체 스크립트 가동.
+
+- **Windows 프로세스 잠금 완벽 해제 및 자가 교체 엔진 (`updater_backend.py`)**:
+  - PyInstaller `--onefile` 구동 시 부트로더 부모 프로세스와 파이썬 자식 프로세스 2개가 동시 실행되는데, 기존 스크립트가 단일 PID만 체크하여 Windows 파일 잠금(`WinError 32: Access Denied`)이 발생하던 문제를 해결.
+  - 자가 교체 배치 스크립트(`3M_Instrument_Logger_updater.bat`)에서 `taskkill /f /im "!EXE_NAME!"`으로 관련 프로세스를 확실히 종료 후 `copy /y`를 수행.
+  - 재실행 시 `start "" /D "!TARGET_DIR!" "!TARGET!"`를 호출하여 EXE가 위치한 본래 폴더 컨텍스트에서 새 버전이 완벽하게 실행되도록 보장.
+
+- **인증 및 통신 안정화 (`updater_backend.py`)**:
+  - GitHub Private Asset 스트리밍 다운로드 시 S3 리다이렉트 인증 헤더 분리 (`_S3SafeRedirectHandler`로 400 Bad Request 방지).
+  - 사내 프록시/보안망 환경의 SSL 인증서 통신 에러를 방지하기 위해 `ssl._create_unverified_context()` Fallback 탑재.
+  - Windows Credential Manager(`git:https://github.com`) 토큰 자동 탐색 탑재 (`advapi32.CredReadW`).
+  - 다중 뎁스 버전 비교기(`is_newer_version('1.0.0-rc.6.1', '1.0.0-rc.6') == True`) 구현.
+
+- **업데이트 범위 및 신규 카드 확장 가이드 (인수인계 규약)**:
+  - **업데이트 가능한 범위 (100% 완전 지원)**:
+    1. 모든 웹 리소스 (`index.html`, `index.css`, `core.js`, `instruments/*.js`, `assets/` 등).
+    2. 파이썬 서버 로직 (`server.py`, `updater_backend.py`, 신규 API 라우트 등).
+    3. **신규 계측기/도구 카드 추가**: `instruments/신규장비.js` 작성 후 `index.js` 및 `build_standalone.py`에 등록하고 버전을 올려 배포하면, 기존 설치된 EXE가 새 버전을 다운받아 신규 카드가 포함된 프로그램으로 100% 완전 업데이트됨.
+  - **주의 사항 (업데이트 시 유의점)**:
+    1. C-레벨 네이티브 바이너리나 신규 Python 라이브러리가 추가되는 경우에도 PyInstaller가 단일 통 EXE(`3M_Instrument_Logger.exe`) 전체를 교체하므로 완전히 반영됨.
+    2. 단, GitHub Release의 에셋 파일명은 항상 `3M_Instrument_Logger.exe`로 유지되어야 함.
+
+- **명칭 일원화 (`Photo Editor`)**:
+  - `AI Photo Editor` / `AIPhotoEditor` 잔여 표기를 `Photo Editor` / `PhotoEditor`로 완전 통일 (`index.js`, `build_standalone.py`, `make_report_ppt.py`).
+
+- **검증 및 산출물**:
+  - `verify_project.py` 전체 저장소 무결성 검증 100% PASS (JS 33개, 계측기 15개, Python 24개, HTTP 19개).
+  - 브라우저 실기 검증 완료: `updater_completion_100_percent_1789628387900.png`.
+  - 배포 릴리즈: GitHub `gochujangs13/Instrument-Logger` Release `v1.0.0-rc.6.1` (Asset ID: 569677471).
+  - 테스트용 베이스 EXE: `dist/3M_Instrument_Logger.exe` (v1.0.0-rc.6) 빌드 완료.
 
 ## 4. SP-2100 / TL-2200 — 이번 세션 핵심 작업
 
@@ -1434,10 +1484,11 @@ dist에 수동 복사 후 `package_exe.py` 실행.
 - 하단 `card-cat`에 분류 표시 (저항/두께/점착력, 차분한 텍스트 — 기존 파란 배지 제거)
 - 전체 카드 구조: `card-type` → 이미지 → 이름 → `card-cat`
 
-#### ClubExpense 런처 카드 제거 (`index.js`, `build/build_standalone.py`)
-- `instruments/club_expense.js` 파일 자체는 유지
-- `index.js` import 및 INSTRUMENTS 레지스트리에서 제거
-- `build/build_standalone.py` `INSTRUMENT_MAP`에서 항목 제거
+#### Club Expense 완전 영구 제거 (`index.js`, `core.js`, `build/build_standalone.py`, 파일 삭제)
+- `instruments/club_expense.js` 및 `assets/club_expense.png` 완전 영구 삭제 (재유입 원천 차단)
+- `core.js` `_LAUNCHER_GROUPS` 및 `index.js` import/레지스트리에서 제거
+- `build/build_standalone.py` `INSTRUMENT_MAP`에서 완전 제거
+- 과거 standalone 빌드 잔여 폴더(`dist/*ClubExpense*`) 정리 및 클린 EXE 재빌드/GitHub 릴리즈 완료
 
 ### 미해결 / 후속 작업
 - **체크박스 재측정**: ✅ 전 계측기 완료

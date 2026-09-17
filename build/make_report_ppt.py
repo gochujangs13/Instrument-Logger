@@ -135,7 +135,7 @@ make_card(slide, X1, TOP, COL1W, CH,
               "  박리·인장     SP-2100 / TL-2200",
               "  프로브 택     PT-2000",
               "  루프 택       LT-1000",
-              "  이미지 편집   AI Photo Editor",
+              "  이미지 편집   Photo Editor",
           ])
 
 # 카드2: AI 활용 개발 내용
@@ -177,7 +177,7 @@ def row(tf, text, size=Pt(10), bold=False, color=C_DARK, before=Pt(2), first=Fal
 
 row(tf3, "✅  실기 검증 완료", Pt(10), True, C_OK, Pt(0), first=True)
 for item in ["Hioki 3540", "Keithley 2700", "Mitutoyo VL-50",
-             "SP-2100 / TL-2200", "PT-2000", "LT-1000", "AI Photo Editor"]:
+             "SP-2100 / TL-2200", "PT-2000", "LT-1000", "Photo Editor"]:
     row(tf3, "     • " + item)
 
 row(tf3, "🔧  실기 테스트 진행 예정", Pt(10), True, C_WARN, Pt(7))

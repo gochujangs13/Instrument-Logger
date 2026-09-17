@@ -1,6 +1,6 @@
 {
-  "version": "1.0.0-rc.6",
-  "releaseDate": "2026-09-14",
+  "version": "1.0.0-rc.6.2",
+  "releaseDate": "2026-09-18",
   "channel": "release-candidate",
-  "fileVersion": "1.0.0.6"
+  "fileVersion": "1.0.6.2"
 }
