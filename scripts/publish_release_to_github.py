@@ -11,23 +11,23 @@ import urllib.request
 import urllib.error
 
 REPO = "gochujangs13/Instrument-Logger"
-TAG_NAME = "v1.0.0-rc.6.5"
-RELEASE_NAME = "3M Instrument Logger v1.0.0-rc.6.5"
-RELEASE_NOTES = """## 3M Instrument Logger v1.0.0-rc.6.5
+TAG_NAME = "v1.0.0-rc.6.6"
+RELEASE_NAME = "3M Instrument Logger v1.0.0-rc.6.6"
+RELEASE_NOTES = """## 3M Instrument Logger v1.0.0-rc.6.6
 
 ### 🚀 업데이트 하이라이트
-- **무중단 독립 팝업 자동 업데이트 개선 (v1.0.0-rc.6.5)**:
-  - 독립 팝업창(PowerShell WPF) 표시 보장: 백그라운드 콘솔만 안전 숨김 처리하여 업데이트 창 100% 정상 표시
-  - 프로세스 완전 종료 및 잠금 해제: PyInstaller 멀티 프로세스 파일 잠금 감지 및 안전 해제
-  - 파일 교체 후 최신 버전 자동 재실행 및 3초 카운트다운 자동 종료
-- **안정성 및 네트워크 호환성 강화**:
-  - 사내망/보안 프록시 환경 SSL 통신 호환성 개선
+- **독립 업데이트 팝업 최상위(맨 앞) 전면 고정**:
+  - 다른 프로그램 창 뒤로 숨지 않고 다운로드 완료 시까지 화면 맨 앞 최상위에 유지
+- **메인 프로그램 즉각 종료 및 파일 교체 가속**:
+  - 업데이트 진행 시 지연 없이 즉각 프로세스 안전 종료 및 교체 재실행
+- **런처 전용 업데이트 확인 바**:
+  - 메인 런처(홈) 화면에서만 업데이트 확인 바 표시, 계측기/소프트웨어 카드 진입 시 자동 숨김 처리
 
 ### 📦 포함 파일
-- `3M_Instrument_Logger.exe` (v1.0.0-rc.6.5 Windows 단독 실행 파일)
+- `3M_Instrument_Logger.exe` (v1.0.0-rc.6.6 Windows 단독 실행 파일)
 """
 
-EXE_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "dist", "3M_Instrument_Logger.exe")
+EXE_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "build_tmp", "release_out", "3M_Instrument_Logger.exe")
 
 def get_token():
     try:

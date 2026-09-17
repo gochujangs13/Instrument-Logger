@@ -1,23 +1,21 @@
 # 🎯 [STATUS.md] 실시간 작업 상황판 (항상 최신 1개만 유지)
 
-- **최종 작업 일시**: 2026-09-18 07:52 (작업자: 안티그래비티)
-- **현재 진행 중인 목표**: [준비 완료] GitHub에 정식 6.5 바이너리 배포 및 로컬 6.4 복원 완료 (사용자 6.4 ➔ 6.5 업데이트 테스트 준비 완료)
+- **최종 작업 일시**: 2026-09-18 08:18 (작업자: 안티그래비티)
+- **현재 진행 중인 목표**: [준비 완료] GitHub에만 정식 6.6 바이너리 배포 및 로컬 6.5 보존 완료 (사용자 6.5 ➔ 6.6 업데이트 테스트 준비 완료)
 
 ---
 
 ### 1. 직전에 완료된 작업
-- **독립 팝업 자동 업데이트 워크플로우 실기 검증 완료**:
-  - 독립 팝업창(PowerShell WPF) 정상 구동 ➔ GitHub Private 다운로드 ➔ 프로그램 파일 안전 교체 ➔ 자동 재실행 ➔ 완료 후 3초 자동 종료 워크플로우 정상 확인.
-- **GitHub 공식 릴리즈 배포 (`v1.0.0-rc.6.5`)**:
-  - 내부 `version.json`이 실제 `1.0.0-rc.6.5`로 탑재된 신규 패키지 빌드 및 GitHub 릴리즈 업로드 완료 (Release ID: `391106249`, Asset ID: `571316899`, SHA256: `BF2BC5AB9F9EEA933290BAD4EE2A14051C28F87510BC2BCC8D330539A53F316E`).
-- **로컬 테스트 환경 세팅**:
-  - 사용자 로컬 파일(`dist/3M_Instrument_Logger.exe`)을 순수 `v1.0.0-rc.6.4` 상태로 복원 완료 (SHA256: `82359D74F6FEC7000E6B3AECAE802039B9E2C9D53D716D7FE7EC8803F3716BB1`).
-  - 로컬 6.4 실행 시 GitHub 상의 `v1.0.0-rc.6.5` 신규 버전을 정상 감지하며, "지금 업데이트" 클릭 시 정식 6.5 버전으로 교체 재실행 검증 가능.
-- **Club Expense 카드 완전 영구 삭제**:
-  - `build/build_standalone.py`의 `INSTRUMENT_MAP`에서 완전 제거
-  - `core.js`의 `_LAUNCHER_GROUPS`에서 삭제
-  - `instruments/club_expense.js` 및 `assets/club_expense.png` 물리적 파일 삭제
-  - `dist/*ClubExpense*` 캐시 폴더 정리 및 정규 13종(계측기 10종 + 소프트웨어 3종) 확립
+- **업데이트 UI/UX 3대 개선 완료**:
+  - 독립 업데이트 창(PowerShell WPF) 최상위(맨 앞) 전면 고정 (`SetWindowPos` `HWND_TOPMOST`, `BringWindowToTop`, `SetForegroundWindow`, `ForceForeground` 적용)
+  - 메인 프로그램 지연 없는 즉각 종료 및 파일 교체 가속 (`Stop-Process -Force` 즉시 수행, 0.1초 종료)
+  - 런처(홈) 화면 전용 업데이트 확인 바 표시 (계측기/소프트웨어 카드 진입 시 자동 숨김, `⌂ Home` 복귀 시 재표시)
+- **GitHub 공식 릴리즈 배포 (`v1.0.0-rc.6.6`)**:
+  - `STAGE_ONLY=1` 모드로 로컬 실행 파일 간섭 없이 내부 버전 `1.0.0-rc.6.6` 패키지 빌드 완료 (SHA256: `B9DA31434317EE8914D68C159A942F4F3831BC324A87CC3BCED6334F3796F2B9`)
+  - GitHub Private Release `v1.0.0-rc.6.6` 공식 생성 및 에셋 업로드 완료 (Release ID: `391115386`, Asset ID: `571350520`)
+- **로컬 6.5 테스트 환경 완벽 보존**:
+  - 사용자 로컬 실행 파일(`dist/3M_Instrument_Logger.exe`)은 단 1바이트도 건드리지 않고 6.5 최신 상태 그대로 유지 (SHA256: `EAE0C2FC9640942B4F80E4D0FDB981A9A1B344AFE917E2A1D6DADBEC90853404`)
+  - 로컬 6.5 실행 시 GitHub의 `v1.0.0-rc.6.6` 신규 버전을 정상 감지하며, "지금 업데이트" 클릭 시 정식 6.6 버전으로 교체 재실행 검증 가능
 
 ---
 

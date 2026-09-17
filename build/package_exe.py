@@ -873,14 +873,20 @@ def package(dist_dir: str):
     staged_exe = os.path.join(staging_out_dir, exe_name + extension)
     exe_path = os.path.join(out_dir, exe_name + extension)
     if os.path.exists(staged_exe):
+        if os.environ.get("STAGE_ONLY") == "1":
+            print(f"\n[완료] STAGE_ONLY 모드: {staged_exe} 에 빌드 완료 (dist 교체 건너뜀)")
+            return
         # 새 빌드가 완전히 성공한 뒤에만 기존 EXE를 원자적으로 교체합니다.
         # 빌드 실패 시에는 기존 배포 파일이 그대로 유지됩니다.
         os.makedirs(out_dir, exist_ok=True)
-        os.replace(staged_exe, exe_path)
-        removed = _remove_other_release_exes(out_dir, exe_path)
-        print(f"\n[완료] 기존 EXE를 최신 빌드로 교체함: {exe_path}")
-        if removed:
-            print(f"[정리] 이전 통합 EXE {len(removed)}개 제거")
+        try:
+            os.replace(staged_exe, exe_path)
+            removed = _remove_other_release_exes(out_dir, exe_path)
+            print(f"\n[완료] 기존 EXE를 최신 빌드로 교체함: {exe_path}")
+            if removed:
+                print(f"[정리] 이전 통합 EXE {len(removed)}개 제거")
+        except PermissionError:
+            print(f"\n[알림] 대상 EXE({exe_path})가 실행 중이어서 dist 교체를 건너뛰었습니다. (빌드 결과는 {staged_exe}에 보존됨)")
     else:
         print(f"\n[경고] 새 EXE 파일을 찾을 수 없음: {staged_exe}")
 
