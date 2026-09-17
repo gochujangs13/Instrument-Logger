@@ -619,6 +619,25 @@ export class AppUpdater {
 
       container.querySelector('#btnAppUpdater').onclick = () => this.onUpdateBtnClick();
       container.querySelector('#btnUpdaterConfig').onclick = () => this.showSettingsModal();
+
+      // 런처 화면에서만 표시되도록 감시 (카드 클릭 진입 시 숨김, 홈 복귀 시 재표시)
+      const syncLauncherVisibility = () => {
+        const launcher = document.getElementById('launcher');
+        const instView = document.getElementById('instrumentView');
+        const isLauncherVisible = launcher && !launcher.hidden && (!instView || instView.hidden);
+        container.style.display = isLauncherVisible ? 'inline-flex' : 'none';
+      };
+
+      const launcher = document.getElementById('launcher');
+      if (launcher) {
+        const obs = new MutationObserver(syncLauncherVisibility);
+        obs.observe(launcher, { attributes: true, attributeFilter: ['hidden', 'style'] });
+        const instView = document.getElementById('instrumentView');
+        if (instView) {
+          obs.observe(instView, { attributes: true, attributeFilter: ['hidden', 'style'] });
+        }
+      }
+      syncLauncherVisibility();
     };
 
     if (document.readyState === 'loading') {
@@ -689,6 +708,13 @@ export class AppUpdater {
         border: 1px solid rgba(51, 65, 85, 0.7);
         box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
         animation: updaterFadeIn 0.25s ease-out;
+      }
+
+      /* 런처 화면 이외(계측기 카드 진입 시) 상단 업데이트 확인 바 자동 숨김 */
+      #launcher[hidden] ~ .updater-bar-container,
+      body:has(#instrumentView:not([hidden])) .updater-bar-container,
+      body:has(#launcher[hidden]) .updater-bar-container {
+        display: none !important;
       }
 
       .updater-status-badge {

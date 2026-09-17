@@ -22,6 +22,9 @@ param(
 Add-Type -Name Win32 -Namespace Native -MemberDefinition '
     [DllImport("kernel32.dll")] public static extern IntPtr GetConsoleWindow();
     [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+    [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
+    [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr hWnd);
+    [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
 '
 $hConsole = [Native.Win32]::GetConsoleWindow()
 if ($hConsole -ne [IntPtr]::Zero) {
@@ -163,6 +166,23 @@ function DoEvents {
     [System.Windows.Threading.Dispatcher]::PushFrame($frame)
 }
 
+$script:hWndWpf = [IntPtr]::Zero
+
+function ForceForeground {
+    try {
+        if ($script:hWndWpf -and $script:hWndWpf -ne [IntPtr]::Zero) {
+            # HWND_TOPMOST (-1), SWP_NOMOVE(2) | SWP_NOSIZE(1) | SWP_SHOWWINDOW(0x40) = 0x43
+            [Native.Win32]::SetWindowPos($script:hWndWpf, [IntPtr]-1, 0, 0, 0, 0, 0x0043) | Out-Null
+            [Native.Win32]::BringWindowToTop($script:hWndWpf) | Out-Null
+            [Native.Win32]::SetForegroundWindow($script:hWndWpf) | Out-Null
+        }
+        $window.Topmost = $false
+        $window.Topmost = $true
+        $window.Activate()
+        $window.Focus()
+    } catch {}
+}
+
 function SetUI($pct, $status, $detail, $bytes) {
     if ($null -ne $pct) {
         $progBar.Value = [Math]::Max(0, [Math]::Min(100, $pct))
@@ -171,34 +191,32 @@ function SetUI($pct, $status, $detail, $bytes) {
     if ($status) { $txtStatus.Text = $status }
     if ($detail) { $txtDetail.Text = $detail }
     if ($bytes)  { $txtBytes.Text = $bytes }
+    ForceForeground
     DoEvents
 }
 
 $window.Add_Loaded({
     try {
-        # [Step 1] 메인 프로세스 종료 확인
-        SetUI 5 "1단계: 메인 프로그램 안전 종료 확인" "실행 중인 3M Instrument Logger가 완전히 종료되기를 기다립니다..." "프로세스 대기"
-        
-        $waitStart = [DateTime]::Now
-        if ($ParentPid -gt 0) {
-            while ((Get-Process -Id $ParentPid -ErrorAction SilentlyContinue) -and (([DateTime]::Now - $waitStart).TotalSeconds -lt 5)) {
-                Start-Sleep -Milliseconds 200
-                DoEvents
-            }
-            if (Get-Process -Id $ParentPid -ErrorAction SilentlyContinue) {
-                Stop-Process -Id $ParentPid -Force -ErrorAction SilentlyContinue
-                Start-Sleep -Milliseconds 400
-                DoEvents
-            }
-        }
+        # WPF 윈도우 핸들 등록 및 최상위 전면 고정
+        $interop = New-Object System.Windows.Interop.WindowInteropHelper($window)
+        $script:hWndWpf = $interop.Handle
+        ForceForeground
 
-        # 동일 이름 프로세스 정리 (파일 잠금 원천 차단)
+        # [Step 1] 메인 프로세스 즉각 종료 및 파일 잠금 해제 (대기 없이 즉시 종료)
+        SetUI 5 "1단계: 메인 프로그램 안전 종료 중..." "기존 프로그램을 안전하게 닫고 파일 잠금을 해제합니다..." "프로세스 정리"
+        
+        if ($ParentPid -gt 0) {
+            Stop-Process -Id $ParentPid -Force -ErrorAction SilentlyContinue
+        }
         Get-Process -Name $exeBaseName -ErrorAction SilentlyContinue | ForEach-Object {
             Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue
         }
+        Start-Sleep -Milliseconds 200
+        ForceForeground
+        DoEvents
 
         SetUI 10 "1단계 완료: 메인 프로그램 종료됨" "프로그램이 안전하게 종료되어 파일 잠금이 해제되었습니다." "파일 잠금 해제"
-        Start-Sleep -Milliseconds 300
+        Start-Sleep -Milliseconds 200
         DoEvents
 
         # [Step 2] 다운로드 (이전 임시 파일 정리 후 최신 패키지 스트리밍 다운로드)
