@@ -82,6 +82,14 @@ this.onByte = null;            // 신규: 매 수신 바이트마다 호출
 | Etching Design | etching_design.js | ✅ 완성 및 검증 완료 | 정밀 에칭 패턴 CAD & 레이아웃 도구 (0.01mm 정밀도). TYPE 1/2/3 프리셋, 방향성 및 중앙 시편 개별 방향 오버라이드, 혼합 배치 최적화, DWG/DXF 내보내기 UI, 실행 취소/다시 실행, 가로/세로 맞춤, 동적 타입/여백/모서리 관리, 실물 컷팅 슬릿 및 0.5mm 마이크로 조인트 브릿지 연동. SVG/PDF 생성 모듈은 있으나 현재 사용자 툴바에 미연결. 단위 테스트 통과 |
 | App Updater | updater.js, updater_backend.py | ✅ 구축 및 실기 검증 완료 | GitHub Private 저장소(`gochujangs13/Instrument-Logger`) 기반 무중단 자동 업데이트. 0~100% 게이지, 100% 완료 카드, 3초 카운트다운 자동 재시작 및 `taskkill` 기반 Windows 프로세스 파일 잠금 해제 자가 교체 엔진 완비 |
 
+### 2026-09-18 GitHub 공식 릴리즈 배포 완료 (v1.0.0-rc.6.3 — 실기 자동 업데이트 테스트용)
+
+- **배경 및 조치 내역**:
+  - 독립 팝업창(PowerShell WPF) 기반 자동 업데이트 실기 검증을 위한 신규 릴리즈 배포.
+  - 최신 EXE `dist/3M_Instrument_Logger.exe` (143.38MB, 150,339,992 바이트, SHA256 `7D0424B2EFBB7BB58F83622FADE033F152D9862FE39EBD5E9B696DBFD6907FAA`) 빌드 완료.
+  - GitHub Private Release `v1.0.0-rc.6.3` 공식 생성 및 에셋 업로드 완료 (Release ID: `391095361`, Asset ID: `571267416`).
+  - v1.0.0-rc.6.2 또는 이전 버전에서 실행 시 `v1.0.0-rc.6.3` 업데이트 감지 및 독립 팝업 자동 교체·재실행 검증 가능.
+
 ### 2026-09-18 Club Expense 영구 제거 및 GitHub 공식 릴리즈 배포 완료 (v1.0.0-rc.6.2)
 
 - **배경 및 조치 내역**:

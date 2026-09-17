@@ -1,11 +1,15 @@
 # 🎯 [STATUS.md] 실시간 작업 상황판 (항상 최신 1개만 유지)
 
-- **최종 작업 일시**: 2026-09-18 06:36 (작업자: 안티그래비티)
-- **현재 진행 중인 목표**: [완료] Club Expense 영구 제거 및 GitHub v1.0.0-rc.6.2 공식 릴리즈 배포 완료
+- **최종 작업 일시**: 2026-09-18 07:22 (작업자: 안티그래비티)
+- **현재 진행 중인 목표**: [완료] GitHub v1.0.0-rc.6.3 공식 릴리즈 배포 완료 (자동 업데이트 실기 테스트용)
 
 ---
 
 ### 1. 직전에 완료된 작업
+- **GitHub 공식 릴리즈 v1.0.0-rc.6.3 배포 완료**:
+  - 저장소: `gochujangs13/Instrument-Logger` (Private)
+  - 릴리즈: `v1.0.0-rc.6.3` 태그 및 `3M_Instrument_Logger.exe` (143.38MB, 150,339,992 바이트) 에셋 업로드 완료 (Release ID: `391095361`, Asset ID: `571267416`)
+  - 검증: v1.0.0-rc.6.2 실행 시 `update_available: True`, `latest_version: 1.0.0-rc.6.3` 감지 확인 완료.
 - **Club Expense 카드 완전 영구 삭제**:
   - `build/build_standalone.py`의 `INSTRUMENT_MAP`에서 완전 제거
   - `core.js`의 `_LAUNCHER_GROUPS`에서 삭제
@@ -15,12 +19,8 @@
   - `updater_backend.py` / `scripts/updater_gui.ps1`을 통한 PowerShell WPF 독립 팝업 프로세스 구동
   - 기존 프로그램 즉각 안전 종료로 Windows 프로세스 파일 잠금(`WinError 32: Access Denied`) 원천 차단
   - 0% ~ 100% 실시간 게이지 다운로드, 파일 교체, 최신 버전 자동 재실행, 3초 카운트다운 안내 후 자동 닫힘
-- **GitHub 공식 릴리즈 v1.0.0-rc.6.2 배포 완료**:
-  - 저장소: `gochujangs13/Instrument-Logger` (Private)
-  - 릴리즈: `v1.0.0-rc.6.2` 태그 및 `3M_Instrument_Logger.exe` (143.37MB, 150,339,187 바이트) 에셋 업로드 완료 (Asset ID: `571191450`)
 - **무결성 검증**:
   - `verify_project.py` 전체 저장소 검증 100% PASS (JS 32개, 계측기 15개, Python 26개, HTTP 19개)
-  - 브라우저 실기 런처 확인: Software 섹션에 `Photo Editor`, `Epson PRIFIA OK900P`, `Etching Design`만 정상 노출, `Club Expense` 완전 소멸 확인
 
 ---
 
