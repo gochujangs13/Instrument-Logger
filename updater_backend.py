@@ -317,6 +317,19 @@ def _run_download(asset_id, asset_name, expected_size):
 
 # ── 독립 업데이트 팝업창(Standalone Updater) 실행 및 재시작 ───────────────────
 def get_standalone_updater_ps1_content():
+    # scripts/updater_gui.ps1 파일이 존재하면 우선 로드
+    candidates = [
+        os.path.join(os.path.dirname(__file__), 'scripts', 'updater_gui.ps1'),
+        os.path.join(getattr(sys, '_MEIPASS', ''), 'scripts', 'updater_gui.ps1'),
+        os.path.join(getattr(sys, '_MEIPASS', ''), 'updater_gui.ps1')
+    ]
+    for c in candidates:
+        if c and os.path.exists(c):
+            try:
+                with open(c, 'r', encoding='utf-8-sig') as f:
+                    return f.read()
+            except Exception:
+                pass
     return r"""<#
 .SYNOPSIS
     3M Instrument Logger 독립 자동 업데이트 팝업창 (PowerShell WPF)
@@ -336,6 +349,16 @@ param(
     [int]$ParentPid = 0,
     [string]$TempFile = ""
 )
+
+# 콘솔 창 즉시 숨김 (WPF 단독 팝업 표시)
+Add-Type -Name Win32 -Namespace Native -MemberDefinition '
+    [DllImport("kernel32.dll")] public static extern IntPtr GetConsoleWindow();
+    [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+'
+$hConsole = [Native.Win32]::GetConsoleWindow()
+if ($hConsole -ne [IntPtr]::Zero) {
+    [Native.Win32]::ShowWindow($hConsole, 0)
+}
 
 Add-Type -AssemblyName PresentationFramework
 Add-Type -AssemblyName PresentationCore
@@ -375,7 +398,8 @@ $xaml = @"
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent"
-        Topmost="True">
+        Topmost="True"
+        ShowInTaskbar="True">
     <Border Background="#0f172a" CornerRadius="12" BorderBrush="#334155" BorderThickness="1.5">
         <Border.Effect>
             <DropShadowEffect Color="#000000" BlurRadius="25" ShadowDepth="8" Opacity="0.65"/>
@@ -509,17 +533,11 @@ $window.Add_Loaded({
         Start-Sleep -Milliseconds 300
         DoEvents
 
-        # [Step 2] 다운로드 (이미 유효한 파일이 없으면 S3에서 스트리밍 다운로드)
-        $needDownload = $true
+        # [Step 2] 다운로드 (이전 임시 파일 정리 후 최신 패키지 스트리밍 다운로드)
         if (Test-Path $TempFile) {
-            $fInfo = Get-Item $TempFile
-            if ($fInfo.Length -gt 100000000) {
-                $needDownload = $false
-                SetUI 80 "2단계 완료: 다운로드 패키지 확인됨" "이미 다운로드된 최신 설치 패키지($([math]::Round($fInfo.Length / 1MB, 1)) MB)를 검증했습니다." "검증 완료"
-                Start-Sleep -Milliseconds 300
-                DoEvents
-            }
+            Remove-Item -Path $TempFile -Force -ErrorAction SilentlyContinue
         }
+        $needDownload = $true
 
         if ($needDownload) {
             SetUI 15 "2단계: 최신 버전 다운로드 준비 중..." "GitHub 릴리즈 서버 연결 및 다운로드 주소 확인 중..." "서버 연결"
@@ -619,14 +637,21 @@ $window.Add_Loaded({
         # [Step 4] 최신 버전 자동 재실행
         SetUI 98 "4단계: 최신 버전 자동 재실행 중..." "3M Instrument Logger를 시작하는 중입니다..." "프로그램 기동"
         
-        if (Test-Path $TargetExe) {
-            $pInfo = New-Object System.Diagnostics.ProcessStartInfo
-            $pInfo.FileName = $TargetExe
-            $pInfo.WorkingDirectory = $targetDir
-            $pInfo.UseShellExecute = $true
+        $started = $false
+        $startAttempts = 0
+        while (-not $started -and $startAttempts -lt 15) {
+            $startAttempts += 1
             try {
+                $pInfo = New-Object System.Diagnostics.ProcessStartInfo
+                $pInfo.FileName = $TargetExe
+                $pInfo.WorkingDirectory = $targetDir
+                $pInfo.UseShellExecute = $true
                 [System.Diagnostics.Process]::Start($pInfo) | Out-Null
-            } catch {}
+                $started = $true
+            } catch {
+                Start-Sleep -Milliseconds 400
+                DoEvents
+            }
         }
         
         Start-Sleep -Milliseconds 500
@@ -718,11 +743,10 @@ def launch_standalone_updater(target_info=None):
     with open(ps1_path, 'w', encoding='utf-8-sig') as f:
         f.write(ps1_content)
 
-    # 독립 프로세스 실행 명령
+    # 독립 프로세스 실행 명령 (WindowStyle Hidden 없이 실행하고 ps1 시작 시 즉시 콘솔 숨김)
     ps_cmd = [
         'powershell.exe',
         '-NoProfile',
-        '-WindowStyle', 'Hidden',
         '-ExecutionPolicy', 'Bypass',
         '-File', ps1_path,
         '-TargetExe', target_exe,
@@ -735,14 +759,13 @@ def launch_standalone_updater(target_info=None):
     ]
 
     try:
-        DETACHED = 0x00000008 | 0x00000200 # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
-        subprocess.Popen(ps_cmd, creationflags=DETACHED, close_fds=True)
+        subprocess.Popen(ps_cmd, creationflags=subprocess.CREATE_NEW_PROCESS_GROUP, close_fds=True)
     except Exception:
         subprocess.Popen(ps_cmd, shell=True)
 
-    # 0.3초 후 메인 프로그램 안전 즉시 종료
+    # 0.5초 후 메인 프로그램 안전 즉시 종료
     def _delayed_exit():
-        time.sleep(0.3)
+        time.sleep(0.5)
         os._exit(0)
 
     threading.Thread(target=_delayed_exit, daemon=True).start()
