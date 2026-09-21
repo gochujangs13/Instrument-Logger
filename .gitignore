@@ -9,6 +9,9 @@ build_tmp/
 dist/
 tmp/
 outputs/
+.quarterly-build/
+.codex-pptx-build/
+.codex-pptx-source-render/
 .playwright-mcp/
 *.spec
 
