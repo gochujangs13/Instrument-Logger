@@ -28,6 +28,7 @@ import json
 import shutil
 import subprocess
 import textwrap
+import stat
 
 # localStorage를 파일로 영구 저장하는 JS 폴리필
 # 인라인 데이터 삽입 대신 동기 XHR로 /api/storage/data 에서 데이터를 받아옴
