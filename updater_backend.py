@@ -20,7 +20,7 @@ import urllib.error
 # ── 기본 설정 ─────────────────────────────────────────────────────────────────
 DEFAULT_REPO = "gochujangs13/Instrument-Logger"
 # 프로그램 내장 기본 토큰 (만료 없는 Private Repo 읽기 전용 토큰이 여기에 설정되면 전 PC 자동 적용)
-DEFAULT_TOKEN = ""
+DEFAULT_TOKEN = "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"
 
 import ssl
 
