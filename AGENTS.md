@@ -82,6 +82,24 @@ this.onByte = null;            // 신규: 매 수신 바이트마다 호출
 | Etching Design | etching_design.js | ✅ 완성 및 검증 완료 | 정밀 에칭 패턴 CAD & 레이아웃 도구 (0.01mm 정밀도). TYPE 1/2/3 프리셋, 방향성 및 중앙 시편 개별 방향 오버라이드, 혼합 배치 최적화, DWG/DXF 내보내기 UI, 실행 취소/다시 실행, 가로/세로 맞춤, 동적 타입/여백/모서리 관리, 실물 컷팅 슬릿 및 0.5mm 마이크로 조인트 브릿지 연동. SVG/PDF 생성 모듈은 있으나 현재 사용자 툴바에 미연결. 단위 테스트 통과 |
 | App Updater | updater.js, updater_backend.py | ✅ 구축 및 실기 검증 완료 | GitHub Private 저장소(`gochujangs13/Instrument-Logger`) 기반 무중단 자동 업데이트. 0~100% 게이지, 100% 완료 카드, 3초 카운트다운 자동 재시작 및 `taskkill` 기반 Windows 프로세스 파일 잠금 해제 자가 교체 엔진 완비 |
 
+### 2026-09-22 v1.0.0-rc.6.28 릴리즈 배포 및 Photo Editor Step 2 화면 짤림(290px 사이드바 폭 제한) 해결 단일 EXE 빌드 완료 (`photo_editor.js`, `index.css`)
+
+- **배경 및 사용자 피드백**:
+  - 사용자 스크린샷 제보: 24장/4그룹 사진 업로드 후 Step 2로 진입했을 때, `#1`, `#2` 열만 온전히 표시되고 `#3` 열이 우측 경계선에서 수직으로 싹둑 잘리며 `#4` 열은 보이지 않고 우측의 거대한 화면 공간이 텅 빈 배경으로 남는 현상 ("이렇게 짤려").
+- **근본 원인 분석**:
+  1. `core.js`의 레이아웃 계약과 `index.css`의 `:has(#rightpanel...)` 규칙의 우선순위 충돌:
+     - `index.css`의 `#layout:has(#rightpanel[style*="display: none"])` 셀렉터가 높은 특이성(`(2, 2, 0) !important`)으로 인해, 단일 열 화면 모드(`ai-s2`, `data-layout-mode="one"`)에서도 `grid-template-columns: var(--sidebar-w) minmax(0, 1fr) !important;` (2열 그리드)를 강제함.
+     - 동시에 Photo Editor가 사이드바를 `display: none !important`로 숨기면서, 그리드의 첫 번째 셀(사이드바 너비 = 290px)에 `#center`가 배치되어 갇혀버림!
+     - 2번째 열(남은 1600px 화면)은 우측 패널이 숨겨져 텅 빈 공백으로 남고, `#center` 내부의 모든 툴바와 사진 열들이 290px 좁은 폭에 갇혀 `#3` 열이 290px 경계선에서 싹둑 잘렸음.
+- **조치 사항**:
+  1. `index.css`:
+     - `#layout:not([data-layout-mode="one"]):not(.ai-s2):has(...)`로 2열 강제 셀렉터의 범위를 제한하여 단일 열 모드를 침범하지 못하도록 차단.
+     - `#layout[data-layout-mode="one"] > #center`, `#layout.ai-s2 > #center`에 `grid-column: 1 / -1 !important; width: 100% !important; max-width: 100% !important;`를 부여하여 화면 전체 폭을 100% 온전히 사용하도록 보장.
+  2. `instruments/photo_editor.js`:
+     - `renderStep2()`에서 `layout.dataset.layoutMode = 'one'`, `sidebar.hidden = true` 명시적 설정.
+     - `backToStep1()`에서 `layout.dataset.layoutMode = 'two'`, `sidebar.hidden = false` 복원.
+     - `.ai-s2-wrap`, `.ai-s2-hdr`, `.ai-s2-grid`, `.ai-s2-col`의 너비 및 가로 스크롤 스타일 전면 최적화.
+
 ### 2026-09-22 v1.0.0-rc.6.27 릴리즈 배포 및 토큰 기본 내장 EXE 빌드 완료 (`updater_backend.py`)
 
 - **배경 및 목적**:

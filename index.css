@@ -311,16 +311,25 @@ body {
 #layout.ai-noright,
 #layout.ok900p-layout-no-right,
 #layout.no-right,
-#layout:has(#rightpanel[style*="display: none"]),
-#layout:has(#rightpanel[hidden]) {
+#layout:not([data-layout-mode="one"]):not(.ai-s2):has(#rightpanel[style*="display: none"]),
+#layout:not([data-layout-mode="one"]):not(.ai-s2):has(#rightpanel[hidden]) {
   grid-template-columns: var(--sidebar-w) minmax(0, 1fr) !important;
 }
 
-#layout[data-layout-mode="one"] {
+#layout[data-layout-mode="one"],
+#layout.ai-s2 {
   grid-template-columns: minmax(0, 1fr) !important;
+}
+#layout[data-layout-mode="one"] > #center,
+#layout.ai-s2 > #center {
+  grid-column: 1 / -1 !important;
+  width: 100% !important;
+  max-width: 100% !important;
 }
 #layout[data-layout-mode="one"] #sidebar,
 #layout[data-layout-mode="one"] #rightpanel,
+#layout.ai-s2 #sidebar,
+#layout.ai-s2 #rightpanel,
 #layout[data-layout-mode="two"] #rightpanel,
 #layout.sp2100-layout-no-right #rightpanel,
 #layout.k2400-layout-no-right #rightpanel,
