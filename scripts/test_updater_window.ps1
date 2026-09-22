@@ -1,0 +1,100 @@
+# test_updater_window.ps1
+Add-Type -AssemblyName PresentationFramework
+Add-Type -AssemblyName PresentationCore
+Add-Type -AssemblyName WindowsBase
+
+$xaml = @"
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="3M Instrument Logger 자동 업데이트"
+        Height="360" Width="480"
+        WindowStartupLocation="CenterScreen"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent">
+    <Border Background="#0f172a" CornerRadius="12" BorderBrush="#334155" BorderThickness="1.5">
+        <Border.Effect>
+            <DropShadowEffect Color="#000000" BlurRadius="25" ShadowDepth="8" Opacity="0.6"/>
+        </Border.Effect>
+        <Grid Margin="24">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Header -->
+            <Grid Grid.Row="0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border Background="#ef4444" CornerRadius="6" Width="28" Height="28" Margin="0,0,10,0">
+                        <TextBlock Text="3M" Foreground="White" FontWeight="Bold" FontSize="13" 
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <StackPanel>
+                        <TextBlock Text="3M Instrument Logger" Foreground="#f8fafc" FontWeight="Bold" FontSize="15"/>
+                        <TextBlock x:Name="TxtSubTitle" Text="최신 버전(v1.0.0-rc.6.1) 자동 업데이트" Foreground="#94a3b8" FontSize="12" Margin="0,2,0,0"/>
+                    </StackPanel>
+                </StackPanel>
+            </Grid>
+
+            <!-- Body / Progress Area -->
+            <StackPanel Grid.Row="1" VerticalAlignment="Center" Margin="0,15,0,15">
+                <TextBlock x:Name="TxtStatus" Text="업데이트 준비 중..." Foreground="#38bdf8" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,12"/>
+                
+                <!-- Progress Track -->
+                <Grid Height="12">
+                    <Border Background="#1e293b" CornerRadius="6"/>
+                    <ProgressBar x:Name="ProgBar" Minimum="0" Maximum="100" Value="0" Height="12"
+                                 Foreground="#3b82f6" Background="Transparent" BorderThickness="0"/>
+                </Grid>
+
+                <!-- Stats Row -->
+                <Grid Margin="0,8,0,0">
+                    <TextBlock x:Name="TxtPercent" Text="0%" Foreground="#f1f5f9" FontWeight="Bold" FontSize="12" HorizontalAlignment="Left"/>
+                    <TextBlock x:Name="TxtBytes" Text="0 MB / 0 MB" Foreground="#64748b" FontSize="12" HorizontalAlignment="Right"/>
+                </Grid>
+
+                <!-- Speed / Detail Box -->
+                <Border x:Name="BoxDetail" Background="#1e293b" CornerRadius="8" Padding="12,10" Margin="0,16,0,0" BorderBrush="#334155" BorderThickness="1">
+                    <TextBlock x:Name="TxtDetail" Text="메인 프로그램의 안전 종료를 대기하고 있습니다..." Foreground="#94a3b8" FontSize="12" TextWrapping="Wrap"/>
+                </Border>
+            </StackPanel>
+
+            <!-- Bottom Action Row -->
+            <Grid Grid.Row="2">
+                <TextBlock x:Name="TxtFooter" Text="업데이트 중에는 창을 닫지 마세요." Foreground="#475569" FontSize="11" VerticalAlignment="Center"/>
+                <Button x:Name="BtnAction" Content="확인" Width="90" Height="32" HorizontalAlignment="Right" Visibility="Collapsed"
+                        Background="#10b981" Foreground="White" FontWeight="Bold" BorderThickness="0" Cursor="Hand">
+                    <Button.Resources>
+                        <Style TargetType="Border">
+                            <Setter Property="CornerRadius" Value="6"/>
+                        </Style>
+                    </Button.Resources>
+                </Button>
+            </Grid>
+        </Grid>
+    </Border>
+</Window>
+"@
+
+$reader = [System.Xml.XmlReader]::Create([System.IO.StringReader]::new($xaml))
+$window = [System.Windows.Markup.XamlReader]::Load($reader)
+
+# Drag Window
+$window.Add_MouseLeftButtonDown({ $window.DragMove() })
+
+$txtStatus = $window.FindName("TxtStatus")
+$progBar = $window.FindName("ProgBar")
+$txtPercent = $window.FindName("TxtPercent")
+$txtBytes = $window.FindName("TxtBytes")
+$txtDetail = $window.FindName("TxtDetail")
+$btnAction = $window.FindName("BtnAction")
+$txtFooter = $window.FindName("TxtFooter")
+
+$btnAction.Add_Click({ $window.Close() })
+
+Write-Host "Window loaded successfully in PowerShell!"

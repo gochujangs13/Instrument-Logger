@@ -107,12 +107,15 @@ export class AppUpdater {
     if (badge && badgeText) {
       badge.className = 'updater-status-badge latest';
       badgeText.textContent = '현재 최신 버전입니다.';
+      badge.title = '클릭 시 최신 버전을 다시 확인합니다.';
+      badge.style.cursor = 'pointer';
+      badge.onclick = () => this.checkManual();
     }
     if (btn) {
-      btn.disabled = true;
-      btn.className = 'updater-header-btn disabled';
-      btn.title = currentVer ? `현재 최신 버전(v${currentVer})을 사용 중입니다.` : '현재 최신 버전을 사용 중입니다.';
-      btn.innerHTML = `<span class="updater-btn-icon">✓</span><span>업데이트</span>`;
+      btn.disabled = false;
+      btn.className = 'updater-header-btn latest-btn';
+      btn.title = currentVer ? `현재 최신 버전(v${currentVer})입니다. 클릭하면 업데이트를 다시 확인합니다.` : '클릭하면 최신 버전을 다시 확인합니다.';
+      btn.innerHTML = `<span class="updater-btn-icon">✓</span><span>업데이트 확인</span>`;
     }
   }
 
@@ -222,264 +225,176 @@ export class AppUpdater {
     modal.querySelector('#updaterStartBtn').onclick = () => this.startDownloadFlow(info);
   }
 
-  // ── 6. 통합 진행 게이지 (다운로드 0-85% + 교체 85-100%) ──────────────────────
+  // ── 6. 독립 업데이트 프로그램 실행 및 메인 프로그램 종료 ───────────────────
   async startDownloadFlow(info) {
     this.closeModal();
 
     const newVer = info.latest_version ? `v${info.latest_version}` : '신규 버전';
-    const modal = document.createElement('div');
-    modal.className = 'updater-modal-overlay';
-    modal.innerHTML = `
-      <div class="updater-modal-card">
-        <div class="updater-modal-header">
-          <div class="updater-title-badge">
-            <span class="updater-icon updater-spin" id="updaterFlowIcon">🔄</span>
-            <span class="updater-title" id="updaterFlowTitle">${newVer} 다운로드 중</span>
-          </div>
-        </div>
-
-        <div class="updater-download-center">
-          <div class="updater-progress-track">
-            <div class="updater-progress-fill" id="updaterProgressFill" style="width: 0%;"></div>
-          </div>
-
-          <div class="updater-stat-row">
-            <span id="updaterProgressPct">0%</span>
-            <span id="updaterDownloadedBytes">준비 중...</span>
-          </div>
-
-          <div id="updaterSpeedTag" class="updater-speed-tag">연결 중...</div>
-          <p class="updater-guide-text" id="updaterGuideText">
-            GitHub 토큰을 사용하여 안전하게 패키지를 내려받고 있습니다.<br>
-            100%가 되면 프로그램이 자동으로 새 버전으로 교체 재실행됩니다.
-          </p>
-        </div>
-      </div>
-    `;
-
-    document.body.appendChild(modal);
-    this.modalEl = modal;
-
-    const fillEl   = modal.querySelector('#updaterProgressFill');
-    const pctEl    = modal.querySelector('#updaterProgressPct');
-    const bytesEl  = modal.querySelector('#updaterDownloadedBytes');
-    const speedEl  = modal.querySelector('#updaterSpeedTag');
-    const titleEl  = modal.querySelector('#updaterFlowTitle');
-    const iconEl   = modal.querySelector('#updaterFlowIcon');
-    const guideEl  = modal.querySelector('#updaterGuideText');
-
-    // 공통: 게이지를 특정 % 로 부드럽게 설정
-    const setGauge = (pct, label, speed, title) => {
-      const p = Math.min(100, Math.max(0, pct));
-      if (fillEl) fillEl.style.width = p + '%';
-      if (pctEl)  pctEl.textContent  = p + '%';
-      if (label  !== undefined && bytesEl) bytesEl.textContent = label;
-      if (speed  !== undefined && speedEl) speedEl.textContent = speed;
-      if (title  !== undefined && titleEl) titleEl.textContent = title;
-    };
-
-    // 공통: 100% 완료 및 카운트다운 재시작 처리
-    const finishAll = (isMock, totalBytesStr = '143.8 MB') => {
-      setGauge(100, `${totalBytesStr} (100% 완료)`, '✅ 다운로드 및 검증 완료', `${newVer} 업데이트 준비 완료`);
-      if (fillEl) {
-        fillEl.style.width = '100%';
-        fillEl.classList.add('updater-progress-done');
-      }
-      if (pctEl) pctEl.textContent = '100%';
-      if (iconEl) {
-        iconEl.classList.remove('updater-spin');
-        iconEl.style.animation = 'none';
-        iconEl.textContent = '🎉';
-      }
-      if (speedEl) {
-        speedEl.textContent = '✅ 패키지 검증 완료 (100%)';
-        speedEl.style.background = 'rgba(34, 197, 94, 0.2)';
-        speedEl.style.color = '#4ade80';
-        speedEl.style.border = '1px solid rgba(34, 197, 94, 0.4)';
-      }
-
-      const dc = modal.querySelector('.updater-download-center');
-      if (!dc) return;
-
-      // 기존 단순 가이드 텍스트 숨김
-      if (guideEl) guideEl.style.display = 'none';
-
-      // 100% 완료 알림 및 재시작 카운트다운 카드
-      const noticeCard = document.createElement('div');
-      noticeCard.className = 'updater-completion-card';
-      noticeCard.innerHTML = `
-        <div style="color:#4ade80;font-size:16px;font-weight:700;margin-bottom:6px;display:flex;align-items:center;justify-content:center;gap:6px;">
-          <span>🎉</span><span>새 버전 업데이트가 100% 준비되었습니다!</span>
-        </div>
-        <div id="updaterRestartNotice" style="color:#38bdf8;font-size:13px;font-weight:600;line-height:1.5;">
-          ${isMock
-            ? '💡 [시뮬레이션 모드] 실제 환경에서는 3초 후 프로그램이 종료되고 새 버전으로 자동 재실행됩니다.'
-            : '🔄 3초 후 프로그램을 안전하게 종료하고 최신 버전으로 자동 재시작합니다... (3)'}
-        </div>
-      `;
-      dc.appendChild(noticeCard);
-
-      // 📋 이번 업데이트 주요 내용 (GitHub 릴리즈 Description)
-      const releaseNotes = info.release_notes || '';
-      const notesHtml = this._formatReleaseNotes(releaseNotes);
-      const notesSection = document.createElement('div');
-      notesSection.style.cssText = 'margin-top:14px;text-align:left;animation:updaterFadeIn 0.3s ease;';
-      notesSection.innerHTML = `
-        <div style="font-size:12px;font-weight:700;color:#94a3b8;margin-bottom:6px;letter-spacing:.03em;">
-          📋 ${newVer} 주요 업데이트 내용
-        </div>
-        <div style="
-          background:#1e293b;border:1px solid #334155;border-radius:8px;
-          padding:10px 12px;max-height:130px;overflow-y:auto;
-          font-size:12px;line-height:1.65;color:#cbd5e1;
-        ">${notesHtml || '<span style="color:#64748b;font-style:italic;">GitHub 릴리즈 페이지에서 상세 내용을 확인하세요.</span>'}</div>
-      `;
-      dc.appendChild(notesSection);
-
-      // 하단 액션 버튼 행
-      const btnRow = document.createElement('div');
-      btnRow.style.cssText = 'display:flex;gap:10px;margin-top:14px;justify-content:flex-end;align-items:center;';
-
-      // 🔗 GitHub 릴리즈 페이지 링크 버튼
-      const cfg = { repo: 'gochujangs13/Instrument-Logger' };
-      fetch('/api/update/config').then(r => r.ok ? r.json() : cfg).then(c => {
-        const repo = c.repo || cfg.repo;
-        const ver  = info.latest_version ? `v${info.latest_version}` : '';
-        const url  = `https://github.com/${repo}/releases${ver ? '/tag/' + ver : ''}`;
-        const noteBtn = document.createElement('button');
-        noteBtn.className = 'updater-btn-secondary';
-        noteBtn.style.cssText = 'font-size:12px;padding:8px 12px;';
-        noteBtn.innerHTML = '🔗 GitHub 릴리즈';
-        noteBtn.onclick = () => window.open(url, '_blank');
-        btnRow.insertBefore(noteBtn, btnRow.firstChild);
-      }).catch(() => {});
-
-      if (isMock) {
-        const closeBtn = document.createElement('button');
-        closeBtn.className = 'updater-btn-primary';
-        closeBtn.style.cssText = 'font-size:13px;padding:8px 18px;';
-        closeBtn.textContent = '확인 및 닫기';
-        closeBtn.onclick = () => this.closeModal();
-        btnRow.appendChild(closeBtn);
-        dc.appendChild(btnRow);
-        return;
-      }
-
-      // 실제 EXE 환경: [🚀 지금 바로 재시작 (3s)] 버튼
-      const restartBtn = document.createElement('button');
-      restartBtn.className = 'updater-btn-primary updater-restart-pulse';
-      restartBtn.id = 'updaterImmediateRestartBtn';
-      restartBtn.style.cssText = 'font-size:13px;padding:8px 18px;background:linear-gradient(135deg,#16a34a 0%,#15803d 100%);border:1px solid #22c55e;cursor:pointer;';
-      restartBtn.innerHTML = '🚀 지금 바로 재시작 (3s)';
-      btnRow.appendChild(restartBtn);
-      dc.appendChild(btnRow);
-
-      let remainingSec = 3;
-      let restartTriggered = false;
-
-      const doRestart = async () => {
-        if (restartTriggered) return;
-        restartTriggered = true;
-        if (this._countdownTimer) {
-          clearInterval(this._countdownTimer);
-          this._countdownTimer = null;
-        }
-
-        restartBtn.disabled = true;
-        restartBtn.classList.remove('updater-restart-pulse');
-        restartBtn.style.opacity = '0.75';
-        restartBtn.style.cursor = 'not-allowed';
-        restartBtn.textContent = '재시작 진행 중...';
-
-        const noticeEl = modal.querySelector('#updaterRestartNotice');
-        if (noticeEl) {
-          noticeEl.innerHTML = '<span style="color:#fbbf24;font-weight:700;">🚀 프로그램을 안전하게 종료하고 최신 버전으로 교체 재실행 중입니다...</span>';
-        }
-
-        try {
-          const ctrl = new AbortController();
-          setTimeout(() => ctrl.abort(), 4000);
-          await fetch('/api/update/apply', { method: 'POST', signal: ctrl.signal });
-        } catch {
-          // 프로세스 종료 시 정상
-        }
-      };
-
-      restartBtn.onclick = () => doRestart();
-
-      this._countdownTimer = setInterval(() => {
-        remainingSec -= 1;
-        if (remainingSec > 0) {
-          const noticeEl = modal.querySelector('#updaterRestartNotice');
-          if (noticeEl) {
-            noticeEl.textContent = `🔄 ${remainingSec}초 후 프로그램을 안전하게 종료하고 최신 버전으로 자동 재시작합니다... (${remainingSec})`;
-          }
-          restartBtn.innerHTML = `🚀 지금 바로 재시작 (${remainingSec}s)`;
-        } else {
-          clearInterval(this._countdownTimer);
-          this._countdownTimer = null;
-          doRestart();
-        }
-      }, 1000);
-    };
-
-    // ── Mock 시뮬레이션 ────────────────────────────────────────────────────────
     const isMock = window.location.search.includes('mock_update');
-    const mockStage = new URLSearchParams(window.location.search).get('mock_stage');
+
     if (isMock) {
-      let mockPct = 0;
-      this.pollTimer = setInterval(() => {
-        mockPct += 20;
-
-        if (mockStage === 'downloading' && mockPct >= 65) {
-          clearInterval(this.pollTimer);
-          this.pollTimer = null;
-          setGauge(65, '31.2 MB / 48.0 MB (65%)', '5.4 MB/s', `${newVer} 다운로드 중`);
-          return;
-        }
-
-        if (mockPct < 100) {
-          const curMb = ((48 * mockPct) / 100).toFixed(1);
-          setGauge(mockPct, `${curMb} MB / 48.0 MB (${mockPct}%)`, '8.5 MB/s', `${newVer} 다운로드 중`);
-        } else {
-          clearInterval(this.pollTimer);
-          this.pollTimer = null;
-          finishAll(true, '48.0 MB');
-        }
-      }, 300);
+      this._runMockUpdaterFlow(info);
       return;
     }
 
-    // ── 실제 환경: 독립 팝업창 실행 및 본 프로그램 안전 종료 ──────────────────────
-    try {
-      setGauge(25, '독립 업데이트 도구 실행 중...', '전용 창 기동 중', '업데이트 전환');
-      if (guideEl) {
-        guideEl.innerHTML = `
-          🚀 <strong>전용 독립 업데이트 팝업창</strong>이 화면에 실행됩니다.<br>
-          본 프로그램은 안전하게 종료되며, 전용 팝업창에서 다운로드 및 최신 파일 교체 후 자동으로 재실행됩니다.
-        `;
-      }
-      const ctrl = new AbortController();
-      setTimeout(() => ctrl.abort(), 3000);
+    // 실제 환경: 로딩 안내 카드 표시 후 즉시 독립 업데이터 실행 + 메인 프로그램 안전 종료
+    const modal = document.createElement('div');
+    modal.className = 'updater-modal-overlay';
+    modal.innerHTML = `
+      <div class="updater-modal-card" style="max-width: 440px; text-align: center; padding: 28px 24px;">
+        <div style="font-size: 42px; margin-bottom: 12px; animation: updaterBounce 1s infinite alternate;">🚀</div>
+        <div style="font-size: 17px; font-weight: 700; color: #f8fafc; margin-bottom: 8px;">
+          독립 업데이트 프로그램을 실행합니다
+        </div>
+        <div style="font-size: 13px; color: #94a3b8; line-height: 1.6; margin-bottom: 18px;">
+          통합 프로그램이 안전하게 종료되고,<br>
+          <strong style="color:#38bdf8;">화면 최상단에 전용 업데이트 창이 실행됩니다.</strong>
+        </div>
+        <div style="display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: #38bdf8; background: rgba(56, 189, 248, 0.1); padding: 8px 16px; border-radius: 20px; border: 1px solid rgba(56, 189, 248, 0.3);">
+          <span class="updater-spin" style="display:inline-block;">🔄</span> 업데이트 창을 최상단에 띄우는 중...
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    this.modalEl = modal;
 
+    try {
       await fetch('/api/update/apply', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          asset_id:   info.asset_id,
-          asset_name: info.asset_name,
-          asset_size: info.asset_size,
-          version:    info.latest_version
-        }),
-        signal: ctrl.signal
+          asset_id:      info.asset_id,
+          asset_name:    info.asset_name,
+          asset_size:    info.asset_size,
+          version:       info.latest_version,
+          release_notes: info.release_notes || ''
+        })
       });
     } catch {
-      // 메인 프로세스 종료에 따른 네트워크 단절은 정상 동작
+      // 메인 프로세스가 0.15초 후 종료되므로 네트워크 연결 끊김은 정상입니다.
     }
   }
 
+  // ── Mock 시뮬레이션: 독립 업데이트 프로그램 동작 가상 시연 ─────────────────
+  _runMockUpdaterFlow(info) {
+    const newVer = info.latest_version ? `v${info.latest_version}` : '신규 버전';
+    const modal = document.createElement('div');
+    modal.className = 'updater-modal-overlay';
+    modal.innerHTML = `
+      <div class="updater-modal-card" style="max-width: 490px; text-align: left;">
+        <div class="updater-modal-header" style="margin-bottom: 14px;">
+          <div class="updater-title-badge">
+            <span class="updater-icon" id="mockFlowIcon">🔄</span>
+            <span class="updater-title" id="mockFlowTitle">3M Instrument Logger 자동 업데이트 (시뮬레이션)</span>
+          </div>
+        </div>
+
+        <div class="updater-download-center" style="padding: 0;">
+          <div id="mockStatusText" style="color:#38bdf8;font-weight:600;font-size:14px;margin-bottom:10px;">
+            1단계: 메인 프로그램 안전 종료 중...
+          </div>
+          <div class="updater-progress-track" style="margin-bottom: 8px;">
+            <div class="updater-progress-fill" id="mockProgressFill" style="width: 10%;"></div>
+          </div>
+          <div class="updater-stat-row" style="margin-bottom: 12px;">
+            <span id="mockProgressPct" style="font-weight:bold;color:#f1f5f9;">10%</span>
+            <span id="mockBytesText" style="color:#64748b;">프로세스 정리</span>
+          </div>
+
+          <div id="mockDetailBox" style="background:#1e293b;border:1px solid #334155;border-radius:8px;padding:10px 12px;font-size:12px;color:#94a3b8;line-height:1.5;">
+            메인 프로그램의 안전 종료 및 파일 잠금 해제를 확인했습니다.
+          </div>
+
+          <div id="mockNotesBox" style="display:none;margin-top:12px;">
+            <div style="font-size:12px;font-weight:700;color:#38bdf8;margin-bottom:6px;">📋 이번 업데이트 주요 내용</div>
+            <div style="background:#1e293b;border:1px solid #334155;border-radius:8px;padding:10px 12px;max-height:110px;overflow-y:auto;font-size:11.5px;line-height:1.65;color:#cbd5e1;">
+              ${this._formatReleaseNotes(info.release_notes || '')}
+            </div>
+          </div>
+
+          <div id="mockPromptBox" style="display:none;background:#0f2942;border:1.2px solid #38bdf8;border-radius:8px;padding:10px;margin-top:12px;text-align:center;font-size:13px;font-weight:bold;color:#7dd3fc;">
+            💡 새로운 프로그램을 지금 실행하시겠습니까?
+          </div>
+
+          <div id="mockActionRow" style="display:none;margin-top:16px;display:flex;justify-content:space-between;align-items:center;">
+            <span id="mockFooterGuide" style="font-size:11px;color:#94a3b8;">[네] 새 버전 실행  /  [아니오] 창 닫기</span>
+            <div style="display:flex;gap:8px;">
+              <button class="updater-btn-secondary" id="mockBtnNo" style="padding:7px 18px;font-size:13px;">아니오</button>
+              <button class="updater-btn-primary" id="mockBtnYes" style="padding:7px 22px;font-size:13px;background:#10b981;">네</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    this.modalEl = modal;
+
+    const fillEl    = modal.querySelector('#mockProgressFill');
+    const pctEl     = modal.querySelector('#mockProgressPct');
+    const bytesEl   = modal.querySelector('#mockBytesText');
+    const statusEl  = modal.querySelector('#mockStatusText');
+    const detailEl  = modal.querySelector('#mockDetailBox');
+    const notesBox  = modal.querySelector('#mockNotesBox');
+    const promptBox = modal.querySelector('#mockPromptBox');
+    const actionRow = modal.querySelector('#mockActionRow');
+    const iconEl    = modal.querySelector('#mockFlowIcon');
+
+    actionRow.style.display = 'none';
+
+    let step = 0;
+    const stages = [
+      { pct: 15, status: '2단계: 최신 버전 다운로드 준비 중...', bytes: '서버 연결', detail: 'GitHub 릴리즈 서버 연결 및 패키지 확인 중...' },
+      { pct: 35, status: '2단계: 최신 버전 다운로드 중...', bytes: '42.1 MB / 143.4 MB', detail: '다운로드 진행 중 (8.5 MB/s)' },
+      { pct: 60, status: '2단계: 최신 버전 다운로드 중...', bytes: '86.0 MB / 143.4 MB', detail: '다운로드 진행 중 (9.1 MB/s)' },
+      { pct: 80, status: '2단계 완료: 다운로드 완료', bytes: '143.4 MB / 143.4 MB', detail: '최신 버전 패키지 수신이 완료되었습니다.' },
+      { pct: 90, status: '3단계: 이전 버전 삭제 및 최신 버전 설치 중...', bytes: '파일 교체 중', detail: '기존 실행 파일을 최신 버전으로 교체합니다...' },
+      { pct: 98, status: '3단계 완료: 파일 교체 성공', bytes: '교체 완료', detail: '최신 버전 파일 교체가 성공적으로 완료되었습니다.' }
+    ];
+
+    const timer = setInterval(() => {
+      if (step < stages.length) {
+        const s = stages[step];
+        fillEl.style.width = s.pct + '%';
+        pctEl.textContent = s.pct + '%';
+        statusEl.textContent = s.status;
+        bytesEl.textContent = s.bytes;
+        detailEl.textContent = s.detail;
+        step++;
+      } else {
+        clearInterval(timer);
+        // 완료 단계: 2초 대기 후 100% 전환
+        setTimeout(() => {
+          fillEl.style.width = '100%';
+          fillEl.style.background = '#10b981';
+          pctEl.textContent = '100%';
+          bytesEl.textContent = '업데이트 완료';
+          statusEl.textContent = '🎉 업데이트가 완료되었습니다!';
+          statusEl.style.color = '#4ade80';
+          detailEl.textContent = `최신 버전(${newVer})이 성공적으로 설치되었습니다.`;
+          detailEl.style.background = '#064e3b';
+          detailEl.style.borderColor = '#059669';
+          detailEl.style.color = '#cbd5e1';
+          iconEl.textContent = '🎉';
+
+          notesBox.style.display = 'block';
+          promptBox.style.display = 'block';
+          actionRow.style.display = 'flex';
+
+          modal.querySelector('#mockBtnYes').onclick = () => {
+            alert('새로운 프로그램이 실행되었습니다. (시뮬레이션 완료)');
+            this.closeModal();
+          };
+          modal.querySelector('#mockBtnNo').onclick = () => {
+            this.closeModal();
+          };
+        }, 2000);
+      }
+    }, 400);
+  }  // end startDownloadFlow
+
 
   async showSettingsModal() {
+
     this.closeModal();
     let config = { repo: 'gochujangs13/Instrument-Logger', has_token: false, is_builtin: false, masked_token: '' };
     try {
@@ -618,6 +533,7 @@ export class AppUpdater {
       document.body.appendChild(container);
 
       container.querySelector('#btnAppUpdater').onclick = () => this.onUpdateBtnClick();
+      container.querySelector('#updaterStatusBadge').onclick = () => this.checkManual();
       container.querySelector('#btnUpdaterConfig').onclick = () => this.showSettingsModal();
 
       // 런처 화면에서만 표시되도록 감시 (카드 클릭 진입 시 숨김, 홈 복귀 시 재표시)
@@ -748,11 +664,17 @@ export class AppUpdater {
         animation: updaterPulseDot 1.4s infinite;
       }
 
-      /* 상태: 최신 버전임 (버튼 비활성화) */
+      /* 상태: 최신 버전임 (클릭 시 재확인 가능) */
       .updater-status-badge.latest {
         background: rgba(34, 197, 94, 0.12);
         color: #4ade80;
         border: 1px solid rgba(34, 197, 94, 0.3);
+        cursor: pointer;
+        user-select: none;
+      }
+      .updater-status-badge.latest:hover {
+        background: rgba(34, 197, 94, 0.22);
+        border-color: rgba(34, 197, 94, 0.55);
       }
       .updater-status-badge.latest .updater-status-dot {
         background: #22c55e;
@@ -785,6 +707,20 @@ export class AppUpdater {
         line-height: 1.3;
         transition: all 0.2s ease;
         border: none;
+      }
+
+      /* 최신 버전 상태 버튼 (클릭 시 재확인) */
+      .updater-header-btn.latest-btn {
+        background: rgba(30, 41, 59, 0.85);
+        color: #94a3b8;
+        border: 1px solid rgba(51, 65, 85, 0.8);
+        cursor: pointer;
+        opacity: 0.95;
+      }
+      .updater-header-btn.latest-btn:hover {
+        background: rgba(51, 65, 85, 0.95);
+        color: #f8fafc;
+        border-color: #38bdf8;
       }
 
       /* 비활성화 상태 */

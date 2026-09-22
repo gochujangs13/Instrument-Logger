@@ -17,6 +17,7 @@ let _keyBound = false;
 let _liveNatW = 0, _liveNatH = 0; // 마지막으로 로드된 프레임 실제 크기
 let _pendingPhotoAdds = 0;
 let _step2RenderToken = 0;
+let _isNavigatingStep = false;
 
 // USB 크롭
 let _usbCropPct = null;   // { x1, y1, x2, y2 } — videoWidth/Height 기준 0..1
@@ -82,23 +83,72 @@ export function excelImageSizeEmu(outW, outH, count = 1) {
 }
 
 function rotatedCroppedCanvas(f, outW, outH) {
+  if (!f || !f.img) {
+    const errCvs = document.createElement('canvas');
+    errCvs.width = Math.max(1, outW); errCvs.height = Math.max(1, outH);
+    return errCvs;
+  }
   const rot = (f.rotation || 0) * Math.PI / 180;
-  const iw = f.img.naturalWidth, ih = f.img.naturalHeight;
+  const iw = f.img.naturalWidth || f.img.width || 1;
+  const ih = f.img.naturalHeight || f.img.height || 1;
   const cos = Math.abs(Math.cos(rot)), sin = Math.abs(Math.sin(rot));
-  const rw = iw * cos + ih * sin, rh = iw * sin + ih * cos;
+  const rw = Math.max(1, Math.ceil(iw * cos + ih * sin));
+  const rh = Math.max(1, Math.ceil(iw * sin + ih * cos));
   const tmp = document.createElement('canvas');
-  tmp.width = Math.ceil(rw); tmp.height = Math.ceil(rh);
+  tmp.width = rw; tmp.height = rh;
   const tc = tmp.getContext('2d');
   tc.translate(rw / 2, rh / 2);
   tc.rotate(rot);
   tc.drawImage(f.img, -iw / 2, -ih / 2);
-  const cp = f.fromCamera ? { x1: 0, y1: 0, x2: 1, y2: 1 } : (_cropPct || { x1: 0, y1: 0, x2: 1, y2: 1 });
-  const sx = cp.x1 * rw, sy = cp.y1 * rh, sw = (cp.x2 - cp.x1) * rw, sh = (cp.y2 - cp.y1) * rh;
+
+  const rawCp = f.fromCamera
+    ? { x1: 0, y1: 0, x2: 1, y2: 1 }
+    : (_cropPct || _usbCropPct || { x1: 0, y1: 0, x2: 1, y2: 1 });
+  const x1 = Math.max(0, Math.min(1, rawCp.x1 ?? 0));
+  const y1 = Math.max(0, Math.min(1, rawCp.y1 ?? 0));
+  const x2 = Math.max(x1 + 0.005, Math.min(1, rawCp.x2 ?? 1));
+  const y2 = Math.max(y1 + 0.005, Math.min(1, rawCp.y2 ?? 1));
+
+  const sx = x1 * rw, sy = y1 * rh;
+  const sw = Math.max(1, (x2 - x1) * rw);
+  const sh = Math.max(1, (y2 - y1) * rh);
+
+  const targetW = Math.max(1, Math.round(outW));
+  const targetH = Math.max(1, Math.round(outH));
   const out = document.createElement('canvas');
-  out.width = outW; out.height = outH;
+  out.width = targetW; out.height = targetH;
   const oc = out.getContext('2d');
-  oc.imageSmoothingEnabled = true; oc.imageSmoothingQuality = 'high';
-  oc.drawImage(tmp, sx, sy, Math.max(1, sw), Math.max(1, sh), 0, 0, outW, outH);
+  oc.imageSmoothingEnabled = true;
+  oc.imageSmoothingQuality = 'high';
+
+  // 종횡비 보존 (Cover 모드: 이미지가 납작해지거나 늘어나지 않고 크롭 중심을 유지하며 캔버스 채움)
+  const srcRatio = sw / sh;
+  const dstRatio = targetW / targetH;
+  let renderSx = sx, renderSy = sy, renderSw = sw, renderSh = sh;
+
+  if (srcRatio > dstRatio) {
+    // 소스가 타깃보다 가로로 넓음 -> 소스 가로 중앙 기준 잘라내기
+    const newSw = sh * dstRatio;
+    renderSx = sx + (sw - newSw) / 2;
+    renderSw = newSw;
+  } else if (srcRatio < dstRatio) {
+    // 소스가 타깃보다 세로로 김 -> 소스 세로 중앙 기준 잘라내기
+    const newSh = sw / dstRatio;
+    renderSy = sy + (sh - newSh) / 2;
+    renderSh = newSh;
+  }
+
+  oc.drawImage(
+    tmp,
+    Math.max(0, renderSx),
+    Math.max(0, renderSy),
+    Math.max(1, renderSw),
+    Math.max(1, renderSh),
+    0,
+    0,
+    targetW,
+    targetH
+  );
   return out;
 }
 
@@ -219,13 +269,13 @@ function ensureStyles() {
 @keyframes ai-focus-in { from{transform:translate(-50%,-50%) scale(1.5);opacity:.4} to{transform:translate(-50%,-50%) scale(1);opacity:1} }
 
 /* step2 */
-.ai-s2-wrap { padding:12px; height:100%; overflow:auto; }
-.ai-s2-hdr { display:flex; align-items:center; gap:8px; margin-bottom:10px; flex-wrap:wrap; }
+.ai-s2-wrap { padding:12px; height:100%; overflow-x:auto; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+.ai-s2-hdr { display:flex; align-items:center; gap:8px; margin-bottom:10px; flex-wrap:wrap; position:sticky; top:0; z-index:10; background:var(--bg); padding-bottom:6px; }
 .ai-s2-hdr input[type=number] { width:52px; padding:3px 5px; border-radius:4px; border:1px solid var(--border); background:var(--bg); color:var(--fg); text-align:center; font-size:13px; }
-.ai-s2-grid { display:flex; gap:8px; width:max-content; min-width:100%; padding-bottom:10px; }
-.ai-s2-col { display:flex; flex-direction:column; gap:4px; }
-.ai-s2-col-hdr { text-align:center; font-size:11px; color:#6366f1; font-weight:700; padding:2px 0; }
-.ai-s2-thumb { border-radius:4px; object-fit:cover; cursor:pointer; border:2px solid transparent; }
+.ai-s2-grid { display:flex; gap:12px; width:max-content; min-width:100%; padding-bottom:24px; align-items:flex-start; }
+.ai-s2-col { display:flex; flex-direction:column; gap:6px; flex-shrink:0; }
+.ai-s2-col-hdr { text-align:center; font-size:12px; color:#6366f1; font-weight:700; padding:2px 0; background:var(--panel-2, rgba(99,102,241,0.08)); border-radius:4px; margin-bottom:2px; }
+.ai-s2-thumb { border-radius:4px; object-fit:contain; background:#0b1320; cursor:pointer; border:2px solid transparent; box-shadow:0 1px 3px rgba(0,0,0,0.3); transition:border-color .15s; }
 .ai-s2-thumb:hover { border-color:#6366f1; }
 `;
   document.head.appendChild(s);
@@ -913,6 +963,7 @@ async function renderStep2() {
 
   const { w: ow, h: oh } = outPx();
   const perRow = S.perRow || 6;
+  const numCols = Math.ceil(S.files.length / perRow);
 
   center.innerHTML = `
     <div class="ai-s2-wrap">
@@ -920,7 +971,7 @@ async function renderStep2() {
         <button class="sbtn" onclick="app.instr.backToStep1()">${t('ai_back')}</button>
         <span style="color:#9fb0c4;font-size:13px;">${t('ai_output_size')}: ${S.outW}×${S.outH}″</span>
         <span style="color:#9fb0c4;font-size:13px;">${t('ai_s2_per_col')}: ${perRow}${t('ai_unit_sheets')}</span>
-        <strong id="aiS2Status" style="color:var(--accent);font-size:13px;">${tf('ai_step2_summary', { photos: S.files.length, groups: Math.ceil(S.files.length / perRow) })}</strong>
+        <strong id="aiS2Status" style="color:var(--accent);font-size:13px;">${tf('ai_step2_summary', { photos: S.files.length, groups: numCols })}</strong>
         <div style="flex:1"></div>
         <button id="aiJpegBtn" style="padding:6px 14px;border:none;border-radius:6px;background:#1f9d57;color:#fff;cursor:pointer;font-size:13px;font-weight:700;">${t('ai_jpeg_save_btn')}</button>
         <button id="aiExportBtn" style="padding:6px 14px;border:none;border-radius:6px;background:#6366f1;color:#fff;cursor:pointer;font-size:13px;font-weight:700;">${t('ai_export_excel')}</button>
@@ -929,34 +980,62 @@ async function renderStep2() {
     </div>
   `;
 
-  document.getElementById('aiExportBtn').addEventListener('click', exportExcel);
-  document.getElementById('aiJpegBtn').addEventListener('click', exportJpegs);
+  const exportBtn = document.getElementById('aiExportBtn');
+  const jpegBtn = document.getElementById('aiJpegBtn');
+  const statusEl = document.getElementById('aiS2Status');
+  if (exportBtn) exportBtn.addEventListener('click', exportExcel);
+  if (jpegBtn) jpegBtn.addEventListener('click', exportJpegs);
 
   const grid = document.getElementById('aiS2Grid');
   const renderToken = ++_step2RenderToken;
-  const numCols = Math.ceil(S.files.length / perRow);
+
   for (let c = 0; c < numCols; c++) {
     if (renderToken !== _step2RenderToken || !grid.isConnected) return;
-    const col = document.createElement('div');
-    col.className = 'ai-s2-col';
-    const hdr = document.createElement('div');
-    hdr.className = 'ai-s2-col-hdr';
-    hdr.textContent = '#' + (c + 1);
-    col.appendChild(hdr);
-    for (let r = 0; r < perRow; r++) {
-      const idx = c * perRow + r;
-      if (idx >= S.files.length) break;
-      const f = S.files[idx];
-      const cvs = rotatedCroppedCanvas(f, ow, oh);
-      const img = document.createElement('img');
-      img.className = 'ai-s2-thumb';
-      img.src = cvs.toDataURL();
-      img.style.width = Math.round(ow * 0.7) + 'px';
-      img.style.height = Math.round(oh * 0.7) + 'px';
-      col.appendChild(img);
+    try {
+      const col = document.createElement('div');
+      col.className = 'ai-s2-col';
+      const hdr = document.createElement('div');
+      hdr.className = 'ai-s2-col-hdr';
+      hdr.textContent = '#' + (c + 1);
+      col.appendChild(hdr);
+
+      for (let r = 0; r < perRow; r++) {
+        const idx = c * perRow + r;
+        if (idx >= S.files.length) break;
+        const f = S.files[idx];
+        const img = document.createElement('img');
+        img.className = 'ai-s2-thumb';
+        img.style.width = Math.round(ow * 0.7) + 'px';
+        img.style.height = Math.round(oh * 0.7) + 'px';
+        img.title = `${f.name || ''} (#${c + 1}-${r + 1})`;
+
+        try {
+          const cvs = rotatedCroppedCanvas(f, ow, oh);
+          img.src = cvs.toDataURL('image/jpeg', 0.92);
+        } catch (imgErr) {
+          console.error(`Thumb render error at index ${idx}:`, imgErr);
+          img.alt = f.name || 'Load Error';
+          img.style.background = '#1e293b';
+        }
+
+        col.appendChild(img);
+      }
+      grid.appendChild(col);
+    } catch (colErr) {
+      console.error(`Column render error at col ${c + 1}:`, colErr);
     }
-    grid.appendChild(col);
-    if ((c + 1) % 2 === 0) await new Promise(requestAnimationFrame);
+
+    // UI 프리징 방지를 위해 2열마다 이벤트 루프에 안전하게 양보
+    if ((c + 1) % 2 === 0 && c + 1 < numCols) {
+      if (statusEl && renderToken === _step2RenderToken) {
+        statusEl.textContent = `${tf('ai_step2_summary', { photos: S.files.length, groups: numCols })} (${c + 1}/${numCols})`;
+      }
+      await new Promise(resolve => setTimeout(resolve, 0));
+    }
+  }
+
+  if (statusEl && renderToken === _step2RenderToken) {
+    statusEl.textContent = tf('ai_step2_summary', { photos: S.files.length, groups: numCols });
   }
 }
 
@@ -1480,20 +1559,33 @@ export default {
     updateMainView();
   },
 
-  goNext() {
+  async goNext() {
+    if (_isNavigatingStep) return;
     if (!S.files.length) { alert(t('ai_upload_first')); return; }
     if (_capturing || _pendingPhotoAdds > 0) {
       alert(tf('ai_wait_photo_registration', { n: _pendingPhotoAdds || 1 }));
       return;
     }
-    S.step = 2;
-    stopLivePoll();
-    const layout = document.getElementById('layout');
-    if (layout) {
-      layout.className = (layout.className || '').replace(/\bai-\S+/g, '').trim();
-      layout.classList.add('ai-s2');
+    _isNavigatingStep = true;
+    const nextBtn = document.getElementById('aiNextBtn');
+    if (nextBtn) nextBtn.disabled = true;
+
+    try {
+      S.step = 2;
+      stopLivePoll();
+      const layout = document.getElementById('layout');
+      if (layout) {
+        layout.className = (layout.className || '').replace(/\bai-\S+/g, '').trim();
+        layout.classList.add('ai-s2');
+      }
+      await renderStep2();
+    } catch (err) {
+      console.error('[PhotoEditor] goNext error:', err);
+      if (window.app?.log) app.log('Photo Editor Step 2 error: ' + err.message);
+    } finally {
+      _isNavigatingStep = false;
+      if (nextBtn) nextBtn.disabled = false;
     }
-    renderStep2();
   },
 
   backToStep1() {

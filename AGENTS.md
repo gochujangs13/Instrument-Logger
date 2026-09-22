@@ -68,7 +68,7 @@ this.onByte = null;            // 신규: 매 수신 바이트마다 호출
 | 계측기 | 파일 | 상태 | 비고 |
 |---|---|---|---|
 | Hioki 3540 | hioki_3540.js | ✅ | 기본 그리드 뷰 |
-| Keithley 2700 | keithley_2700.js | ✅ 동작 확인 | 9.90e+37(오버레인지) → "Over Flow" 표시, `valid:false`로 자동기록 상태머신 정상 동작하도록 수정함 |
+| Keithley 2700 | keithley_2700.js | ✅ 동작 확인 | 9.90e+37(오버레인지) → "Over Flow" 처리. 속도 설정(FAST=0.1, MED=1, SLOW=5 NPLC) 공식 규격 일치 및 선두 루트 콜론(:) 부여, 설정 변경 시 :READ? 폴링 충돌 방지 및 시스템 로그 피드백 완비 |
 | Keithley 2400 | keithley_2400.js | ✅ RS-232 및 GPIB 저에너지 검증 완료 | Web Serial RS-232 및 VISA ASRL/GPIB. ASRL 응답 종단 LF/CR 안전 자동 검출, GPIB 안전 첫 명령, 단일·시간·Sweep, 표·그래프, 정상 OFF, 오류 큐, 연결 해제·리소스 재검색 확인. 장비 기술 한계는 210 V이나 +10 V OVP 여유 확보를 위해 앱의 전압 인가/Voltage Compliance는 ±200 V로 제한. 참고 계산 카드는 초보자용 저항 문장과 `0~21 V/21 V 초과~200 V` 2구간 최대 전류 표·현재 구간 강조·22 W 실제 허용값을 표시. Source V는 `|설정|+10 V` 이상인 다음 장비 지원 OVP 단계만 자동 적용·표시하고, 상태 bit 4에서 OUTPUT OFF. 30 V 이상 설정은 최대 예상 전압·Compliance/자동 OVP 및 절연·인터락·OUTPUT OFF/방전 주의사항을 설정 단계부터 표시. XLSX는 저장 시점 UI 언어에 따라 한국어 `대시보드`/영문 `Dashboard`와 해당 언어의 표·Raw Data 헤더를 생성. GPIB 실제 Compliance와 낮은 저항 더미 부하/전면 표시 비교 필요 |
 | Mitutoyo VL-50 | mitutoyo_vl50.js | ✅ 동작 확인 | `pollCmd: 'GA01\r\n', pollInterval: 300` 필수 (없으면 응답 없음). 표시 소수점 5자리(`toFixed(5)`) |
 | SP-2100 / TL-2200 | sp2100_logger.js | ✅ SSOT 기준 | 아래 4번 항목 참고 — 가장 많이 작업됨 |
@@ -82,7 +82,372 @@ this.onByte = null;            // 신규: 매 수신 바이트마다 호출
 | Etching Design | etching_design.js | ✅ 완성 및 검증 완료 | 정밀 에칭 패턴 CAD & 레이아웃 도구 (0.01mm 정밀도). TYPE 1/2/3 프리셋, 방향성 및 중앙 시편 개별 방향 오버라이드, 혼합 배치 최적화, DWG/DXF 내보내기 UI, 실행 취소/다시 실행, 가로/세로 맞춤, 동적 타입/여백/모서리 관리, 실물 컷팅 슬릿 및 0.5mm 마이크로 조인트 브릿지 연동. SVG/PDF 생성 모듈은 있으나 현재 사용자 툴바에 미연결. 단위 테스트 통과 |
 | App Updater | updater.js, updater_backend.py | ✅ 구축 및 실기 검증 완료 | GitHub Private 저장소(`gochujangs13/Instrument-Logger`) 기반 무중단 자동 업데이트. 0~100% 게이지, 100% 완료 카드, 3초 카운트다운 자동 재시작 및 `taskkill` 기반 Windows 프로세스 파일 잠금 해제 자가 교체 엔진 완비 |
 
+### 2026-09-22 v1.0.0-rc.6.26 릴리즈 배포 및 Photo Editor 대량 사진(72장) 렌더링/왜곡 수정 단일 EXE 빌드 완료 (`photo_editor.js`)
+
+- **배경 및 사용자 피드백**:
+  - "Photo_Editor 보면 다음단계가면 사진이 전부 안나오고 빨려서 나와 원인분석하고 수정해줘"
+  - 증상: 총 72장 / 12그룹 사진을 업로드하고 크롭 후 [다음 단계 ▶]로 진입했을 때, `#1`, `#2` 2개 열(12장)만 표시되고 나머지 10개 열(60장)이 누락/중단됨. 또한 표시된 썸네일도 가로 2.22" × 세로 0.9" 출력 크기로 강제 스트레칭(Stretch)되어 납작하게 눌려(빨려 들어가듯) 왜곡됨.
+- **근본 원인 분석**:
+  1. **2열 렌더링 조기 중단 (`renderStep2`)**:
+     - `if ((c + 1) % 2 === 0) await new Promise(requestAnimationFrame);` 로 인해 c=0(#1), c=1(#2) 추가 직후 첫 `requestAnimationFrame` 비동기 대기에 진입함.
+     - 데스크톱 WebView2 환경에서 UI 화면 전환 직후 렌더 트리 유휴 시 rAF 콜백이 영구 대기(Stall)되거나, [다음 단계] 버튼 다중 클릭 시 `_step2RenderToken` 불일치로 3번째 열부터 조기 반환(`return`)되어 조용히 증발함.
+     - 개별 이미지 렌더링에 `try...catch`가 없어 오류 발생 시 루프 전체가 사망함.
+  2. **이미지 왜곡 ("빨려서 나와")**:
+     - `rotatedCroppedCanvas`에서 크롭된 소스 영역(`sw, sh`)의 종횡비를 무시하고 타깃 캔버스 크기(`outW × outH`)로 강제 스트레칭(`drawImage(..., 0, 0, outW, outH)`)하여, 원본 비율이 파괴되고 납작하게 눌려 왜곡됨.
+- **조치 사항 (`instruments/photo_editor.js`)**:
+  1. **Step 2 렌더링 파이프라인 개편**:
+     - 불안정한 `requestAnimationFrame`을 전면 제거하고 태스크 큐 기반 안전한 양보(`await new Promise(r => setTimeout(r, 0))`) 적용.
+     - 각 열 및 이미지 단위에 개별 `try...catch` 방어 코드를 적용하여 오류 격리.
+     - 실시간 렌더링 진행률 표시(`렌더링 진행 중 (n/12)`) 연동.
+  2. **재진입 방지 락 (`_isNavigatingStep`)**:
+     - `goNext()`에 `_isNavigatingStep` 플래그 및 `nextBtn.disabled = true`를 적용하여 버튼 연타로 인한 토큰 충돌 원천 차단.
+  3. **종횡비 보존 (Aspect Ratio Cover Fitting)**:
+     - `rotatedCroppedCanvas`에서 크롭된 소스 영역과 출력 캔버스 크기의 종횡비를 비교하여, 중심 기준 종횡비 보존(Cover) 드로잉 적용. 썸네일, 엑셀(XLSX), JPEG 내보내기 모두에서 왜곡/눌림 0% 보장.
+  4. **가로 스크롤 UX 개선**:
+     - `.ai-s2-wrap` 및 `.ai-s2-grid` CSS에 `overflow-x: auto`, sticky 상단 바, 컬럼 래핑 방지(`flex-shrink: 0`) 적용.
+- **빌드 및 배포 산출물**:
+  - **GitHub Release (최신 정식 릴리즈)**: **`v1.0.0-rc.6.26`** (Release ID: `393407961`, Asset ID: `580332407`, 126,719,374 바이트, 120.85 MB).
+  - **로컬 실행 파일**: `dist/3M_Instrument_Logger.exe`를 `v1.0.0-rc.6.26`으로 정식 빌드 교체 완료 (126,719,374 바이트).
+  - **실기 검증**: `updater_backend.check_for_updates('1.0.0-rc.6.25')` 호출 시 최신 버전 `1.0.0-rc.6.26` 감지 및 에셋 정보 정상 전달 확인 완료.
+
+### 2026-09-21 v1.0.0-rc.6.25 릴리즈 배포 및 Keithley 2700 속도/표기 수정 단일 EXE 빌드 완료
+
+- **배경 및 목적**:
+  - Keithley 2700 속도 설정(FAST/MED/SLOW) 교정 및 미세 음수 저항 과학적 지수 표기 왜곡 버그 영구 해결 패치 탑재.
+  - 최신 정식 버전인 **`v1.0.0-rc.6.25`**로 GitHub 릴리즈 및 에셋 교체 업로드.
+  - 로컬 `dist/3M_Instrument_Logger.exe`도 동일한 `v1.0.0-rc.6.25`로 신규 빌드 완료.
+- **빌드 및 배포 산출물**:
+  - **GitHub Release (최신 정식 릴리즈)**: **`v1.0.0-rc.6.25`** (Release ID: `392682406`, Asset ID: `578447856`, 126,718,433 바이트, 120.85 MB).
+  - **로컬 실행 파일**: `dist/3M_Instrument_Logger.exe`를 `v1.0.0-rc.6.25`로 정식 빌드 교체 완료 (126,718,433 바이트).
+  - **`dist/` 폴더 단일 EXE 유지**: Windows 읽기 전용 속성 파일 제거 핸들러(`stat.S_IWRITE`)를 `_clean_dist_folder`에 탑재하여 빌드 후 `dist/`에는 오직 최종 `3M_Instrument_Logger.exe` 1개만 완벽하게 유지.
+  - **실기 검증**: `updater_backend.check_for_updates('1.0.0-rc.6.24')` 호출 시 최신 버전 `1.0.0-rc.6.25` 감지 및 에셋 정보 정상 전달 확인 완료.
+
+### 2026-09-21 Keithley 2700 측정 속도 설정 교정 및 미세 저항 지수 왜곡 표기 버그 수정 (`keithley_2700.js`)
+
+- **배경 및 원인 분석**:
+  - 사용자 피드백:
+    1. "키슬리 2700 계측기 평가에서 속도설정 slow fast med 설정이 안되는거 같아. 확인해줘"
+    2. "계측기에는 -0.00 몇옴이 측정되고있는데. 프로그램에서는 몇에 몇승 이런식으로 잘못된 표기가 되어있었다고"
+  - **원인 분석**:
+    1. **미세 저항 지수 왜곡 (`toExponential`)**: 4선식 측정 시 리드선 쇼트나 도체 접촉 시 미세 열기전력으로 `-0.0003 Ω` 등 1 mΩ 미만 저항이 들어오는데, 기존 `fmt()` 함수의 `if (a < 1e-3) return v.toExponential(2)` 규칙으로 인해 프로그램 화면에 `-3.00e-4`처럼 "몇의 몇 승" 형태로 강제 왜곡 표시되어 계측기 전면 패널(-0.00xxx Ω)과 불일치 발생.
+    2. **`:FORM:ELEM READ` 부재**: `*RST` 후 장비 기본 포맷이 `READ,UNIT,TST,RNUM,STAT`로 리셋되어 콤마 구분 타임스탬프 등 복수 필드가 유입될 위험 존재.
+    3. **NPLC 설정값 및 루트 콜론 오류**: FAST 선택 시 `'MIN'`(=0.01 NPLC) 전송으로 전면 패널 FAST LED 미점등 및 파라미터 에러 발생. 명령어 선두 루트 콜론(`:`) 누락 및 500ms `:READ?` 폴링 중 NPLC 명령 유입 시 버스 충돌 발생.
+- **조치 사항**:
+  - `formatKeithley2700(v)` 구현: 1 Ω 미만 저항도 절대 지수 표기를 쓰지 않고, 계측기 6.5 digit과 100% 일치하도록 소수점 5자리 고정 소수점(`v.toFixed(5)`) 표기 적용 (예: `-0.00035 Ω`).
+  - `parseValue(line)` 강화: 쉼표 분리 첫 번째 토큰 추출(`line.split(',')[0]`), 일반 소수점 및 지수 모두 포괄 정규식 적용.
+  - `onConnect` 시퀀스: `1900ms`에 `:FORM:ELEM READ\r\n` 추가(순수 측정값 1개만 수신 보장), 함수 전환 명령에 작은따옴표(`:SENS:FUNC '<FRES|RES>'\r\n`) 적용.
+  - NPLC 규격을 Keithley 공식 매뉴얼(Table 4-2) 규격인 `{ FAST: '0.1', MED: '1', SLOW: '5' }`로 교정.
+  - 속도/와이어 변경 시 `clearInterval(app.pollTimer)`로 폴링 일시 중지 ➔ 명령 전송 ➔ 120ms 안정화 후 폴링 자동 재개 적용 및 SYSTEM LOG 연동.
+
+### 2026-09-21 EXE 단일 산출물 생성 및 dist 폴더 자동 정리 시스템 구축 (`package_exe.py`)
+
+- **배경 및 사용자 피드백**:
+  - "다음 exe 빌드할땐 exe 파일 하나만 생성되게 해줘"
+  - `build_standalone.py` 및 PyInstaller 빌드 시 `dist/` 내에 긴 이름의 계측기 결합 폴더(`Hioki3540_...`)와 구버전 백업 exe, 엑셀/PDF 테스트 파일들이 뒤섞여 생성되어 폴더가 난잡해지던 문제 해결 필요.
+- **조치 사항 (`build/package_exe.py`)**:
+  - `_clean_dist_folder(out_dir, keep_path)` 함수 구현: 빌드 완료 후 `dist/` 디렉터리 내에서 최신 타깃 실행 파일(`3M_Instrument_Logger.exe`) 딱 1개만 남기고, 모든 임시 하위 폴더 및 잔여 파일(백업 exe, 엑셀, json, pdf 등)을 원자적으로 자동 청소하도록 통합.
+  - 향후 언제 어떤 계측기 조합으로 EXE를 빌드하더라도 `dist/`에는 오직 최종 `.exe` 파일 1개만 생성 및 유지되도록 보장.
+
+
+### 2026-09-21 런처 화면 수동 업데이트 검색 UX 개선 (버튼/배지 원클릭 재검색 연동)
+
+- **배경 및 사용자 피드백**:
+  - "나중에 혹시 실행했는데 런처화면에서 카드가 안보일경우 최신업데이트 검색및 업데이트 진행은 실행할수 잇는거지?"
+  - 현재 버전이 최신 버전일 때 우측 상단 `✓ 업데이트` 버튼이 `disabled=true`로 비활성화되어 있어, 사용자가 작은 톱니바퀴(`⚙️`) 설정창에 들어가서 `[지금 버전 다시 확인]`을 누르지 않으면 수동 확인이 불가능했던 UX 사용성 개선 필요.
+- **조치 사항 (`updater.js`)**:
+  1. `_setStatusUpToDate(currentVer)`:
+     - `btn.disabled = false`로 활성화 유지 및 `.updater-header-btn.latest-btn` 스타일 부여. 버튼 문구를 `[✓ 업데이트 확인]`으로 표시하여 직관적으로 클릭할 수 있게 개선.
+     - 초록색 `updaterStatusBadge`(`● 현재 최신 버전입니다.`)에 `cursor: pointer` 및 클릭 시 `checkManual()` 직접 호출 바인딩.
+  2. `_attachHeaderButton()`:
+     - 상단 바 생성 시 배지(`updaterStatusBadge`)에 클릭 이벤트 리스너 기본 연결.
+  3. CSS:
+     - `.updater-header-btn.latest-btn` 호버 효과(테두리 스카이블루 강조) 및 `.updater-status-badge.latest:hover` 스타일 추가.
+- **동작 방식**:
+  - 런처 화면에서 카드가 보이지 않더라도, 우측 상단의 `[✓ 업데이트 확인]` 버튼이나 `● 현재 최신 버전입니다.` 배지를 클릭하면 즉시 GitHub 서버에 접속하여 최신 버전을 다시 확인.
+  - 새 버전이 발견되면 릴리즈 내용이 담긴 업데이트 모달 카드가 화면 중앙에 팝업되고, `[지금 업데이트 진행하기]`를 눌러 즉시 업데이트 가능. 최신 버전이면 "현재 최신 버전을 사용하고 있습니다" 알림 표시.
+
+### 2026-09-21 작업표시줄 아이콘만 뜨고 창이 즉시 그려지지 않던 현상 영구 해결 (WPF ContentRendered + Background Dispatcher)
+
+- **현상 및 사용자 피드백**:
+  - "지금 업데이트를 실행하면 작업표시줄에 실행된건 보이는데 창에 표시되질 않아. 내가 작업표시줄에 실행되어있는걸 클릭 해야 보이고있어."
+  - 업데이트 버튼 클릭 후 메인 창은 닫히고 작업표시줄에 독립 업데이터 아이콘은 나타나지만, 모니터 화면에 창이 렌더링되지 않고 멈춰 있다가 사용자가 작업표시줄 단추를 마우스로 클릭해야만 비로소 창이 화면에 나타남.
+- **근본 원인 분석**:
+  1. WPF 윈도우 수명 주기에서 `$window.Add_Loaded` 이벤트는 **창이 화면에 픽셀로 그려지기(Paint/Render) 직전**에 호출됨.
+  2. 기존 스크립트(`scripts/updater_gui.ps1`)는 `Add_Loaded` 이벤트 핸들러 내부에서 부모 프로세스 종료 대기 루프, `_MEI*` 폴더 청소, GitHub/S3 스트리밍 다운로드 준비 등 동기식 무거운 I/O 작업을 직접 수행함.
+  3. 이로 인해 WPF UI 스레드가 블로킹되어 Windows OS의 화면 그리기 메시지(`WM_PAINT`) 처리가 중단됨. Windows는 작업표시줄 단추(Taskbar Button Handle)만 등록한 채 화면 렌더링을 대기(Unpainted) 상태로 유지함.
+  4. 사용자가 작업표시줄을 마우스로 클릭할 때 Windows OS가 강제 활성화(`WM_ACTIVATE` / `WM_PAINT`) 신호를 보내면서 비로소 창이 화면에 표출되었음.
+- **해결책 (`scripts/updater_gui.ps1`, `updater_backend.py`)**:
+  1. **렌더링 완료 이벤트(`Add_ContentRendered`)로 진입점 변경**:
+     - 창이 화면에 100% 그려지고 픽셀 표출이 완료된 직후에만 발생하는 `$window.Add_ContentRendered`로 스크립트 실행 시점 이전.
+  2. **WPF UI 스레드 비동기 위임 (`Dispatcher.BeginInvoke`)**:
+     - `ContentRendered` 내부에서도 UI 렌더링 파이프라인의 숨통을 틔워주기 위해, 모든 업데이트 루틴(부모 프로세스 정리, S3 스트리밍 다운로드)을 `[System.Windows.Threading.Dispatcher]::CurrentDispatcher.BeginInvoke([System.Windows.Threading.DispatcherPriority]::Background, [Action]{ ... })`로 스케줄링.
+  3. **윈도우 속성 강화**:
+     - XAML `<Window>` 태그에 `WindowState="Normal"`, `ShowActivated="True"`, `Focusable="True"` 명시.
+  4. **Foreground Lockout 완전 우회 유지**:
+     - Win32 `AllowSetForegroundWindow(-1)`, ALT 키 시뮬레이션(`keybd_event 0x12`), `ShowWindow(SW_RESTORE=9)`, `HWND_TOPMOST(-1)` 결합으로 작업표시줄 클릭 없이 모니터 맨 앞(전면)으로 즉시 팝업 보장.
+- **빌드 및 배포 산출물**:
+  - **GitHub Release (타깃 버전)**: **`v1.0.0-rc.6.25`** (Release ID: `392682406`, Asset ID: `578160070`, 126,747,501 바이트, 120.88 MB).
+  - **로컬 실행 파일**: `dist/3M_Instrument_Logger.exe`를 해당 즉시 표시 패치가 탑재된 **`v1.0.0-rc.6.24`**로 빌드 완료 (126,747,045 바이트).
+  - **실기 검증**: 로컬 v6.24 클라이언트에서 GitHub `v1.0.0-rc.6.25` 업데이트 감지 및 즉시 화면 렌더링 확인 완료.
+
+
+### 2026-09-21 업데이트 창 맨 전면 최상단 강제 표시(Foreground Lockout 해제) 패치 및 GitHub v1.0.0-rc.6.24 배포
+
+- **현상 및 사용자 피드백**:
+  - "프로그램 닫아지고 업데이트 띄우는창이 아직 최 상단으로 배치가 안되었는데 맨 전면으로 나올수 있게 해줘"
+  - 메인 프로그램이 종료되고 탐색기(Explorer)가 전체 화면으로 열려 있을 때, Windows Foreground Lockout 정책으로 인해 새로 뜬 업데이트 창이 탐색기 창 뒤로 밀리는 현상 발생.
+- **조치 사항**:
+  1. `updater_backend.py`:
+     - 메인 프로그램 종료 직전 `AllowSetForegroundWindow(-1)` Win32 API 호출 (Windows OS가 자식/후속 창에 무조건적인 전면 포커스 권한을 부여하도록 승인).
+     - 종료 딜레이를 0.35초로 미세 조정하여 자식 프로세스로 포커스가 안전하게 인계되도록 보장.
+  2. `scripts/updater_gui.ps1`:
+     - Win32 `keybd_event`로 ALT 키 탭(Press/Release) 시뮬레이션 적용 ➔ Windows Foreground Lockout 완전 우회.
+     - `SourceInitialized` 및 `Loaded` 이벤트에서 `SW_RESTORE(9)` 및 `HWND_TOPMOST(-1)` 즉시 강제 부여.
+     - 초기 3초간 100ms마다 실행되는 `DispatcherTimer`를 탑재하여, 사용자가 탐색기를 활성화하고 있더라도 업데이트 창이 화면 맨 앞 최상단으로 계속 끌어올려지도록 구현.
+- **빌드 및 배포 산출물**:
+  - **GitHub Release**: `v1.0.0-rc.6.24` (Release ID: `392679345`, Asset ID: `578143313`, 126,746,827 바이트, 120.88 MB).
+  - **로컬 실행 파일**: `dist/3M_Instrument_Logger.exe`를 해당 최상단 고정 패치가 완벽 탑재된 `v1.0.0-rc.6.23`으로 신규 빌드 완료 (126,746,827 바이트).
+  - **실기 검증**: 로컬 v6.23 클라이언트에서 GitHub `v1.0.0-rc.6.24` 업데이트 정상 감지 확인 완료 (`update_available: True`).
+
+- **배경 및 목적**:
+  - `explorer.exe` 독립 셸 기동을 통한 DLL 로드 실패 영구 해결 패치가 실기 검증에 최종 성공함에 따라, 최신 정식 타깃 버전인 **`v1.0.0-rc.6.23`**을 GitHub에 배포.
+  - 로컬 `dist/3M_Instrument_Logger.exe`는 검증 완료된 `v1.0.0-rc.6.22`를 유지하여, 클라이언트에서 `v6.23` 업데이트를 정상 감지 및 원활하게 자동 갱신할 수 있도록 구성.
+- **빌드 및 배포 산출물**:
+  - **GitHub Release**: `v1.0.0-rc.6.23` (Release ID: `392676652`, Asset ID: `578130143`, 126,746,748 바이트, 120.88 MB).
+  - **버전 검증**: 번들 내부 `app/version.json`에 `1.0.0-rc.6.23` 정상 반영 확인.
+  - **실기 검증**: 로컬 v6.22 클라이언트에서 GitHub `v1.0.0-rc.6.23` 업데이트 정상 감지 확인 완료 (`update_available: True`).
+
+### 2026-09-21 Windows Explorer 셸 독립 기동을 통한 DLL 로드 에러 영구 해결 (v1.0.0-rc.6.22 배포 및 v6.21 로컬 탑재)
+
+- **현상 및 원인 분석**:
+  1. 업데이트 완료 후 [네]를 클릭하여 새 프로그램을 실행할 때 `Failed to load Python DLL '...\AppData\Local\Temp\_MEIxxxx\python314.dll'. LoadLibrary: 지정된 모듈을 찾을 수 없습니다.` 에러 발생.
+  2. **근본 원인**:
+     - 기존 코드는 .NET `System.Diagnostics.ProcessStartInfo(UseShellExecute = $false)`를 사용해 `CreateProcess`로 새 프로세스를 기동함.
+     - `UseShellExecute = $false`로 생성된 자식 프로세스는 부모인 `powershell.exe`의 콘솔 세션 및 프로세스 트리에 강력히 바인딩됨.
+     - 실행 직후 `powershell.exe`가 0초 만에 스크립트 끝에 도달하여 프로세스를 종료(`Exit`)하자, Windows OS가 해당 콘솔 세션을 파괴하고 프로세스 트리를 정리함.
+     - 이 과정에서 백그라운드에서 막 압축 해제(`_MEIxxxx`) 및 `LoadLibrary`를 수행 중이던 새 PyInstaller 부트로더가 콘솔 닫힘 신호(CTRL_CLOSE_EVENT / Broken Pipe)를 받거나 메모리 매핑이 비정상 중단되어 `python314.dll` 로드 실패(Error 126)가 발생함.
+- **해결책 (`scripts/updater_gui.ps1`)**:
+  - `ProcessStartInfo`를 전면 폐기하고, **Windows Explorer(데스크톱 셸)를 통해 완전히 독립된 프로세스로 기동**:
+    ```powershell
+    Start-Process -FilePath "explorer.exe" -ArgumentList "`"$TargetExe`""
+    Start-Sleep -Milliseconds 300
+    ```
+  - `explorer.exe`를 통해 기동하면 윈도우 탐색기에서 마우스로 더블클릭하는 것과 100% 동일하게 동작함.
+  - PowerShell 프로세스의 종료 여부와 완전히 무관하며, 콘솔 핸들 종속이나 부모 프로세스 사망으로 인한 중단이 원천적으로 불가능함. 단위 테스트(`test_ps_exit.py`) 검증 완료.
+- **빌드 및 배포 산출물**:
+  - **GitHub Release**: `v1.0.0-rc.6.22` (Release ID: `392598704`, Asset ID: `577696605`, 126,746,084 바이트).
+  - **로컬 실행 파일**: `dist/3M_Instrument_Logger.exe`를 해당 패치가 완벽 탑재된 `v1.0.0-rc.6.21`로 빌드 완료 (126,746,084 바이트).
+  - **실기 검증**: 로컬 v6.21 실행 시 GitHub의 `v1.0.0-rc.6.22` 업데이트 정상 감지 확인 완료 (`update_available: True`).
+
+### 2026-09-21 업데이트 창 최상단 강제 표시(Foreground Lockout 해제) 및 충돌 방지 패치 완료
+
+- **현상 및 사용자 피드백**:
+  1. "업데이트 프로그램 실행하면 맨 상단에 표시되게 해줘. 볼 수 있게": 부모 창 종료 후 백그라운드에서 실행된 WPF 창이 Windows의 Foreground Lockout으로 인해 파일 탐색기 등 다른 창 뒤에 가려져 사용자가 창을 보지 못함.
+  2. "혹시 업데이트 프로그램 실행되고 있으면 기존 프로그램 삭제가 안 되는 거 아니야?": 사용자가 창을 보지 못해 탐색기에서 `dist/3M_Instrument_Logger.exe`를 수동 중복 기동하면서, 백그라운드의 업데이터 정리 루프와 충돌 발생(`Failed to load Python DLL` 에러 재발).
+- **조치 사항**:
+  1. `scripts/updater_gui.ps1`:
+     - Win32 API `SwitchToThisWindow`, `AttachThreadInput`, `SetWindowPos(HWND_TOPMOST)` 결합 적용. 어떤 창(탐색기, 크롬 등) 위에 있든 상관없이 **Windows의 포커스 잠금을 무력화하고 모니터 맨 앞(최상단)에 또렷하게 팝업**되도록 보장.
+     - `_MEI*` 임시 폴더 정리를 Step 1(기존 프로세스 종료 직후)로 이전하고, Step 3의 과도한 임시 폴더 삭제 루프를 제거하여 신규 실행 파일과의 충돌 원천 차단.
+  2. `updater.js`: 모달 안내에 "화면 최상단에 전용 업데이트 창이 실행됩니다" 문구 보강.
+  3. **빌드 및 배포 산출물**:
+     - **GitHub 릴리즈**: `v1.0.0-rc.6.21` (Asset ID: `577647621`, 126,746,389 바이트).
+     - **로컬 실행 파일**: `dist/3M_Instrument_Logger.exe`를 `v1.0.0-rc.6.20`으로 신규 빌드 (2026-09-21 07:05:48 빌드, 126,747,027 바이트).
+
+### 2026-09-21 로컬 v1.0.0-rc.6.20 EXE 빌드 및 GitHub v1.0.0-rc.6.21 릴리즈 배포 완료
+
+- **배경 및 조치 내역**:
+  - 이번에 새로 수정한 업데이트 플로우(독립 업데이터 직행, 2초 대기 후 100% 게이지 전환 및 릴리즈 노트 표시, 새 프로그램 실행 선택)가 탑재된 **`v1.0.0-rc.6.20` EXE를 로컬 `dist/3M_Instrument_Logger.exe`로 정식 빌드 교체 완료** (2026-09-21 06:40 빌드, 120.87 MB).
+  - GitHub에는 최신 타깃 버전인 **`v1.0.0-rc.6.21`**을 릴리즈 등록 완료 (Release ID: `392582150`, Asset ID: `577605424`).
+  - 사용자가 로컬 `dist/3M_Instrument_Logger.exe`(v6.20)를 실행하면, 신규 업데이트 엔진이 구동되어 GitHub의 `v6.21` 업데이트를 정상 감지하고, "지금 업데이트 진행하기" 클릭 시 전용 업데이트 창 직행 ➔ 실시간 다운로드 ➔ 2초 후 100% ➔ 네/아니오 선택 전체 흐름을 완벽하게 실기 검증 가능.
+
+### 2026-09-21 업데이트 흐름 전면 재설계 (독립 업데이터 직행 + 2초 후 100% 완료 및 실행 선택)
+
+- **배경 및 사용자 요구사항**:
+  1. 웹 브라우저 내부에서 다운로드하지 않고, 업데이트 버튼 클릭 즉시 독립 업데이트 프로그램을 띄움.
+  2. 통합 프로그램을 0.15초 내 즉시 안전 종료하여 파일 잠금을 즉각 해제.
+  3. 독립 업데이트 프로그램(`updater_gui.ps1`)이 GitHub S3 스트리밍 다운로드 및 파일 교체(기존 파일 삭제 및 새 파일 이동)를 전담.
+  4. 설치 완료 후 2초 대기 ➔ 업데이트 게이지 100% 완료 전환 ➔ 이번 업데이트 주요 내용(릴리즈 노트) 표시.
+  5. "새로운 프로그램을 실행하시겠습니까?" 문구 표시:
+     - **네**: PyInstaller 환경변수(`_MEIPASS2` 등) 소거 후 새 프로그램 실행 & 업데이터 닫기.
+     - **아니오**: 새 프로그램을 실행하지 않고 업데이터 창만 닫기.
+- **수정 파일**:
+  - `updater.js`: 모달에서 업데이트 진행 클릭 시 로딩 안내 후 즉시 `/api/update/apply` 호출, 브라우저 다운로드 게이지 제거 및 mock 시뮬레이션 모드 지원.
+  - `updater_backend.py`: `apply_update_and_restart()`에서 백그라운드 다운로드 대기 없이 `launch_standalone_updater()` 즉시 호출 및 `os._exit(0)` 실행, `-NotesFile`로 릴리즈 노트 전달.
+  - `scripts/updater_gui.ps1`: XAML에 `BoxPrompt`("💡 새로운 프로그램을 지금 실행하시겠습니까?") 추가, 스트리밍 다운로드 보장, 2초 대기 후 100% 전환, 네/아니오 버튼 클릭 분기(`$userChoice`).
+
+### 2026-09-18 GitHub 공식 릴리즈 배포 완료 (v1.0.0-rc.6.19 — GitHub-only 릴리즈)
+
+- **배경 및 조치 내역**:
+  - Epson PRIFIA OK900P 라벨 프린터 연동 복구 및 무중단 자동 업데이트 실기 검증을 위한 신규 타깃 릴리즈 배포.
+  - `dist/3M_Instrument_Logger.exe`의 로컬 교체 없이 GitHub Release만 업데이트(`STAGE_ONLY=1` 배포, 로컬은 v6.18 유지).
+  - 빌드 결과: `build_tmp/release_out/3M_Instrument_Logger.exe` (120.88 MB, 126,747,792 바이트, 내부 버전 `v1.0.0-rc.6.19`).
+  - GitHub Private Release `v1.0.0-rc.6.19` 공식 생성 및 에셋 업로드 완료 (Release ID: `391517006`, Asset ID: `574885730`, `prerelease: False`).
+  - 로컬 `dist/3M_Instrument_Logger.exe`(v6.18)에서 `v1.0.0-rc.6.19` 업데이트 정상 감지 (`update_available: True`) 확인 완료.
+
+### 2026-09-18 Epson OK900P 라벨 프린터 인식·드라이버 설치 API 복구 및 EXE 빌드 (v1.0.0-rc.6.18)
+
+- **배경 및 원인 분석**:
+  1. **단독 EXE(`3M_Instrument_Logger.exe`) 내부 웹서버 프린터 API 누락**:
+     - `build/package_exe.py`의 `integrated_launcher.py`에 `/api/printers`, `/api/print/ok900p`, `/api/driver/*` 엔드포인트가 누락되어 있어, UI 진입 시 404가 반환되고 `Microsoft Print to PDF (가상)` 및 `⚠️ 드라이버 미설치 / 미인식`으로 잘못 표시됨.
+     - 사용자가 드라이버 설치 클릭 시 `/api/driver/install/ok900p`가 404로 실패하여 JSON 구문 파싱 오류 알림 발생.
+  2. **PyInstaller 의존성 누락 및 PyQt5/6 충돌**:
+     - PyInstaller 번들 시 `win32print`, `win32ui`, `PIL`이 hidden-import에 누락되었으며, `printer.py`의 선택적 `PyQt6` 임포트로 인해 PyInstaller의 복수 Qt 바인딩 충돌 방지 로직이 발동되어 빌드가 중단됨.
+  3. **드라이버 관리자 승격 실행 안전성 개선**:
+     - `install_driver.bat` 및 `server.py`의 PowerShell `Start-Process` 호출 시 공백 경로 충돌을 방지하도록 `-FilePath` 및 `-WorkingDirectory` 파라미터 구조로 개선.
+- **조치 사항**:
+  - `build/package_exe.py`:
+    - `sys.path.insert(0, APP_DIR)` 추가 (번들된 `instruments.epson_ok900p` 패키지 정상 로드).
+    - `Handler.do_GET`에 `/api/printers`, `/api/driver/download/ok900p` 추가.
+    - `Handler.do_POST`에 `/api/print/ok900p`, `/api/driver/install/ok900p`, `/api/driver/install-wizard/ok900p`, `/api/driver/open-folder/ok900p` 추가.
+    - PyInstaller 옵션에 `--hidden-import` (`win32print`, `win32ui`, `win32gui`, `win32con`, `PIL`, `PIL.Image`, `PIL.ImageWin`) 및 미사용 Qt 충돌 방지를 위한 `--exclude-module=PyQt5`, `--exclude-module=PyQt6` 적용.
+  - `server.py` 및 `install_driver.bat`, `install_official_wizard.bat`: UAC 관리자 승격 시 안전한 `-WorkingDirectory` 구조 적용.
+  - `build/build_standalone.py`: `instruments/__init__.py` 복사 동기화.
+- **빌드 및 산출물**:
+  - 통합 실행 파일: `dist/3M_Instrument_Logger.exe` (120.88 MB, 126,747,015 바이트, 내부 버전 `v1.0.0-rc.6.18`).
+  - SHA256: `c4cfc68ded40231000edffc74396385c517202ffc0e800dba36ad292a3abc6da`
+  - 프로젝트 전체 무결성 검증(`verify_project.py`) 100% PASS, 단독 기동 정상 확인.
+
+### 2026-09-18 GitHub 공식 릴리즈 배포 완료 (v1.0.0-rc.6.17 — Python DLL 오류 원천 차단 및 UTF-8 BOM 보장)
+
+- **배경 및 원인 분석**:
+  1. **PowerShell UTF-8 인코딩 손상 방지 (UTF-8 BOM 필수)**:
+     - 한국어 Windows의 PowerShell 5.1 엔진은 BOM 없는 UTF-8 `.ps1` 파일을 시스템 기본 CP949(ANSI)로 오인식하여 한글 멀티바이트 바이트열이 괄호나 따옴표 구문 파싱 오류를 유발함.
+     - `scripts/updater_gui.ps1`을 UTF-8 with BOM(`utf-8-sig`)으로 엄격 저장 및 검증(`check_syntax.ps1` 100% VALID).
+  2. **다계층 환경변수 완전 정화 (PyInstaller `_MEIPASS2` 상속 차단)**:
+     - PowerShell 프로세스 초기 진입부에서 `_MEIPASS*`, `PYI*`, `PYTHONPATH`, `PYTHONHOME`을 즉시 소거.
+     - 4단계 재실행 시 `UseShellExecute = $false`와 `$pInfo.EnvironmentVariables.Remove($k)`를 결합하여 새 프로세스 환경 블록에서 PyInstaller 환경변수를 완전 제거.
+     - 실패 시 2차 폴백으로 `explorer.exe`를 통해 Windows 셸 컨텍스트에서 기동.
+- **빌드 및 배포 산출물**:
+  - 통합 실행 파일: `dist/3M_Instrument_Logger.exe` (143.38 MB, 150,342,481 바이트, 내부 버전 `v1.0.0-rc.6.17`).
+  - GitHub Private Release `v1.0.0-rc.6.17` 공식 배포 완료 (Release ID: `391260775`, Asset ID: `571991125`, `prerelease: False`, `make_latest: True`).
+  - API 검증: v6.15 및 v6.16 클라이언트에서 `v1.0.0-rc.6.17` 업데이트 정상 감지 확인 완료.
+
+### 2026-09-18 'Failed to load Python DLL (_MEI...)' 에러 원인 규명 및 영구 해결
+
+
+- **현상**: 업데이트 완료 후 자동 재실행 단계에서 `Failed to load Python DLL '...\_MEIxxxxxx\python314.dll'. LoadLibrary: 지정된 모듈을 찾을 수 없습니다.` 에러 팝업 발생.
+- **근본 원인 분석**:
+  1. PyInstaller onefile은 실행 시 `_MEIPASS2` 환경변수가 존재하면 '자신이 이미 압축 해제된 자식 프로세스'로 판단하고 새 폴더를 압축 해제하지 않고 해당 경로에서 `python314.dll`을 직접 `LoadLibrary`하려 함.
+  2. PowerShell에서 `UseShellExecute = $true`를 사용할 경우 .NET의 `EnvironmentVariables` 컬렉션이 무시되고 호출 프로세스의 OS 환경 블록(이전 프로세스의 `_MEIPASS2`)이 자식 프로세스로 강제 상속됨.
+  3. 반면 업데이트 1단계에서 이전 임시 폴더(`_MEIxxxxxx`)는 이미 디스크에서 삭제되었으므로, 새 프로세스가 삭제된 구버전 임시 폴더에서 `python314.dll`을 로드하려다 `LoadLibrary` 실패(Error 126) 팝업 발생.
+- **해결책 (`scripts/updater_gui.ps1`)**:
+  - `UseShellExecute = $false`를 명시적으로 설정.
+  - `$pInfo.EnvironmentVariables.Remove($k)`를 통해 `_MEI*`, `PYI*`, `PYTHONPATH`, `PYTHONHOME`을 프로세스 시작 전 컬렉션에서 완벽 소거.
+  - 부모 프로세스의 환경에 오염된 `_MEIPASS2`가 존재하더라도 자식 프로세스로 절대 전달되지 않으며, 새 프로세스가 정상적으로 새 임시 디렉터리를 생성하고 최신 코드로 기동함. 단위 테스트(`test_clean_restart_fix.ps1`) 100% 통과.
+
+### 2026-09-18 GitHub 공식 릴리즈 배포 완료 (v1.0.0-rc.6.14 — GitHub-only 릴리즈)
+
+- **배경 및 조치 내역**:
+  - 사용자 환경(로컬 v1.0.0-rc.6.13)에서 `Failed to load Python DLL` 에러 영구 해결 패치(`UseShellExecute=$false` 및 `EnvironmentVariables.Remove('_MEIPASS2')`) 실기 검증을 위한 신규 타깃 릴리즈 배포.
+  - 로컬 `dist/3M_Instrument_Logger.exe`는 v1.0.0-rc.6.13 유지 (내부에 해당 재실행 환경변수 격리 패치가 완벽 탑재됨).
+  - 빌드 결과: `build_tmp/release_out/3M_Instrument_Logger.exe` (143.38 MB, 150,344,540 바이트, 내부 버전 `v1.0.0-rc.6.14`).
+  - GitHub Private Release `v1.0.0-rc.6.14` 공식 생성 및 에셋 업로드 완료 (Release ID: `391237930`, Asset ID: `571903126`).
+  - 로컬 `dist/3M_Instrument_Logger.exe`(v6.13) 실행 시 `v1.0.0-rc.6.14` 업데이트 감지, 다운로드 ➔ 교체 ➔ 자동 재실행 시 에러 팝업 없이 즉시 `v1.0.0-rc.6.14`로 정상 기동 실기 검증 가능.
+
+### 2026-09-18 GitHub 공식 릴리즈 배포 완료 (v1.0.0-rc.6.13 — GitHub-only 릴리즈)
+
+- **배경 및 조치 내역**:
+  - 사용자 환경(로컬 v1.0.0-rc.6.12)에서 임시 폴더 소거 및 `UseShellExecute=$true` 독립 셸 자동 재실행 검증용 타깃 릴리즈 배포.
+  - `dist/3M_Instrument_Logger.exe`의 로컬 교체 없이 GitHub Release만 업데이트(`STAGE_ONLY=1` 배포, 로컬은 v6.12 유지).
+  - 빌드 결과: `build_tmp/release_out/3M_Instrument_Logger.exe` (143.38 MB, 150,343,351 바이트, 내부 버전 `v1.0.0-rc.6.13`).
+  - GitHub Private Release `v1.0.0-rc.6.13` 공식 생성 및 에셋 업로드 완료 (Release ID: `391226703`, Asset ID: `571848690`).
+  - 로컬 `dist/3M_Instrument_Logger.exe`(v6.12)에서 `v1.0.0-rc.6.13` 업데이트 감지 및 즉시 정상 반영 실기 테스트 가능.
+
+### 2026-09-18 업데이트 후 구버전 코드 재사용 버그 수정 및 GitHub 공식 릴리즈 배포 완료 (v1.0.0-rc.6.12 — GitHub-only 릴리즈)
+
+- **배경 및 원인 분석**:
+  - 자동 업데이트 완료 후 재실행 시 파일 자체(`dist/3M_Instrument_Logger.exe`)는 최신 버전으로 교체되었으나, 화면에는 구버전이 표시되고 프로그램을 수동으로 닫았다 켜면 최신 버전으로 표시되는 현상 발생.
+  - **원인**: PyInstaller onefile이 구동될 때 소스를 `%TEMP%\_MEIxxxx` 폴더에 임시 해제하는데, 재실행 시 `UseShellExecute = $false`로 인해 기존 프로세스의 PyInstaller 환경변수(`_MEIPASS2`)가 상속되어 새 EXE가 새 압축을 풀지 않고 `%TEMP%`에 남아있던 구버전 `_MEI` 폴더의 코드를 재사용함.
+  - **조치 (`scripts/updater_gui.ps1`)**:
+    1. 파일 교체 전후로 `%TEMP%\_MEI*` 잔여 임시 디렉터리를 강제 소거하여 구버전 코드 재사용 원천 차단.
+    2. 재실행 시 `UseShellExecute = $true`를 적용하여 윈도우 탐색기 더블클릭과 100% 동일한 독립 셸 컨텍스트에서 깨끗하게 기동.
+
+- **빌드 및 배포 산출물**:
+  - `dist/3M_Instrument_Logger.exe`의 로컬 교체 없이 GitHub Release만 업데이트(`STAGE_ONLY=1` 배포, 로컬은 v6.11 유지).
+  - 빌드 결과: `build_tmp/release_out/3M_Instrument_Logger.exe` (143.38 MB, 150,344,429 바이트, 내부 버전 `v1.0.0-rc.6.12`).
+  - GitHub Private Release `v1.0.0-rc.6.12` 공식 생성 및 에셋 업로드 완료 (Release ID: `391180450`, Asset ID: `571652256`).
+  - 로컬 `dist/3M_Instrument_Logger.exe`(v6.11)에서 `v1.0.0-rc.6.12` 업데이트 감지 및 즉시 정상 반영 실기 테스트 가능.
+
+### 2026-09-18 GitHub 공식 릴리즈 배포 완료 (v1.0.0-rc.6.11 — GitHub-only 릴리즈)
+
+- **배경 및 조치 내역**:
+  - 사용자 환경(로컬 v1.0.0-rc.6.10)에서 최신 업데이트 감지 및 다운로드/교체/재실행 실기 검증을 위한 신규 타깃 릴리즈 배포.
+  - `dist/3M_Instrument_Logger.exe`의 로컬 교체 없이 GitHub Release만 업데이트(`STAGE_ONLY=1` 배포).
+  - 빌드 결과: `build_tmp/release_out/3M_Instrument_Logger.exe` (143.38 MB, 150,342,827 바이트, 내부 버전 `v1.0.0-rc.6.11`).
+  - GitHub Private Release `v1.0.0-rc.6.11` 공식 생성 및 에셋 업로드 완료 (Release ID: `391176795`, Asset ID: `571636114`).
+  - 로컬 `dist/3M_Instrument_Logger.exe`(v6.10) 실행 시 `v1.0.0-rc.6.11` 업데이트 감지 및 실기 업데이트 테스트 가능.
+
+### 2026-09-18 업데이트 후 이전 버전으로 재시작되는 버그 수정 및 GitHub 공식 릴리즈 배포 완료 (v1.0.0-rc.6.10)
+
+- **배경 및 원인 (3가지)**:
+  1. **dist `version.json` 미동기화**: 빌드 시 dist 폴더의 `version.json`이 루트 `version.json`과 다른 버전을 유지하여, EXE 내부에 구버전이 박힘. GitHub에 "v6.9"로 올려도 EXE 안에는 "v6.8"이 들어있어 업데이트 후 재시작하면 이전 버전으로 뜨는 현상 발생.
+  2. **PowerShell `TempFile` 무조건 재다운로드**: `updater_gui.ps1`이 메인 앱이 이미 다운로드한 임시 파일을 무조건 삭제(`Remove-Item`) 후 재다운로드. `AssetId` 누락 또는 네트워크 문제 시 교체 실패.
+  3. **`_watch_and_launch` 조기 `os._exit(0)` 호출**: 다운로드 완료 직후 백엔드가 `launch_standalone_updater()` → `os._exit(0)`를 호출하여 UI가 `finishAll()` 3초 카운트다운을 표시하기 전에 앱이 종료.
+
+- **조치 (`updater_gui.ps1`)**:
+  - `TempFile`의 크기가 1MB 이상이면 재사용, 없거나 손상된 경우에만 재다운로드.
+  - `$needDownload = ($tempFileSize -lt 1MB)` 조건 추가.
+
+- **조치 (`updater_backend.py`)**:
+  - `_watch_and_launch` 스레드에서 `launch_standalone_updater()` 직접 호출 제거.
+  - 다운로드 완료 시 상태만 `completed`로 유지, 실제 교체·종료는 UI `doRestart()` → 2차 `/api/update/apply` 호출 시 `completed` 브랜치에서 처리.
+
+- **조치 (빌드 프로세스)**:
+  - 빌드 전 루트 `version.json`과 dist 폴더 `version.json`을 반드시 동시에 같은 버전으로 업데이트하는 규칙 확립.
+
+- **빌드 및 배포 산출물**:
+  - `dist/3M_Instrument_Logger.exe` (143.39 MB, 150,350,744 바이트, 내부 버전 `v1.0.0-rc.6.10`) 빌드 완료.
+  - GitHub Private Release `v1.0.0-rc.6.10` 공식 생성 및 에셋 업로드 완료 (Release ID: `391128089`, Asset ID: `571409982`).
+
+### 2026-09-18 업데이트 게이지 25% 멈춤 버그 수정 및 GitHub 공식 릴리즈 배포 완료 (v1.0.0-rc.6.9 — GitHub-only 릴리즈)
+
+
+- **배경 및 원인**:
+  - EXE 실행 후 업데이트 버튼 클릭 시 게이지가 25%에서 영구 멈추는 현상.
+  - 원인: `updater.js`가 `/api/update/apply`를 3초 타임아웃으로 호출 후 아무 처리 없이 종료. `updater_backend.py`에 `apply_update_and_restart()` 함수 자체가 누락되어 있었음.
+- **조치 (`updater_backend.py`)**:
+  - `apply_update_and_restart(body)` 함수 신규 구현: 백그라운드 다운로드 시작 → `_watch_and_launch` 스레드가 완료를 감시 → 완료 시 `launch_standalone_updater()` 호출 후 앱 종료.
+  - `_last_release_info = None` 초기화 위치를 `_download_state` 선언 직후로 이동 (참조 전 초기화 보장).
+- **조치 (`updater.js`)**:
+  - 실제 환경 블록을 폴링 방식으로 전면 교체: `/api/update/apply` 호출 → 400ms 간격 `/api/update/progress` 폴링 → `X MB / 143.4 MB (Y%)` 실시간 게이지 업데이트.
+  - 다운로드 완료(`status: completed`) 시 `finishAll()` → 3초 카운트다운 → PowerShell 팝업 + 앱 종료.
+  - 다운로드 에러 시 빨간색 오류 메시지 표시.
+  - 서버 단절(앱 종료) 시 정상 완료로 간주(`finishAll()` 호출).
+- **빌드 및 배포 산출물**:
+  - `dist/3M_Instrument_Logger.exe` (143.38 MB, 150,347,918 바이트) 빌드 완료.
+  - GitHub Private Release `v1.0.0-rc.6.9` 공식 생성 및 에셋 업로드 완료 (Release ID: `391125287`, Asset ID: `571397508`).
+
+### 2026-09-18 GitHub 공식 릴리즈 배포 완료 (v1.0.0-rc.6.8 — GitHub-only 릴리즈)
+
+
+- **배경 및 조치 내역**:
+  - v1.0.0-rc.6.7의 모든 수정 사항(창 포커스 고정, `_MEI*` 환경변수 격리, 다운로드 무결성 검증)을 포함하는 릴리즈.
+  - `dist/3M_Instrument_Logger.exe`의 로컬 교체 없이 GitHub Release만 업데이트(GitHub-only 배포).
+  - 빌드 결과: `build_tmp/release_out/3M_Instrument_Logger.exe` (143.38 MB, 150,341,242 바이트).
+  - GitHub Private Release `v1.0.0-rc.6.8` 공식 생성 및 에셋 업로드 완료 (Release ID: `391122211`, Asset ID: `571382541`).
+
+### 2026-09-18 창 포커스 가라앉음 해결, PyInstaller 환경변수 격리 및 공식 릴리즈 배포 완료 (v1.0.0-rc.6.7)
+
+- **배경 및 원인 분석**:
+  1. **"창이 밑으로 내려가는 현상"**:
+     - `powershell.exe` 기동 시 콘솔 창이 깜빡였다 숨겨지는 과정에서 Windows OS가 포커스를 탐색기 등 다른 앱으로 넘김.
+     - WPF 창이 생성된 후 Windows의 Foreground Lockout 정책으로 인해 팝업창이 다른 창 뒤에 가려지거나 작업표시줄 밑으로 가라앉음.
+     - **조치**: PowerShell에 `-WindowStyle Hidden` 및 `CREATE_NO_WINDOW`, `SW_HIDE` 적용하여 콘솔을 원천 숨기고, Win32 `SwitchToThisWindow` 및 `SetWindowPos(HWND_TOPMOST)` 결합으로 팝업창이 항상 화면 정중앙 최상위에 또렷하게 고정되도록 개선.
+  2. **"완료 후 `Failed to load Python DLL (_MEI...)` 에러 발생"**:
+     - PyInstaller onefile은 부모 프로세스가 실행될 때 환경변수에 `_MEIPASS2 = Temp\_MEIxxxx`를 주입함.
+     - 기존 프로그램이 닫힌 뒤 재실행될 때, 부모 프로세스의 삭제된 `_MEIPASS2` 환경변수가 자식 프로세스로 상속됨.
+     - 새 프로세스의 PyInstaller 부트로더는 상속된 `_MEIPASS2`를 보고 새 폴더를 압축 해제하지 않고 이미 지워진 폴더에서 `python314.dll`을 로드하려다 `LoadLibrary: 지정된 모듈을 찾을 수 없습니다` 오류 발생.
+     - **조치**: 백엔드와 파워쉘 모두에서 `_MEIPASS2`, `_MEIPASS`, `PYI_PARENT_PID`, `PYTHONPATH`, `PYTHONHOME` 등 PyInstaller 관련 환경변수를 프로세스 레벨에서 완전 소거(Remove-Item 및 EnvironmentVariable null)하고, `UseShellExecute = $false`로 완벽히 격리 실행.
+  3. **스트리밍 다운로드 무결성 검증 추가**:
+     - 수신 바이트 수와 Content-Length 일치 여부 검증으로 불완전 전송에 따른 바이너리 손상 방지.
+
+- **빌드 및 배포 산출물**:
+  - 최신 통합 패키지: `dist/3M_Instrument_Logger.exe` (143.38 MB, 150,341,603 바이트, SHA256 `5A9A64E09DA0FB20626F96222A66383D50206DCD9B4E301A3185D897CBFA7231`).
+  - GitHub Private Release `v1.0.0-rc.6.7` 공식 생성 및 에셋 업로드 완료 (Release ID: `391120441`, Asset ID: `571374593`).
+  - 무결성 검증 `verify_project.py` 100% PASS.
+
 ### 2026-09-18 GitHub 공식 릴리즈 배포 완료 (v1.0.0-rc.6.5 — 정식 6.5 패키지 및 6.4 ➔ 6.5 실기 검증 완료)
+
 
 - **배경 및 조치 내역**:
   - 독립 팝업창(PowerShell WPF) 기반 자동 업데이트의 100% 정상 작동(다운로드 ➔ 파일 안전 교체 ➔ 자동 재실행 ➔ 3초 카운트다운) 확인.

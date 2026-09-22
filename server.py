@@ -609,19 +609,20 @@ class Handler(SimpleHTTPRequestHandler):
                 bat_path = os.path.join(driver_dir, "install_driver.bat")
                 if not os.path.exists(bat_path):
                     return self._json({"ok": False, "error": "드라이버 설치 스크립트(install_driver.bat)를 찾을 수 없습니다."}, 404)
-                cmd = f'Start-Process cmd.exe -ArgumentList \'/c cd /d "{driver_dir}" && "{bat_path}"\' -Verb RunAs'
-                subprocess.Popen(["powershell.exe", "-NoProfile", "-Command", cmd])
+                ps_cmd = f'Start-Process -FilePath cmd.exe -WorkingDirectory "{driver_dir}" -ArgumentList "/k \\"install_driver.bat\\"" -Verb RunAs'
+                subprocess.Popen(["powershell.exe", "-NoProfile", "-Command", ps_cmd])
                 return self._json({"ok": True, "message": "드라이버 설치 마법사가 실행되었습니다. 화면의 관리자 권한(UAC) 승인 창을 확인해주세요."})
             except Exception as e:
                 return self._json({"ok": False, "error": str(e)}, 500)
         if u.path == "/api/driver/install-wizard/ok900p":
             try:
                 driver_dir = os.path.join(ROOT, "instruments", "epson_ok900p", "driver")
-                bat_path = os.path.join(driver_dir, "install_official_wizard.bat")
-                if not os.path.exists(bat_path):
-                    return self._json({"ok": False, "error": "공식 마법사 스크립트(install_official_wizard.bat)를 찾을 수 없습니다."}, 404)
-                cmd = f'Start-Process cmd.exe -ArgumentList \'/c cd /d "{driver_dir}" && "{bat_path}"\' -Verb RunAs'
-                subprocess.Popen(["powershell.exe", "-NoProfile", "-Command", cmd])
+                wizard_exe = os.path.join(driver_dir, "official_wizard", "dinst64.exe")
+                if not os.path.exists(wizard_exe):
+                    return self._json({"ok": False, "error": "공식 마법사 파일(dinst64.exe)을 찾을 수 없습니다."}, 404)
+                wizard_dir = os.path.dirname(wizard_exe)
+                ps_cmd = f'Start-Process -FilePath "{wizard_exe}" -WorkingDirectory "{wizard_dir}" -Verb RunAs'
+                subprocess.Popen(["powershell.exe", "-NoProfile", "-Command", ps_cmd])
                 return self._json({"ok": True, "message": "EPSON 공식 드라이버 설치 마법사가 실행되었습니다."})
             except Exception as e:
                 return self._json({"ok": False, "error": str(e)}, 500)

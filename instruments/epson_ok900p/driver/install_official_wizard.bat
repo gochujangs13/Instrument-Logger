@@ -10,7 +10,7 @@ echo.
 net session >nul 2>&1
 if %errorLevel% neq 0 (
     echo [안내] 관리자 권한으로 마법사를 실행합니다...
-    powershell -Command "Start-Process cmd -ArgumentList '/c cd /d \"\"%~dp0official_wizard\"\" && dinst64.exe' -Verb RunAs"
+    powershell -NoProfile -Command "Start-Process -FilePath '%~dp0official_wizard\dinst64.exe' -WorkingDirectory '%~dp0official_wizard' -Verb RunAs"
     exit /b
 )
 

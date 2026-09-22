@@ -35,27 +35,28 @@
 - **연결 초기화 시퀀스 (onConnect)**:
   1. `*RST\r\n` (즉시)
   2. `*CLS\r\n` (1400ms 후)
-  3. `SYST:REM\r\n` (1800ms 후)
-  4. `*CLS\r\n` (2100ms 후)
-  5. 실행 시점에 선택된 측정 방식에 따라 `SENS:FUNC "<FRES|RES>"\r\n` (2500ms 후)
-  6. 실행 시점의 측정 방식에 맞춰 `SENS:<FRES|RES>:RANG:AUTO ON\r\n` (2700ms 후)
-  7. 실행 시점에 선택된 측정 방식·속도에 따라 `SENS:<FRES|RES>:NPLC <MIN|1|10>\r\n` (2850ms 후)
-  8. `*CLS\r\n` (3050ms 후)
-  9. 초기화가 끝난 3200ms 후부터 `READ?` 폴링 타이머 시작
+  3. `SYST:REM\r\n` (1700ms 후)
+  4. `:FORM:ELEM READ\r\n` (1900ms 후, 타임스탬프/상태 제외 순수 측정값 1개만 수신)
+  5. `*CLS\r\n` (2100ms 후)
+  6. 실행 시점에 선택된 측정 방식에 따라 `:SENS:FUNC '<FRES|RES>'\r\n` (2400ms 후)
+  7. 실행 시점의 측정 방식에 맞춰 `:SENS:<FRES|RES>:RANG:AUTO ON\r\n` (2600ms 후)
+  8. 실행 시점에 선택된 측정 방식·속도에 따라 `:SENS:<FRES|RES>:NPLC <0.1|1|5>\r\n` (2800ms 후)
+  9. `*CLS\r\n` (3000ms 후)
+  10. 초기화가 끝난 3200ms 후부터 `READ?` 폴링 타이머 시작
   - Python `connect()`: `*RST` → 0.5초 대기 → `SYST:REM` → `*CLS` → `set_mode("4-Wire")`(=`:FUNC 'FRES'` + `:FRES:RANG:AUTO ON`)
   - JS는 장비의 느린 `*RST` 완료 시간을 고려해 명령을 분산하고, 저장된 2/4-Wire 및 속도 설정을 복원함.
-  - 따라서 화면에서 MED가 선택돼 있으면 연결할 때 `SENS:<FRES|RES>:NPLC 1`을 다시 적용함. FAST/SLOW도 같은 방식으로 현재 선택값을 다시 적용함.
+  - 따라서 화면에서 MED가 선택돼 있으면 연결할 때 `:SENS:<FRES|RES>:NPLC 1`을 다시 적용함. FAST(0.1)/SLOW(5)도 같은 방식으로 현재 선택값을 다시 적용함.
   - 초기화 도중 사용자가 속도나 2/4-Wire를 바꿔도, 예약 시점의 오래된 값이 아니라 각 명령 실행 시점의 최신 선택값을 사용함.
   - 연결 초기화에서는 `REL`/`NULL` 명령을 전송하지 않으며, `*RST` 이후에도 상대값 측정을 자동으로 켜지 않음.
 - **폴링 명령(pollCmd)**: `':READ?\r\n'`, pollInterval 500ms — Python `_polling_worker`도 `:READ?` 사용, 0.5초 간격으로 일치
-- **응답 파싱 형식**: 정규식 `([+-]?\d+\.?\d*[Ee][+-]?\d+)`로 지수표기 추출, `toExponential(4)`, 단위 `Ω` — Python은 `parts[0]`을 `float()` 후 `f"{val_float:.6E}"`로 포맷 (소수점 자릿수만 4 vs 6으로 다름, 통신 프로토콜과는 무관)
+- **응답 파싱 형식**: 콤마 분리 후 첫 토큰에서 부동소수점/지수 추출, `formatKeithley2700`을 통해 1 Ω 미만 저항(-0.00xxx Ω 등)도 지수(e-3, e-4)로 왜곡되지 않고 소수점 5자리 소수점 표기로 계측기 전면과 100% 일치 표기, 단위 `Ω`
 - **buildSettings 명령**:
-  - 샘플레이트: 현재 측정 함수에 맞춰 `SENS:<FRES|RES>:NPLC <MIN|1|10>\r\n` (FAST/MED/SLOW) — Python `set_speed`는 `:{p}:NPLC <0.1|1.0|10.0>` (FAST=0.1 vs JS의 `MIN`). NPLC 값 표기가 다름 (JS는 SCPI `MIN` 키워드, Python은 `0.1`)
-  - 와이어 모드: `SENS:FUNC "FRES"` 또는 `"RES"` — Python `set_mode`는 `:FUNC 'FRES'`/`'RES'` (작은따옴표 vs 큰따옴표 — SCPI 양쪽 다 허용되므로 기능상 동일)
-- **검증 결과**: **대체로 일치**, 단 다음 세부 차이가 있음:
+  - 샘플레이트: 현재 측정 함수에 맞춰 `:SENS:<FRES|RES>:NPLC <0.1|1|5>\r\n` (FAST/MED/SLOW) — 공식 User's Manual Table 4-2 기준 FAST=0.1, MED=1, SLOW=5. 변경 시 `:READ?` 폴링을 일시 중지하고 120ms 후 재개하여 명령 충돌 방지 및 시스템 로그 출력.
+  - 와이어 모드: `:SENS:FUNC '<FRES|RES>'\r\n` (작은따옴표 명시) — Python `set_mode`도 `:FUNC 'FRES'`/`'RES'` 사용
+- **검증 결과**: **일치**.
   - JS도 연결 시 선택된 측정 함수의 Auto Range를 명시적으로 활성화함.
   - 초기화 명령 사이에 `READ?`가 끼어들지 않도록 폴링 시작을 3200ms 지연함.
-  - NPLC FAST 설정값이 JS(`MIN`)과 Python(`0.1`)에서 다름.
+  - NPLC 속도값 공식 규격(FAST=0.1, MED=1, SLOW=5), 루트 콜론, :FORM:ELEM READ 순수 측정값 수신 및 소수점 5자리 일치 완료.
 - **고정 규칙 (변경 금지)**:
   - baudRate=9600, 8-N-1, 모든 명령 종단문자는 `\r\n`
   - onConnect는 반드시 `*RST` 완료 후 원격 모드·측정 함수·Auto Range·NPLC를 순차 적용
@@ -315,7 +316,7 @@
 | 계측기 | 상태 | 핵심 이슈 |
 |---|---|---|
 | Hioki 3540 | 일치 | onConnect의 AUTO/SMP 동기화 누락(경미) |
-| Keithley 2700 | 대체로 일치 | Auto Range·현재 2/4-Wire·NPLC 연결 시 재적용, FAST 값 표기차(MIN vs 0.1) |
+| Keithley 2700 | 일치 | Auto Range·현재 2/4-Wire·NPLC(FAST=0.1, MED=1, SLOW=5) 공식 규격 일치, 폴링 충돌 방지 적용 |
 | Keithley 2400 | RS-232 및 GPIB 저에너지 검증 완료 | GPIB 안전 초기화, 단일·시간·Sweep·사이클, 제품명 수정, 중앙 그래프, 정상 OFF, 오류 큐, 재연결 확인. GPIB 실제 Compliance와 낮은 저항 더미 부하·전면 표시 비교는 별도 필요 |
 | Mitutoyo VL-50 | 일치 | GA01 300ms 폴링 및 소수점 5자리 표시 적용 |
 | DAQ-6510 | 불일치 | controller.py `ROUT:SCAN`(legacy) vs JS `ROUT:SCAN:LIST`; JS `daq_delay` 미사용; RANG:AUTO ON 누락 |

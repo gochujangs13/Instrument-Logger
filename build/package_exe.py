@@ -86,23 +86,37 @@ def _load_release(dist_dir: str) -> dict:
     return release
 
 
-def _remove_other_release_exes(out_dir: str, keep_path: str) -> list[str]:
-    """성공한 새 빌드를 남기고 이전 통합 EXE만 정리합니다."""
+def _clean_dist_folder(out_dir: str, keep_path: str) -> list[str]:
+    """dist 폴더에 오직 최종 EXE 파일 하나만 남기고,
+    임시 빌드 하위 폴더, 이전 버전 EXE, 임시 파일 등을 모두 깔끔하게 정리합니다."""
     keep_path = os.path.abspath(keep_path)
     removed = []
     if not os.path.isdir(out_dir):
         return removed
     for name in os.listdir(out_dir):
-        lower = name.lower()
-        if not lower.endswith('.exe'):
-            continue
-        if name != '3M_Instrument_Logger.exe' and not name.startswith('3M_Instrument_Logger_v'):
-            continue
         candidate = os.path.abspath(os.path.join(out_dir, name))
         if candidate == keep_path:
             continue
-        os.remove(candidate)
-        removed.append(candidate)
+        try:
+            if os.path.isdir(candidate):
+                def _handle_readonly(func, path, exc_info=None):
+                    try:
+                        os.chmod(path, stat.S_IWRITE | stat.S_IREAD)
+                        func(path)
+                    except Exception:
+                        pass
+                try:
+                    shutil.rmtree(candidate, onexc=_handle_readonly)
+                except TypeError:
+                    shutil.rmtree(candidate, onerror=_handle_readonly)
+                removed.append(name)
+            else:
+                try: os.chmod(candidate, stat.S_IREAD | stat.S_IWRITE)
+                except: pass
+                os.remove(candidate)
+                removed.append(name)
+        except Exception as e:
+            print(f"[정리 경고] {name} 삭제 실패: {e}")
     return removed
 
 
@@ -242,6 +256,8 @@ def package(dist_dir: str):
 
         BASE    = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
         APP_DIR = os.path.join(BASE, '{bundle_dir}')
+        if APP_DIR not in sys.path:
+            sys.path.insert(0, APP_DIR)
 
         def find_free_port():
             with socket.socket() as s:
@@ -569,6 +585,46 @@ def package(dist_dir: str):
                         self._send_json({{'ok': False, 'error': str(e)}})
                     return
 
+                # ── Epson OK900P 프린터 & 드라이버 다운로드 API ────────────────
+                elif self.path == '/api/printers':
+                    try:
+                        from instruments.epson_ok900p.printer import PrinterController
+                        printers = PrinterController.get_printers()
+                        detected = PrinterController.auto_detect_ok900p()
+                        detected_tape = PrinterController.get_detected_tape_width(detected) if detected else None
+                        driver_dir = os.path.join(APP_DIR, 'instruments', 'epson_ok900p', 'driver')
+                        driver_ready = os.path.exists(os.path.join(driver_dir, 'LW900P.inf'))
+                        self._send_json({{
+                            'ok': True,
+                            'printers': printers,
+                            'detected': detected,
+                            'tapeWidth': detected_tape,
+                            'driverInstalled': bool(detected),
+                            'driverFilesAvailable': driver_ready
+                        }})
+                    except Exception as e:
+                        self._send_json({{'ok': False, 'error': str(e), 'printers': []}})
+                    return
+
+                elif self.path == '/api/driver/download/ok900p':
+                    zip_path = os.path.join(APP_DIR, 'instruments', 'epson_ok900p', 'driver', 'ok900p_driver.zip')
+                    if not os.path.exists(zip_path):
+                        self.send_error(404, 'Driver zip file not found')
+                        return
+                    try:
+                        with open(zip_path, 'rb') as f:
+                            data = f.read()
+                        self.send_response(200)
+                        self.send_header('Content-Type', 'application/zip')
+                        self.send_header('Content-Disposition', 'attachment; filename="epson_ok900p_driver.zip"')
+                        self.send_header('Content-Length', str(len(data)))
+                        self.send_header('Access-Control-Allow-Origin', '*')
+                        self.end_headers()
+                        self.wfile.write(data)
+                    except Exception as e:
+                        self._send_json({{'ok': False, 'error': str(e)}}, 500)
+                    return
+
                 else:
                     super().do_GET()
 
@@ -807,6 +863,81 @@ def package(dist_dir: str):
                         self._send_json({{'ok': False, 'error': str(e)}})
                     return
 
+                # ── Epson OK900P 프린터 & 드라이버 API ────────────────────────
+                elif self.path == '/api/print/ok900p':
+                    try:
+                        from PIL import Image
+                        import io
+                        length = int(self.headers.get('Content-Length', 0))
+                        body = json.loads(self.rfile.read(length))
+                        printer_name = body.get('printer', '')
+                        data_url = body.get('imageBase64', '')
+                        tape_width = float(body.get('tapeWidthMm', 24.0))
+                        length_mm = float(body.get('lengthMm', 60.0))
+                        copies = int(body.get('copies', 1))
+
+                        if not printer_name:
+                            self._send_json({{'ok': False, 'error': '프린터가 지정되지 않았습니다.'}}, 400)
+                            return
+                        if not data_url:
+                            self._send_json({{'ok': False, 'error': '이미지 데이터가 없습니다.'}}, 400)
+                            return
+
+                        b64_str = data_url.split(',', 1)[1] if ',' in data_url else data_url
+                        img_data = base64.b64decode(b64_str)
+                        pil_img = Image.open(io.BytesIO(img_data))
+
+                        from instruments.epson_ok900p.printer import PrinterController
+                        from instruments.epson_ok900p.renderer import LabelModel
+                        model = LabelModel(tape_width_mm=tape_width, fixed_length_mm=length_mm, length_mode='fixed')
+
+                        ok, msg = PrinterController.print(printer_name, pil_img, model, copies=copies)
+                        self._send_json({{'ok': ok, 'message': msg}})
+                    except Exception as e:
+                        self._send_json({{'ok': False, 'error': str(e)}}, 500)
+                    return
+
+                elif self.path == '/api/driver/install/ok900p':
+                    try:
+                        driver_dir = os.path.join(APP_DIR, 'instruments', 'epson_ok900p', 'driver')
+                        bat_path = os.path.join(driver_dir, 'install_driver.bat')
+                        if not os.path.exists(bat_path):
+                            self._send_json({{'ok': False, 'error': '드라이버 설치 스크립트(install_driver.bat)를 찾을 수 없습니다.'}}, 404)
+                            return
+                        ps_cmd = 'Start-Process -FilePath cmd.exe -WorkingDirectory "' + driver_dir + '" -ArgumentList "/k \\"install_driver.bat\\"" -Verb RunAs'
+                        subprocess.Popen(['powershell.exe', '-NoProfile', '-Command', ps_cmd])
+                        self._send_json({{'ok': True, 'message': '드라이버 설치 마법사가 실행되었습니다. 화면의 관리자 권한(UAC) 승인 창을 확인해주세요.'}})
+                    except Exception as e:
+                        self._send_json({{'ok': False, 'error': str(e)}}, 500)
+                    return
+
+                elif self.path == '/api/driver/install-wizard/ok900p':
+                    try:
+                        driver_dir = os.path.join(APP_DIR, 'instruments', 'epson_ok900p', 'driver')
+                        wizard_exe = os.path.join(driver_dir, 'official_wizard', 'dinst64.exe')
+                        if not os.path.exists(wizard_exe):
+                            self._send_json({{'ok': False, 'error': '공식 마법사 파일(dinst64.exe)을 찾을 수 없습니다.'}}, 404)
+                            return
+                        wizard_dir = os.path.dirname(wizard_exe)
+                        ps_cmd = 'Start-Process -FilePath "' + wizard_exe + '" -WorkingDirectory "' + wizard_dir + '" -Verb RunAs'
+                        subprocess.Popen(['powershell.exe', '-NoProfile', '-Command', ps_cmd])
+                        self._send_json({{'ok': True, 'message': 'EPSON 공식 드라이버 설치 마법사가 실행되었습니다.'}})
+                    except Exception as e:
+                        self._send_json({{'ok': False, 'error': str(e)}}, 500)
+                    return
+
+                elif self.path == '/api/driver/open-folder/ok900p':
+                    try:
+                        driver_dir = os.path.join(APP_DIR, 'instruments', 'epson_ok900p', 'driver')
+                        if os.path.exists(driver_dir):
+                            os.startfile(driver_dir)
+                            self._send_json({{'ok': True, 'message': '드라이버 설치 폴더를 열었습니다.'}})
+                        else:
+                            self._send_json({{'ok': False, 'error': '드라이버 폴더를 찾을 수 없습니다.'}}, 404)
+                    except Exception as e:
+                        self._send_json({{'ok': False, 'error': str(e)}}, 500)
+                    return
+
                 else:
                     super().do_POST()
 
@@ -853,9 +984,19 @@ def package(dist_dir: str):
         '--windowed',
         '--hidden-import=pyvisa',
         '--hidden-import=updater_backend',
+        '--hidden-import=win32print',
+        '--hidden-import=win32ui',
+        '--hidden-import=win32gui',
+        '--hidden-import=win32con',
+        '--hidden-import=PIL',
+        '--hidden-import=PIL.Image',
+        '--hidden-import=PIL.ImageWin',
+        '--exclude-module=PyQt5',
+        '--exclude-module=PyQt6',
         f'--name={exe_name}',
         f'--version-file={version_file}',
         f'--add-data={dist_dir}{os.pathsep}{bundle_dir}',
+        f'--add-data={os.path.join(root, "scripts", "updater_gui.ps1")}{os.pathsep}scripts',
         f'--distpath={staging_out_dir}',
         f'--workpath={build_tmp}',
         f'--specpath={build_tmp}',
@@ -881,10 +1022,10 @@ def package(dist_dir: str):
         os.makedirs(out_dir, exist_ok=True)
         try:
             os.replace(staged_exe, exe_path)
-            removed = _remove_other_release_exes(out_dir, exe_path)
-            print(f"\n[완료] 기존 EXE를 최신 빌드로 교체함: {exe_path}")
+            removed = _clean_dist_folder(out_dir, exe_path)
+            print(f"\n[완료] 최신 단독 EXE 생성 완료: {exe_path}")
             if removed:
-                print(f"[정리] 이전 통합 EXE {len(removed)}개 제거")
+                print(f"[정리] dist 폴더 내 부속 폴더 및 불필요한 파일 {len(removed)}개 정리 완료 (단일 EXE만 유지)")
         except PermissionError:
             print(f"\n[알림] 대상 EXE({exe_path})가 실행 중이어서 dist 교체를 건너뛰었습니다. (빌드 결과는 {staged_exe}에 보존됨)")
     else:

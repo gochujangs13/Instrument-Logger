@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>Updater UI Mock Preview</title>
+  <link rel="stylesheet" href="../index.css">
+  <style>
+    body { background: #0b1120; color: #fff; font-family: sans-serif; padding: 40px; }
+  </style>
+</head>
+<body>
+  <h1>Auto-Updater Preview Test</h1>
+  <script type="module">
+    import { AppUpdater } from '../updater.js';
+    const updater = new AppUpdater();
+    // 1. 모달 먼저 생성
+    updater.showUpdateModal({
+      current_version: '1.0.0-rc.6',
+      latest_version: '1.0.1',
+      asset_name: '3M_Instrument_Logger.exe',
+      asset_size: 157286400,
+      release_notes: '### 🚀 v1.0.1 주요 패치 내역\n• [PST-3202] 실시간 전류 그래프 버그 수정\n• [에칭 캐드] 4포인트 대칭 브릿지 연동\n• [공통] 무중단 자동 업데이트 시스템 탑재'
+    });
+
+    // 2. 0.2초 후 다운로드 게이지 모드로 전환 (65%)
+    setTimeout(() => {
+      updater.startDownloadFlow({
+        asset_id: 12345,
+        asset_name: '3M_Instrument_Logger.exe',
+        asset_size: 157286400
+      });
+      setTimeout(() => {
+        const fill = document.getElementById('updaterProgressFill');
+        const pct = document.getElementById('updaterPctText');
+        const bytes = document.getElementById('updaterBytesText');
+        const speed = document.getElementById('updaterSpeedTag');
+        if (fill) fill.style.width = '65%';
+        if (pct) pct.textContent = '65%';
+        if (bytes) bytes.textContent = '102.2 MB / 157.3 MB';
+        if (speed) speed.textContent = '14.8 MB/s';
+      }, 100);
+    }, 200);
+  </script>
+</body>
+</html>

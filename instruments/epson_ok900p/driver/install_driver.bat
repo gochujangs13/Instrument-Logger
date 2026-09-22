@@ -11,7 +11,7 @@ echo.
 net session >nul 2>&1
 if %errorLevel% neq 0 (
     echo [안내] 관리자 권한이 필요합니다. 권한 승격을 요청합니다...
-    powershell -Command "Start-Process cmd -ArgumentList '/c \"\"%~f0\"\"' -Verb RunAs"
+    powershell -NoProfile -Command "Start-Process -FilePath cmd.exe -WorkingDirectory '%~dp0' -ArgumentList '/k \"%~nx0\"' -Verb RunAs"
     exit /b
 )
 

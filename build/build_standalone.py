@@ -205,6 +205,9 @@ def build(names: list[str], root: str):
                 shutil.rmtree(ok_dst)
             shutil.copytree(ok_src, ok_dst)
             print("  복사: instruments/epson_ok900p/ (드라이버 및 패키지 전체)")
+        init_py = os.path.join(root, 'instruments', '__init__.py')
+        if os.path.exists(init_py):
+            copy_build_file(init_py, os.path.join(dist_dir, 'instruments', '__init__.py'))
 
     # ── standalone_entry.js 생성 ─────────────────────────────────────────
     entry_js = make_standalone_entry(names)
